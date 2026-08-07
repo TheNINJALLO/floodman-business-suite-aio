@@ -1,0 +1,141 @@
+name: Build Floodman Operations AIO v3.4.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'floodman-source.zip'
+      - '.github/workflows/build-floodman-aio-v3.4.0.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: floodman-aio-v3.4.0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Floodman source bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f floodman-source.zip || { echo 'Upload floodman-source.zip to the repository root.'; exit 1; }
+          python - <<'PY'
+          import pathlib, zipfile
+          archive = pathlib.Path('floodman-source.zip')
+          with zipfile.ZipFile(archive) as z:
+              names = set(z.namelist())
+              required = {
+                  'floodman-source/VERSION',
+                  'floodman-source/source.json',
+                  'floodman-source/MANIFEST.sha256',
+                  'floodman-source/overlay/opt/floodman/aio/start-suite.sh',
+                  'floodman-source/overlay/opt/floodman/hub/hub.js',
+                  'floodman-source/overlay/opt/floodman/office-console/app/customer_csv.py',
+              }
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f'Missing required source paths: {missing}')
+              if any(name.startswith('/') or '..' in pathlib.PurePosixPath(name).parts for name in names):
+                  raise SystemExit('Unsafe path found in floodman-source.zip')
+              version = z.read('floodman-source/VERSION').decode().strip()
+              if version != '3.4.0':
+                  raise SystemExit(f'Expected source version 3.4.0, got {version!r}')
+          print('Floodman source archive structure is valid.')
+          PY
+
+      - name: Create derivative runtime Dockerfile
+        shell: bash
+        run: |
+          cat > Dockerfile.floodman-v3.4.0 <<'DOCKERFILE'
+          FROM ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2
+
+          LABEL org.opencontainers.image.title="Floodman Operations AIO"
+          LABEL org.opencontainers.image.description="Floodman-branded Pterodactyl AIO with mobile-first operations, Matter client CSV import, signed-document filing, and customer files."
+          LABEL org.opencontainers.image.version="3.4.0"
+          LABEL org.opencontainers.image.authors="Josh Aldrich"
+          LABEL org.opencontainers.image.source="https://github.com/TheNINJALLO/floodman-business-suite-aio"
+
+          USER root
+          COPY floodman-source.zip /tmp/floodman-source.zip
+          RUN rm -rf /tmp/floodman-source \
+              && mkdir -p /tmp/floodman-source \
+              && unzip -q /tmp/floodman-source.zip -d /tmp/floodman-source \
+              && cd /tmp/floodman-source/floodman-source \
+              && test "$(cat VERSION)" = "3.4.0" \
+              && sha256sum -c MANIFEST.sha256 \
+              && rm -rf /opt/floodman \
+              && mkdir -p /opt/floodman \
+              && cp -a overlay/opt/floodman/. /opt/floodman/ \
+              && chmod 0755 /opt/floodman/aio/*.sh \
+              && chmod -R a+rX /opt/floodman \
+              && printf '%s\n' '3.4.0' > /opt/floodman/RUNTIME_VERSION \
+              && rm -rf /tmp/floodman-source /tmp/floodman-source.zip
+
+          ENV FLOODMAN_CREATOR_NAME="Josh Aldrich"
+          ENV FLOODMAN_PRODUCT_NAME="Floodman Operations"
+          ENV FLOODMAN_SOURCE_VERSION="3.4.0"
+
+          USER container
+          WORKDIR /home/container
+          ENTRYPOINT ["/usr/local/bin/floodman-pterodactyl-entrypoint"]
+          CMD ["bash", "./mobile-start.sh"]
+          DOCKERFILE
+
+      - name: Validate visible-brand and feature files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf source-check
+          unzip -q floodman-source.zip -d source-check
+          cd source-check/floodman-source
+          sha256sum -c MANIFEST.sha256 >/dev/null
+          grep -F 'Created by Josh Aldrich' overlay/opt/floodman/office-console/app/ui.py
+          grep -F 'Customer Files' overlay/opt/floodman/hub/hub.js
+          grep -F '/internal/v1/client-files/attach' overlay/opt/floodman/office-console/app/main.py
+          grep -F '/office/imports/customers/upload' overlay/opt/floodman/office-console/app/main.py
+          grep -F 'MATTER_CLIENT_EXPORT_V1' overlay/opt/floodman/office-console/app/customer_csv.py
+          grep -F 'duplicate_contact_rows_merged' overlay/opt/floodman/office-console/app/customer_csv.py
+          grep -F 'source_records' overlay/opt/floodman/office-console/app/customer_csv.py
+          grep -F 'mobile-bottom-nav' overlay/opt/floodman/office-console/app/ui.py
+          grep -F 'data-label' overlay/opt/floodman/office-console/app/ui.py
+          grep -F 'fm-hub-mobile-dock' overlay/opt/floodman/hub/hub.css
+          grep -F 'mobileItems' overlay/opt/floodman/hub/hub.js
+          ! grep -F 'Gauzy' overlay/opt/floodman/hub/starting.html
+          ! grep -F 'Gauzy' overlay/opt/floodman/office-console/app/ui.py
+          ! grep -F 'Gauzy' overlay/opt/floodman/office-console/app/main.py
+          echo 'Floodman visible-brand and workflow checks passed.'
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Floodman Operations v3.4.0
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.floodman-v3.4.0
+          platforms: linux/amd64
+          pull: true
+          push: true
+          tags: |
+            ghcr.io/theninjallo/floodman-business-suite-aio:3.4.0
+            ghcr.io/theninjallo/floodman-business-suite-aio:3.2.0
+            ghcr.io/theninjallo/floodman-business-suite-aio:latest-mobile-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
