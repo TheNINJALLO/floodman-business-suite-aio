@@ -1,0 +1,58 @@
+(() => {
+  'use strict';
+
+  const raw = {
+    title: "${HUB_TITLE}",
+    release: "${HUB_RELEASE}",
+    officeUrl: "${HUB_OFFICE_URL}",
+    roomflowUrl: "${HUB_ROOMFLOW_URL}",
+    documensoUrl: "${HUB_DOCUMENSO_URL}",
+    mailpitUrl: "${HUB_MAILPIT_URL}",
+    engineeringUrl: "${HUB_ENGINEERING_URL}",
+    apiUrl: "${HUB_API_URL}",
+    competitorUrl: "${HUB_COMPETITOR_URL}",
+    syncStatusUrl: "${HUB_SYNC_STATUS_URL}",
+    remoteAccessEnabled: String("${HUB_REMOTE_ACCESS_ENABLED}").toLowerCase() === 'true',
+    remoteDocumensoPort: Number("${HUB_REMOTE_DOCUMENSO_PORT}" || 8443),
+    remoteMailpitPort: Number("${HUB_REMOTE_MAILPIT_PORT}" || 8444),
+    remoteEngineeringPort: Number("${HUB_REMOTE_ENGINEERING_PORT}" || 8445),
+    remoteApiPort: Number("${HUB_REMOTE_API_PORT}" || 8446),
+    remoteDocumensoUrl: "${HUB_REMOTE_DOCUMENSO_URL}",
+    remoteMailpitUrl: "${HUB_REMOTE_MAILPIT_URL}",
+    remoteEngineeringUrl: "${HUB_REMOTE_ENGINEERING_URL}",
+    remoteApiUrl: "${HUB_REMOTE_API_URL}"
+  };
+
+  const localHostnames = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+  const isRemoteBrowser = !localHostnames.has(window.location.hostname);
+  const useRemote = raw.remoteAccessEnabled && isRemoteBrowser;
+  const currentOrigin = window.location.origin.replace(/\/+$/, '');
+  const remoteScheme = window.location.protocol === 'https:' ? 'https:' : window.location.protocol;
+  const remoteHost = window.location.hostname;
+
+  const normalized = (value) => String(value || '').trim().replace(/\/+$/, '');
+  const portUrl = (port, path = '') => `${remoteScheme}//${remoteHost}:${port}${path}`;
+  const chooseRemote = (localValue, explicitRemoteValue, port, path = '') => {
+    if (!useRemote) return normalized(localValue);
+    const explicit = normalized(explicitRemoteValue);
+    return explicit || portUrl(port, path);
+  };
+
+  window.FLOODMAN_HUB_CONFIG = Object.freeze({
+    title: raw.title,
+    release: raw.release,
+    officeUrl: useRemote ? currentOrigin : normalized(raw.officeUrl),
+    roomflowUrl: normalized(raw.roomflowUrl),
+    documensoUrl: chooseRemote(raw.documensoUrl, raw.remoteDocumensoUrl, raw.remoteDocumensoPort),
+    mailpitUrl: chooseRemote(raw.mailpitUrl, raw.remoteMailpitUrl, raw.remoteMailpitPort),
+    engineeringUrl: chooseRemote(raw.engineeringUrl, raw.remoteEngineeringUrl, raw.remoteEngineeringPort, '/lab'),
+    apiUrl: chooseRemote(raw.apiUrl, raw.remoteApiUrl, raw.remoteApiPort, '/docs'),
+    competitorUrl: useRemote ? `${currentOrigin}/office/intelligence` : normalized(raw.competitorUrl),
+    syncStatusUrl: useRemote ? `${currentOrigin}/office/platform` : normalized(raw.syncStatusUrl),
+    remoteAccess: Object.freeze({
+      enabled: useRemote,
+      hostname: remoteHost,
+      origin: currentOrigin
+    })
+  });
+})();

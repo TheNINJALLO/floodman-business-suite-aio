@@ -1,0 +1,20 @@
+{
+  "service": "floodman-pwa",
+  "release": "4.6.7",
+  "manifest": "/manifest.webmanifest",
+  "service_worker": "/floodman-sw.js",
+  "install_page": "/install-app",
+  "start_url": "/workspace?source=pwa&release=4.6.7",
+  "https_required_for_public_install": true,
+  "desktop_url": "/office/desktop?desktop=1",
+  "mobile_url": "/office/mobile?mobile=1",
+  "routing": "explicit desktop/mobile shells override viewport media queries",
+  "root_url": "/workspace?source=root&workspace=auto",
+  "full_erp_url": "/full-erp",
+  "connection_probe": "/office-health/live",
+  "navigation_recovery": "Office routes wait for the server; hub-online failures show the starting page instead of a false offline page",
+  "full_erp_routing": "authentication-aware launcher selects /auth/login or /pages/dashboard before loading Angular",
+  "full_erp_login": "/full-erp?target=login",
+  "full_erp_dashboard": "/full-erp?target=dashboard",
+  "erp_auth_behavior": "HTTP 200 false opens the ERP login; authenticated sessions open the dashboard"
+}

@@ -1,0 +1,18 @@
+FLOODMAN OPERATIONS SOURCE HANDOFF
+==================================
+
+Current custom server: 4.6.7
+Android: 0.3.0-alpha11
+Apple: 0.1.0-alpha02
+RoomFlow commit: 1f97817a52b916875e50cc6380c0d284072b8ce8
+
+1. Open floodman.code-workspace in VS Code.
+2. Read AGENTS.md and PROJECT_STATUS.md.
+3. Read docs/COMPLETE_CHAT_RUNDOWN.md.
+4. Run: python3 scripts/generate_inventory.py
+5. Run: python3 scripts/verify_repo.py
+6. Commit and tag the untouched baseline before changing code.
+
+No live customers, databases, payment tokens, Tailscale keys, passwords, or Apple signing files are included.
+
+The latest unresolved live boundary was Full ERP browser routing. The v4.6.7 source contains the intended repair, but it still needs validation on the actual Pterodactyl/Tailscale node.

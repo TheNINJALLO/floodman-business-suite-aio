@@ -1,0 +1,1 @@
+The GitHub workflow downloads the pinned RoomFlow engine and local vendor libraries before Gradle compiles the APK.

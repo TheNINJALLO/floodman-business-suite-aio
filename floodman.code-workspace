@@ -1,0 +1,28 @@
+{
+  "folders": [
+    { "name": "Floodman root", "path": "." },
+    { "name": "Server", "path": "server" },
+    { "name": "Android", "path": "apps/android" },
+    { "name": "Apple", "path": "apps/ios" }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/.gradle": true,
+      "**/build": true,
+      "vendor/roomflow/source": true
+    },
+    "search.exclude": {
+      "release-artifacts": true,
+      "provenance": true,
+      "**/build": true
+    },
+    "python.analysis.extraPaths": [
+      "${workspaceFolder}/server/orchestrator",
+      "${workspaceFolder}/server/office-console",
+      "${workspaceFolder}/server/messaging-ai",
+      "${workspaceFolder}/server/competitor-intel",
+      "${workspaceFolder}/server/local-lab"
+    ]
+  }
+}

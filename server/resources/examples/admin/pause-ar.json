@@ -1,0 +1,5 @@
+{
+  "idempotency_key": "staff-pause-case-20260804-001",
+  "hold_type": "DISPUTE",
+  "reason": "Customer reports incomplete work. Manager review required."
+}

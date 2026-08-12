@@ -1,0 +1,6 @@
+{
+  "idempotency_key": "staff-consent-case-20260804-001",
+  "status": "OPTED_IN",
+  "source": "STAFF_VERIFIED_DOCUMENT",
+  "disclosure_version": "floodman-transactional-sms-v1"
+}

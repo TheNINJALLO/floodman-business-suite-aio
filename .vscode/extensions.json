@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "redhat.vscode-yaml",
+    "timonwong.shellcheck",
+    "ms-azuretools.vscode-docker",
+    "fwcd.kotlin",
+    "sswg.swift-lang",
+    "eamodio.gitlens",
+    "github.vscode-github-actions"
+  ]
+}

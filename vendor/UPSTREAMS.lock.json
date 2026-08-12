@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "generated_for": "Floodman Operations v4.6.7 VS Code and Codex handoff",
+  "components": [
+    {
+      "name": "Floodman custom server source",
+      "location": "server/",
+      "version": "4.6.7",
+      "included": true,
+      "notes": "Complete custom overlay source included."
+    },
+    {
+      "name": "Floodman Android",
+      "location": "apps/android/",
+      "version": "0.3.0-alpha11",
+      "included": true,
+      "notes": "Native Kotlin and Jetpack Compose source included."
+    },
+    {
+      "name": "Floodman iOS",
+      "location": "apps/ios/",
+      "version": "0.1.0-alpha02",
+      "included": true,
+      "notes": "Native SwiftUI source included."
+    },
+    {
+      "name": "RoomFlow",
+      "repository": "https://github.com/TheNINJALLO/roomflow.git",
+      "commit": "1f97817a52b916875e50cc6380c0d284072b8ce8",
+      "included": false,
+      "fetch": "scripts/fetch-roomflow.sh or scripts/fetch-roomflow.ps1",
+      "notes": "Pinned external repository. Do not silently advance the commit."
+    },
+    {
+      "name": "Gauzy API",
+      "image": "ghcr.io/ever-co/gauzy-api:latest",
+      "included": false,
+      "notes": "Upstream source is not copied into this archive. Replace mutable tag with an immutable digest."
+    },
+    {
+      "name": "Gauzy Web",
+      "image": "ghcr.io/ever-co/gauzy-webapp:latest",
+      "included": false,
+      "notes": "Upstream source is not copied into this archive. Replace mutable tag with an immutable digest."
+    },
+    {
+      "name": "Documenso",
+      "image": "documenso/documenso:v2.11.0",
+      "included": false,
+      "notes": "Signing runtime composed into the AIO image. Review license and source-offer obligations."
+    },
+    {
+      "name": "Mailpit",
+      "image": "axllent/mailpit:latest",
+      "included": false,
+      "notes": "Local email capture. Pin an immutable version or digest."
+    },
+    {
+      "name": "Square",
+      "included": false,
+      "notes": "External payment processor. Use tokenization only. Never store PAN or CVV."
+    },
+    {
+      "name": "Tailscale",
+      "version": "launcher default 1.102.2",
+      "included": false,
+      "notes": "Private access and temporary public Funnel gateway."
+    }
+  ]
+}

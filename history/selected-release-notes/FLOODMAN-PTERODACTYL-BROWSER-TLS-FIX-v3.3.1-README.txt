@@ -1,0 +1,65 @@
+Floodman Operations Pterodactyl Mobile Fix v3.3.1
+=================================================
+
+This fixes two independent items:
+
+1. The Floodman ERP recovery page appeared even though the Hub and API both
+   returned HTTP 200. The API returns the JSON value false with HTTP 200 when
+   the browser is not logged in. v3.3.0 treated that response as a healthy,
+   authenticated browser and waited on /#/pages. v3.3.1 reads the response
+   body and routes an unauthenticated browser directly to /#/auth/login.
+
+2. A competitor target with an invalid TLS hostname no longer floods the
+   Pterodactyl console with a full traceback. Floodman records a concise target
+   error and keeps certificate verification enabled. The current Groundworks
+   monitor must be edited from https://groundworks.co to:
+
+       https://www.groundworks.com/
+
+INSTALL FROM MOBILE
+-------------------
+
+1. In Pterodactyl, press Stop and wait for Offline.
+2. Open Files at the server root.
+3. Rename mobile-start.sh to mobile-start-v3.3.0.backup.sh.
+4. Upload mobile-start-v3.3.1.sh to the server root.
+5. Rename mobile-start-v3.3.1.sh to mobile-start.sh.
+6. In Startup, leave Source Mode set to builtin.
+7. Start the server and wait for FLOODMAN_SUITE_READY.
+8. Open:
+
+   http://YOUR-HOST:9000/?floodman-release=3.3.1
+
+The browser should automatically route to the Floodman login when it is not
+already authenticated. After login, a bare /#/pages route is normalized to the
+dashboard.
+
+FIX THE GROUNDWORKS MONITOR
+---------------------------
+
+After signing in:
+
+Floodman launcher -> Competitor Intelligence -> Groundworks -> Edit
+
+Set Public website URL to:
+
+https://www.groundworks.com/
+
+Save, then select Run now.
+
+DO NOT disable TLS verification. The old groundworks.co address presents a
+certificate that does not match that hostname, and Floodman correctly rejected
+it.
+
+DATA SAFETY
+-----------
+
+This replacement does not delete PostgreSQL, owners, contacts, properties,
+estimates, invoices, payments, documents, signing data, competitor history,
+configuration, or backups.
+
+ROLLBACK
+--------
+
+Stop the server, delete mobile-start.sh, rename
+mobile-start-v3.3.0.backup.sh back to mobile-start.sh, and start the server.

@@ -1,0 +1,2 @@
+﻿customer_id,first_name,last_name,company,email,phone,street,address_line_2,city,state,postal_code,lead_source,notes
+customer-0001,Jane,Customer,,jane.customer@example.com,+13135550199,100 Main Street,,Detroit,MI,48201,Referral,Example row. Delete it before importing real customers.

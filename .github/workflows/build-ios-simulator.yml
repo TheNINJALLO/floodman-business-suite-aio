@@ -1,0 +1,35 @@
+name: Build Floodman iOS simulator
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/ios/**'
+      - 'vendor/roomflow/**'
+      - 'scripts/fetch-roomflow.sh'
+      - '.github/workflows/build-ios-simulator.yml'
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Prepare RoomFlow assets
+        working-directory: apps/ios
+        run: bash scripts/prepare-roomflow-assets.sh
+      - name: Generate Xcode project
+        working-directory: apps/ios
+        run: xcodegen generate
+      - name: Build unsigned simulator application
+        working-directory: apps/ios
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+        run: |
+          xcodebuild             -project FloodmanOperations.xcodeproj             -scheme FloodmanOperations             -sdk iphonesimulator             -configuration Debug             -derivedDataPath DerivedData             CODE_SIGNING_ALLOWED=NO             build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Floodman-Operations-iOS-0.1.0-alpha02-simulator
+          path: apps/ios/DerivedData/Build/Products/Debug-iphonesimulator/FloodmanOperations.app

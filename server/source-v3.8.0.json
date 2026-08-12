@@ -1,0 +1,77 @@
+{
+  "brand": "Floodman Operations",
+  "created_by": "Josh Aldrich",
+  "description": "Floodman Operations with RoomFlow embedded in the authenticated panel, professional CRM, private PWA, signing, Square billing, messaging, receivables, imports, and AI intelligence.",
+  "features": [
+    "Floodman RoomFlow field CAD integrated inside the authenticated Operations panel",
+    "same Floodman session and role permissions; no separate RoomFlow login",
+    "searchable customer and customer-filtered property selection for thousands of records",
+    "customer notes, pinned notes, tags, open balance and file links inside RoomFlow",
+    "durable RoomFlow layout snapshots stored with the customer and property",
+    "cross-device loading of previously saved RoomFlow jobs",
+    "one-click estimate creation/update and genuine Floodman ERP synchronization",
+    "professional customer CRM with complete customer profiles, tags, notes and activity history",
+    "searchable paginated customer directory for thousands of records",
+    "typeahead customer and property selectors for properties, estimates, invoices and signing",
+    "Square customer and tokenized card-on-file synchronization",
+    "Square-hosted opt-in card saving during invoice payment",
+    "explicit customer authorization controls for automatic invoice charging",
+    "due-now Square invoices with automatic CARD_ON_FILE collection when authorized",
+    "immediate, manual and background Square payment reconciliation",
+    "signed Payment Authorization reference assistance",
+    "customer CSV and archive ZIP import",
+    "signed documents attached to customer files",
+    "installable private PWA and full phone/tablet interface",
+    "quiet Pterodactyl console and Tailscale Serve private HTTPS compatibility",
+    "America/Detroit time zone"
+  ],
+  "mode": "Pterodactyl AIO runtime overlay",
+  "name": "Floodman Operations source overlay",
+  "payment_security": {
+    "autopay_requires_authorization": true,
+    "customer_opt_in_required_to_save_card": true,
+    "processor": "Square",
+    "stores_cvv": false,
+    "stores_provider_token": true,
+    "stores_raw_pan": false
+  },
+  "preserved_paths": [
+    "/home/container/data",
+    "/home/container/config",
+    "/home/container/backups",
+    "/home/container/diagnostics"
+  ],
+  "public_ports": [
+    9000,
+    9001,
+    9002,
+    9003,
+    9004
+  ],
+  "pwa": {
+    "install_page": "/install-app",
+    "manifest": "/manifest.webmanifest",
+    "offline_page": "/floodman-offline.html",
+    "public_install_requires_https": true,
+    "service_worker": "/floodman-sw.js",
+    "start_url": "/office/mobile?source=pwa"
+  },
+  "release": "pterodactyl-mobile-v3.8.0",
+  "roomflow": {
+    "customer_search": true,
+    "estimate_sync": true,
+    "extra_allocation_required": false,
+    "mobile_and_tablet_panel": true,
+    "notes_and_tags": true,
+    "persistent_snapshots": true,
+    "property_search_filtered_by_customer": true,
+    "same_floodman_session": true,
+    "same_origin": true,
+    "source_commit": "1f97817a52b916875e50cc6380c0d284072b8ce8",
+    "source_repository": "TheNINJALLO/roomflow",
+    "static_path": "/roomflow/",
+    "workspace": "/office/roomflow"
+  },
+  "runtime_compatibility": "3.2.2+",
+  "version": "3.8.0"
+}

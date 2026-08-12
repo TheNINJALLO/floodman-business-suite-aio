@@ -1,0 +1,393 @@
+name: Build Floodman Operations Android 0.3.0-alpha11
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - android-v0.3.0-alpha11
+    paths:
+      - 'floodman-android-source-v0.3.0-alpha11.zip'
+      - '.github/workflows/build-floodman-android-v0.3.0-alpha11.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floodman-android-v030-alpha11-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate and extract Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive='floodman-android-source-v0.3.0-alpha11.zip'
+          test -f "$archive" || { echo "Upload $archive to the repository root."; exit 1; }
+          rm -rf android-build
+
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          import zipfile
+
+          archive = Path('floodman-android-source-v0.3.0-alpha11.zip')
+          destination = Path('android-build')
+          required = {
+              'floodman-android/VERSION',
+              'floodman-android/SOURCE-MANIFEST.sha256',
+              'floodman-android/settings.gradle.kts',
+              'floodman-android/build.gradle.kts',
+              'floodman-android/app/build.gradle.kts',
+              'floodman-android/app/src/main/AndroidManifest.xml',
+              'floodman-android/app/src/main/java/com/floodman/operations/roomflow/RoomFlowActivity.kt',
+              'floodman-android/app/src/main/assets/roomflow/floodman-native-bridge.js',
+              'floodman-android/scripts/prepare-roomflow-assets.sh',
+          }
+          with zipfile.ZipFile(archive) as bundle:
+              names = set(bundle.namelist())
+              unsafe = [name for name in names if name.startswith('/') or '..' in PurePosixPath(name).parts]
+              if unsafe:
+                  raise SystemExit(f'Unsafe ZIP paths: {unsafe[:5]}')
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f'Missing required source files: {missing}')
+              bundle.extractall(destination)
+          root = destination / 'floodman-android'
+          if (root / 'VERSION').read_text().strip() != '0.3.0-alpha11':
+              raise SystemExit('The Android source VERSION is not 0.3.0-alpha11')
+          print('Android source archive structure is valid.')
+          PY
+
+          cd android-build/floodman-android
+          sha256sum -c SOURCE-MANIFEST.sha256
+
+      - name: Prepare pinned Floodman RoomFlow engine
+        working-directory: android-build/floodman-android
+        shell: bash
+        env:
+          ROOMFLOW_REF: 1f97817a52b916875e50cc6380c0d284072b8ce8
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-roomflow-assets.sh
+          test -s app/src/main/assets/roomflow/index.html
+          test -s app/src/main/assets/roomflow/app.js
+          test -s app/src/main/assets/roomflow/styles.css
+          test -s app/src/main/assets/roomflow/vendor/three.min.js
+          test -s app/src/main/assets/roomflow/floodman-native-bridge.js
+          node --check app/src/main/assets/roomflow/floodman-native-bridge.js
+          if grep -Eq 'supabase-service\.js|roomflow-integrations\.js|townsquare-integration\.js' app/src/main/assets/roomflow/index.html; then
+            echo 'The native RoomFlow shell still references a removed login or legacy integration script.'
+            exit 1
+          fi
+          if grep -Eq 'https://unpkg\.com/lucide|https://cdnjs\.cloudflare\.com/ajax/libs/three|cdn\.jsdelivr\.net/npm/three' app/src/main/assets/roomflow/index.html; then
+            echo 'The native RoomFlow shell still depends on a remote runtime library.'
+            exit 1
+          fi
+          find app/src/main/assets/roomflow -type f -print0 | sort -z | xargs -0 sha256sum > ROOMFLOW-ASSET-SHA256SUMS.txt
+          echo "Prepared $(wc -l < ROOMFLOW-ASSET-SHA256SUMS.txt) pinned RoomFlow assets."
+
+      - name: Validate Floodman Android feature boundary
+        working-directory: android-build/floodman-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          manifest = Path('app/src/main/AndroidManifest.xml')
+          ET.parse(manifest)
+          manifest_text = manifest.read_text()
+          ui = Path('app/src/main/java/com/floodman/operations/ui/FloodmanApp.kt').read_text()
+          api = Path('app/src/main/java/com/floodman/operations/data/FloodmanApi.kt').read_text()
+          models = Path('app/src/main/java/com/floodman/operations/data/Models.kt').read_text()
+          activity = Path('app/src/main/java/com/floodman/operations/roomflow/RoomFlowActivity.kt').read_text()
+          bridge = Path('app/src/main/assets/roomflow/floodman-native-bridge.js').read_text()
+          theme = Path('app/src/main/java/com/floodman/operations/ui/theme/Theme.kt').read_text()
+          build = Path('app/build.gradle.kts').read_text()
+          roomflow_html = Path('app/src/main/assets/roomflow/index.html').read_text()
+
+          checks = {
+              'cleartext HTTP disabled': 'android:usesCleartextTraffic="false"' in manifest_text,
+              'camera and microphone permissions': 'android.permission.CAMERA' in manifest_text and 'android.permission.RECORD_AUDIO' in manifest_text,
+              'version 0.3.0-alpha11': 'versionName = "0.3.0-alpha11"' in build and 'versionCode = 11' in build,
+              'full RoomFlow activity': 'class RoomFlowActivity' in activity and 'WebViewAssetLoader' in activity,
+              'bundled RoomFlow engine': 'Floodman RoomFlow' in roomflow_html and 'app.js' in roomflow_html,
+              'Floodman RoomFlow bridge': 'saveJob(JSON.stringify(this.payload()))' in bridge,
+              'actual layout capture': "toDataURL('image/jpeg'" in bridge,
+              'customer/property linking': 'searchCustomers' in bridge and 'searchProperties' in bridge,
+              'grouped estimate sync': 'sections()' in bridge and 'save_to_catalog' in bridge,
+              'RoomFlow create/update API': 'createRoomFlowJob' in api and 'updateRoomFlowJob' in api,
+              'RoomFlow bootstrap and secure migration': 'roomFlowBootstrap' in api and 'importRoomFlowSupabase' in api and 'showImportDialog' in bridge,
+              'RoomFlow snapshot restoration': 'val snapshot: JsonObject' in models and 'receiveBootstrap' in bridge and 'native.selectJob' in bridge,
+              'RoomFlow workspace models': 'data class RoomFlowWorkspace' in models and 'selectedWorkspaceId' in models and 'activeWorkspace' in models,
+              'encrypted workspace API': 'createRoomFlowWorkspace' in api and 'selectRoomFlowWorkspace' in api,
+              'native workspace bridge': 'applyWorkspace' in bridge and 'state.currentOrganization' in bridge and 'native.selectWorkspace' in bridge and 'native.createWorkspace' in bridge,
+              'workspace-scoped save payload': 'workspace_id' in bridge and 'workspaceId' in models,
+              'workspace capability contract': 'roomflow.workspaces.v1' in Path('app/src/main/java/com/floodman/operations/ui/MainViewModel.kt').read_text(),
+              'matched v4.6.3 server contract': 'requires Floodman server v4.6.3' in api,
+              'guarded PDF downloads': 'requirePdf = true' in api and '%PDF-' in api and 'application/pdf' in api,
+              'Supabase credentials are transient': 'type="password"' in bridge and "passwordInput.value = ''" in bridge,
+              'editable header title': 'var title by mutableStateOf(title)' in ui,
+              'estimate lifecycle': 'send_work_authorization' in ui and 'convert_to_invoice' in ui,
+              'invoice lifecycle': 'InvoiceWorkspaceScreen' in ui and 'void' in ui,
+              'payment capture': 'PaymentDialog' in ui and 'CARD_BY_PHONE' in ui,
+              'calendar': 'CalendarScreen' in ui and 'AppointmentDialog' in ui,
+              'employee assignment': 'assignedUserIds' in models and 'leadUserId' in models,
+              'tasks and documents': 'TasksScreen' in ui and 'DocumentsScreen' in ui,
+              'announcements and notifications': 'AnnouncementsScreen' in ui and 'NotificationsScreen' in ui,
+              'dark mode': 'darkColorScheme' in theme and 'isSystemInDarkTheme' in theme,
+              'no Tailscale dependency': 'tailscale' not in build.lower(),
+          }
+          failed = [name for name, value in checks.items() if not value]
+          for name, value in checks.items():
+              print(f'{"PASS" if value else "FAIL"}: {name}')
+          if failed:
+              raise SystemExit('Feature validation failed: ' + ', '.join(failed))
+          PY
+
+      - name: Validate Compose extension imports
+        working-directory: android-build/floodman-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          ui='app/src/main/java/com/floodman/operations/ui/FloodmanApp.kt'
+          grep -Fq 'import androidx.compose.foundation.clickable' "$ui"
+          grep -Fq 'import androidx.compose.foundation.horizontalScroll' "$ui"
+
+      - name: Validate observable state JVM accessor names
+        working-directory: android-build/floodman-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          view_model = Path('app/src/main/java/com/floodman/operations/ui/MainViewModel.kt').read_text()
+          app_ui = Path('app/src/main/java/com/floodman/operations/ui/FloodmanApp.kt').read_text()
+          if 'fun setAppearanceMode(' in view_model:
+              raise SystemExit('MainViewModel.setAppearanceMode collides with the generated JVM setter for appearanceMode.')
+          if 'fun updateAppearanceMode(value: String)' not in view_model:
+              raise SystemExit('The non-conflicting updateAppearanceMode action is missing.')
+          if 'viewModel.updateAppearanceMode(choice)' not in app_ui:
+              raise SystemExit('The Settings screen is not using updateAppearanceMode.')
+          print('Observable appearance state and its action have distinct JVM signatures.')
+          PY
+
+      - name: Validate Android 16 predictive back navigation
+        working-directory: android-build/floodman-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          activity='app/src/main/java/com/floodman/operations/roomflow/RoomFlowActivity.kt'
+          grep -Fq 'import androidx.activity.OnBackPressedCallback' "$activity"
+          grep -Fq 'onBackPressedDispatcher.addCallback' "$activity"
+          grep -Fq 'override fun handleOnBackPressed()' "$activity"
+          grep -Fq 'finishAfterTransition()' "$activity"
+          if grep -Fq 'override fun onBackPressed()' "$activity"; then
+            echo 'RoomFlowActivity still overrides deprecated Activity.onBackPressed().'
+            exit 1
+          fi
+          if grep -Fq 'databaseEnabled = true' "$activity"; then
+            echo 'RoomFlowActivity still enables the deprecated WebView database flag.'
+            exit 1
+          fi
+          echo 'RoomFlow uses AndroidX predictive-back-compatible navigation.'
+
+      - name: Validate RoomFlow workspace integration
+        working-directory: android-build/floodman-android
+        shell: bash
+        run: |
+          set -euo pipefail
+          models='app/src/main/java/com/floodman/operations/data/Models.kt'
+          api='app/src/main/java/com/floodman/operations/data/FloodmanApi.kt'
+          repository='app/src/main/java/com/floodman/operations/data/SessionRepository.kt'
+          activity='app/src/main/java/com/floodman/operations/roomflow/RoomFlowActivity.kt'
+          bridge='app/src/main/assets/roomflow/floodman-native-bridge.js'
+          view_model='app/src/main/java/com/floodman/operations/ui/MainViewModel.kt'
+          grep -Fq 'data class RoomFlowWorkspace' "$models"
+          grep -Fq 'data class RoomFlowWorkspaceResponse' "$models"
+          grep -Fq 'createRoomFlowWorkspace' "$api"
+          grep -Fq 'selectRoomFlowWorkspace' "$api"
+          grep -Fq 'createRoomFlowWorkspace' "$repository"
+          grep -Fq '@JavascriptInterface fun selectWorkspace' "$activity"
+          grep -Fq '@JavascriptInterface fun createWorkspace' "$activity"
+          grep -Fq 'state.currentOrganization' "$bridge"
+          grep -Fq 'native.selectWorkspace' "$bridge"
+          grep -Fq 'native.createWorkspace' "$bridge"
+          grep -Fq 'workspace_id' "$bridge"
+          grep -Fq 'roomflow.workspaces.v1' "$view_model"
+          grep -Fq 'requires Floodman server v4.6.3' "$api"
+          node --check "$bridge"
+          echo 'RoomFlow workspace bridge and matched server contract are present.'
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore stable internal-test debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: floodman-android-alpha-debug-keystore-v1
+
+      - name: Create internal-test debug signing key when absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          if [ ! -s "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname 'CN=Floodman Android Alpha,O=Floodman,C=US' \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+          fi
+          keytool -list -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            > debug-signing-certificate.txt
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses and install SDK packages
+        shell: bash
+        run: |
+          set +e
+          yes | sdkmanager --licenses >/dev/null 2>&1
+          license_status=${PIPESTATUS[1]}
+          set -e
+          if [ "$license_status" -ne 0 ]; then
+            echo "sdkmanager --licenses failed with exit code $license_status"
+            exit "$license_status"
+          fi
+          sdkmanager --install \
+            'platform-tools' \
+            'platforms;android-36' \
+            'build-tools;36.0.0'
+
+      - name: Set up Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Prepare optional release signing
+        id: signing
+        shell: bash
+        env:
+          FLOODMAN_KEYSTORE_BASE64: ${{ secrets.FLOODMAN_KEYSTORE_BASE64 }}
+          FLOODMAN_KEYSTORE_PASSWORD: ${{ secrets.FLOODMAN_KEYSTORE_PASSWORD }}
+          FLOODMAN_KEY_ALIAS: ${{ secrets.FLOODMAN_KEY_ALIAS }}
+          FLOODMAN_KEY_PASSWORD: ${{ secrets.FLOODMAN_KEY_PASSWORD }}
+        run: |
+          if [ -n "$FLOODMAN_KEYSTORE_BASE64" ] && [ -n "$FLOODMAN_KEYSTORE_PASSWORD" ] && [ -n "$FLOODMAN_KEY_ALIAS" ] && [ -n "$FLOODMAN_KEY_PASSWORD" ]; then
+            printf '%s' "$FLOODMAN_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/floodman-release.jks"
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compile Android Kotlin sources
+        working-directory: android-build/floodman-android
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+          SQUARE_APPLICATION_ID: ${{ vars.SQUARE_APPLICATION_ID }}
+        run: |
+          set -o pipefail
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
+          gradle --no-daemon --stacktrace --console=plain :app:compileDebugKotlin 2>&1 | tee ../../gradle-compile.log
+
+      - name: Run Android unit tests and lint
+        working-directory: android-build/floodman-android
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+          SQUARE_APPLICATION_ID: ${{ vars.SQUARE_APPLICATION_ID }}
+        run: |
+          set -o pipefail
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
+          gradle --no-daemon --stacktrace --console=plain \
+            :app:testDebugUnitTest \
+            :app:lintDebug 2>&1 | tee ../../gradle-quality.log
+
+      - name: Build Android APK and App Bundle
+        working-directory: android-build/floodman-android
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+          SQUARE_APPLICATION_ID: ${{ vars.SQUARE_APPLICATION_ID }}
+          FLOODMAN_KEYSTORE_PATH: ${{ steps.signing.outputs.enabled == 'true' && format('{0}/floodman-release.jks', runner.temp) || '' }}
+          FLOODMAN_KEYSTORE_PASSWORD: ${{ secrets.FLOODMAN_KEYSTORE_PASSWORD }}
+          FLOODMAN_KEY_ALIAS: ${{ secrets.FLOODMAN_KEY_ALIAS }}
+          FLOODMAN_KEY_PASSWORD: ${{ secrets.FLOODMAN_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
+          gradle --no-daemon --stacktrace --console=plain \
+            :app:assembleDebug \
+            :app:assembleRelease \
+            :app:bundleRelease 2>&1 | tee ../../gradle-build.log
+
+      - name: Collect Android outputs and checksums
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          find android-build/floodman-android/app/build/outputs -type f \
+            \( -name '*.apk' -o -name '*.aab' -o -name 'lint-results-debug.html' \) \
+            -exec cp {} artifacts/ \;
+          find android-build/floodman-android/app/build/reports/tests -type f -name 'index.html' \
+            -exec cp {} artifacts/test-results.html \; || true
+          cp gradle-compile.log gradle-quality.log gradle-build.log artifacts/ 2>/dev/null || true
+          cp debug-signing-certificate.txt artifacts/ 2>/dev/null || true
+          cp android-build/floodman-android/VERSION artifacts/VERSION
+          cp android-build/floodman-android/ROOMFLOW-ASSET-SHA256SUMS.txt artifacts/ 2>/dev/null || true
+          (cd artifacts && sha256sum * > SHA256SUMS.txt)
+          ls -lh artifacts
+
+      - name: Upload Android build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Floodman-Operations-Android-v0.3.0-alpha11
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Android build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Floodman-Operations-Android-v0.3.0-alpha11-build-diagnostics
+          path: |
+            gradle-compile.log
+            gradle-quality.log
+            gradle-build.log
+            android-build/floodman-android/ROOMFLOW-ASSET-SHA256SUMS.txt
+            android-build/floodman-android/build/reports/
+            android-build/floodman-android/app/build/reports/
+            android-build/floodman-android/app/build/outputs/logs/
+          if-no-files-found: ignore
+          retention-days: 14

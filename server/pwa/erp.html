@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#102443">
+  <meta name="author" content="Josh Aldrich">
+  <meta http-equiv="cache-control" content="no-store">
+  <title>Opening Floodman ERP</title>
+  <style>
+    :root{color-scheme:dark}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 75% -5%,#19456d 0,#07111f 48%);color:#edf4ff;font:16px/1.5 Segoe UI,Arial,sans-serif}.card{width:min(580px,100%);padding:30px;border:1px solid #29415f;border-radius:20px;background:#101d2f;box-shadow:0 24px 70px #0008}.eyebrow{font-size:12px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:#7dd3fc}h1{margin:9px 0 8px;font-size:28px}.muted{color:#b7c8dc}.status{margin:18px 0;padding:13px 14px;border:1px solid #315f84;border-radius:12px;background:#0a192b}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.button,button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;border:0;border-radius:11px;padding:11px 15px;background:#1888d4;color:#fff;font:800 14px/1.2 inherit;text-decoration:none;cursor:pointer}.secondary{background:#263e59}.spinner{width:38px;height:38px;margin:20px auto 0;border:4px solid #284765;border-top-color:#38bdf8;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="eyebrow">Floodman Operations</div>
+    <h1>Opening the full Floodman ERP</h1>
+    <p class="muted">Checking the ERP API and sending this browser to the correct login or dashboard route.</p>
+    <div id="status" class="status">Checking Floodman ERP authentication…</div>
+    <div class="spinner" aria-label="Loading"></div>
+    <div class="actions">
+      <button id="retry" type="button">Try again</button>
+      <a class="button secondary" href="/office/desktop?desktop=1">Return to Desktop Operations</a>
+      <a class="button secondary" href="/floodman-status.html">Runtime status</a>
+    </div>
+    <p class="muted" style="font-size:12px;margin:18px 0 0">Release 4.6.7 · Created by Josh Aldrich</p>
+  </main>
+<script>
+(() => {
+  'use strict';
+  const release = 'pterodactyl-mobile-v4.6.7';
+  const requested = String(new URLSearchParams(window.location.search).get('target') || 'auto').toLowerCase();
+  const status = document.getElementById('status');
+  const retry = document.getElementById('retry');
+  let attempts = 0;
+  let timer = 0;
+
+  function authenticated(payload) {
+    return payload === true || payload === 'true' || payload?.authenticated === true || Boolean(payload?.user?.id);
+  }
+
+  function target(isAuthenticated) {
+    let route;
+    if (requested === 'login') route = 'auth/login';
+    else if (requested === 'dashboard') route = isAuthenticated ? 'pages/dashboard' : 'auth/login';
+    else route = isAuthenticated ? 'pages/dashboard' : 'auth/login';
+    return `/index.html?desktop=1&fm=${encodeURIComponent(release)}#/${route}`;
+  }
+
+  async function openErp() {
+    clearTimeout(timer);
+    attempts += 1;
+    status.textContent = attempts > 1
+      ? `Checking Floodman ERP again… attempt ${attempts}`
+      : 'Checking Floodman ERP authentication…';
+    try {
+      const response = await fetch(`/api/auth/authenticated?fm=${Date.now()}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        headers: { accept: 'application/json,text/plain,*/*' }
+      });
+      const text = await response.text();
+      let payload = null;
+      try { payload = JSON.parse(text); } catch (_) { payload = text.trim(); }
+      if (response.status === 404 || response.status >= 500) throw new Error(`ERP API returned HTTP ${response.status}`);
+      const isAuthenticated = authenticated(payload);
+      status.textContent = isAuthenticated
+        ? 'ERP session found. Opening the dashboard…'
+        : 'Login required. Opening the Floodman ERP login…';
+      try {
+        localStorage.setItem('floodmanWorkspaceMode', 'desktop');
+        localStorage.setItem('floodmanDesktopMode', '1');
+      } catch (_) {}
+      window.location.replace(target(isAuthenticated));
+    } catch (error) {
+      status.textContent = `Floodman ERP is still starting: ${error && error.message ? error.message : 'connection unavailable'}`;
+      if (attempts < 15) timer = window.setTimeout(openErp, 2000);
+    }
+  }
+
+  retry.addEventListener('click', () => { attempts = 0; openErp(); });
+  openErp();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+# Version history
+
+## Server milestones
+
+| Version | Main purpose |
+|---|---|
+| 3.1.1 | First buildable Pterodactyl AIO source package |
+| 3.2.x | Mobile/Pterodactyl port, UID, database, and runtime fixes |
+| 3.3.x | Floodman rebrand, mobile egg, and browser TLS fixes |
+| 3.4.x to 3.6.x | PWA, Tailscale, console, and private/public access work |
+| 3.7.0 | Customer CRM and Square foundation |
+| 3.8.0 | RoomFlow integration |
+| 3.9.0 | Shared estimate catalog |
+| 4.0.0 | Branded payments and estimate/invoice templates |
+| 4.1.0 | Search-first estimate workspace and grouped scope |
+| 4.1.1 | Restart-safe PostgreSQL launcher |
+| 4.2.0 | Mobile API and Android enrollment |
+| 4.2.1 to 4.2.3 | Enrollment and public gateway fixes |
+| 4.4.0 | Native parity, scheduling, dark mode, and actual RoomFlow PDF logic |
+| 4.5.0 | Native RoomFlow packaging for Android and iOS |
+| 4.6.0 | Original RoomFlow Supabase migration and API compatibility contract |
+| 4.6.1 to 4.6.2 | Removed hard Pillow dependency |
+| 4.6.3 | RoomFlow organizations/workspaces |
+| 4.6.4 to 4.6.6 | Dedicated desktop/mobile PWA and false-offline repairs |
+| 4.6.7 | Authentication-aware Full ERP routing and HTTPS boot guard |
+
+## Android milestones
+
+| Version | Main purpose |
+|---|---|
+| 0.1.0 | First native Android alpha and Mobile API client |
+| 0.1.1 | Android SDK license workflow fix |
+| 0.1.2 | Kotlin compiler options migration |
+| 0.1.3 | Source compile fixes for Square, biometric, Compose, and API calls |
+| 0.1.4 | Camera manifest lint fix |
+| 0.2.0 | Operations parity, scheduling, and dark mode expansion |
+| 0.3.0-alpha06 | Bundled native RoomFlow release candidate |
+| alpha07 | Compose import and source fixes |
+| alpha08 | ViewModel setter collision fix |
+| alpha09 | Predictive back navigation fix |
+| alpha10 | Supabase migration, snapshot preservation, PDF validation, and version contract |
+| alpha11 | Persistent RoomFlow workspaces and organization selection |
+
+## iOS milestones
+
+| Version | Main purpose |
+|---|---|
+| 0.1.0-alpha01 | Initial SwiftUI iPhone/iPad shell and RoomFlow bundle |
+| 0.1.0-alpha02 | First Xcode compiler repairs and guarded TestFlight workflow |
+
+## Status note
+
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The editable source baseline in this handoff is server v4.6.7, Android alpha11, and iOS alpha02.

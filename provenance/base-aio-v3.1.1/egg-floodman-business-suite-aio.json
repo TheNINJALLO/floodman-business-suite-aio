@@ -1,0 +1,264 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-08-06T00:00:00+00:00",
+    "name": "Floodman Business Suite AIO Test",
+    "author": "TheN1NJ4LL0 / Floodman",
+    "description": "Testing-only single-container Floodman Operations stack using the 9000-series allocation scheme: 9000 Hub, 9001 Documenso, 9002 Mailpit, 9003 Engineering Sandbox, and 9004 Floodman API. Includes genuine Gauzy ERP, Floodman Office, RoomFlow bridge, Documenso, provider simulators, receivables, messaging AI, and competitor intelligence. Do not use this AIO egg as the final production topology.",
+    "features": null,
+    "docker_images": {
+        "Floodman AIO 3.1.1": "ghcr.io/theninjallo/floodman-business-suite-aio:3.1.1"
+    },
+    "file_denylist": [
+        "config/generated-secrets.env"
+    ],
+    "startup": "/opt/floodman/aio/start-suite.sh",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\":\"FLOODMAN_SUITE_READY\"}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/ash\nset -eu\nmkdir -p /mnt/server/data /mnt/server/config /mnt/server/backups /mnt/server/diagnostics /mnt/server/logs /mnt/server/run\nprintf '%s\\n' '3.1.1-pterodactyl-aio-test' > /mnt/server/VERSION\nprintf '%s\\n' 'Floodman AIO files initialized. Port scheme: 9000 Hub, 9001 Documenso, 9002 Mailpit, 9003 Engineering, 9004 API. The runtime image contains the application code.' > /mnt/server/README-PTERODACTYL.txt\n",
+            "container": "ghcr.io/pterodactyl/installers:alpine",
+            "entrypoint": "ash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Company Name",
+            "description": "Floodman organization name shown in Gauzy and the unified Hub.",
+            "env_variable": "FLOODMAN_COMPANY_NAME",
+            "default_value": "Floodman",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:2|max:80",
+            "field_type": "text"
+        },
+        {
+            "name": "Owner First Name",
+            "description": "First name for the primary Gauzy Super Administrator and Floodman Owner.",
+            "env_variable": "FLOODMAN_OWNER_FIRST_NAME",
+            "default_value": "Josh",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:1|max:60",
+            "field_type": "text"
+        },
+        {
+            "name": "Owner Last Name",
+            "description": "Last name for the primary Gauzy Super Administrator and Floodman Owner.",
+            "env_variable": "FLOODMAN_OWNER_LAST_NAME",
+            "default_value": "Aldrich",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|min:1|max:60",
+            "field_type": "text"
+        },
+        {
+            "name": "Owner Email",
+            "description": "Real email used to create the primary Owner. Use the same email later in RoomFlow.",
+            "env_variable": "FLOODMAN_OWNER_EMAIL",
+            "default_value": "owner@example.com",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|email|max:120",
+            "field_type": "text"
+        },
+        {
+            "name": "Owner Password",
+            "description": "Initial Owner password. 12-64 characters; letters, numbers and ! @ % _ + - are accepted. Treat this as a secret.",
+            "env_variable": "FLOODMAN_OWNER_PASSWORD",
+            "default_value": "ChangeMe12345!",
+            "user_viewable": false,
+            "user_editable": true,
+            "rules": "required|string|min:12|max:64|regex:/^[A-Za-z0-9!@%_+\\-]+$/",
+            "field_type": "text"
+        },
+        {
+            "name": "Time Zone",
+            "description": "IANA time zone used by Gauzy, receivables and schedules.",
+            "env_variable": "TZ",
+            "default_value": "America/Detroit",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Public Host",
+            "description": "Public IP or DNS hostname used to build browser links. Leave blank to use the primary allocation IP. Do not include http:// or a port.",
+            "env_variable": "FLOODMAN_PUBLIC_HOST",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Public Scheme",
+            "description": "Use http for direct allocation testing. Use https only when a reverse proxy terminates TLS.",
+            "env_variable": "FLOODMAN_PUBLIC_SCHEME",
+            "default_value": "http",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:http,https",
+            "field_type": "text"
+        },
+        {
+            "name": "Enforce 9000 Port Scheme",
+            "description": "When true, startup requires primary allocation 9000 and additional allocations 9001-9004. Set false only when the panel cannot provide this block.",
+            "env_variable": "FLOODMAN_ENFORCE_9000_PORT_SCHEME",
+            "default_value": "true",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:true,false",
+            "field_type": "text"
+        },
+        {
+            "name": "Explicit Main Hub URL",
+            "description": "Optional complete public Hub URL. Leave blank to derive it from Public Host and the primary allocation.",
+            "env_variable": "FLOODMAN_PUBLIC_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Documenso Port",
+            "description": "Assign TCP allocation 9001 to this server. This is the Documenso signing interface.",
+            "env_variable": "DOCUMENSO_PORT",
+            "default_value": "9001",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Explicit Documenso URL",
+            "description": "Optional complete URL when using a reverse proxy or separate hostname.",
+            "env_variable": "FLOODMAN_DOCUMENSO_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Mailpit Port",
+            "description": "Assign TCP allocation 9002. Mailpit is a test inbox and must not be exposed to untrusted users.",
+            "env_variable": "MAILPIT_PORT",
+            "default_value": "9002",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Explicit Mailpit URL",
+            "description": "Optional complete URL when using a reverse proxy.",
+            "env_variable": "FLOODMAN_MAILPIT_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Engineering Sandbox Port",
+            "description": "Assign TCP allocation 9003 for Square, signing, SMS, and workflow simulation.",
+            "env_variable": "ENGINEERING_PORT",
+            "default_value": "9003",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Explicit Engineering URL",
+            "description": "Optional complete URL when using a reverse proxy.",
+            "env_variable": "FLOODMAN_ENGINEERING_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Floodman API Port",
+            "description": "Assign TCP allocation 9004 for RoomFlow, provider webhooks, and Floodman API documentation.",
+            "env_variable": "FLOODMAN_API_PORT",
+            "default_value": "9004",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1024,65535",
+            "field_type": "text"
+        },
+        {
+            "name": "Explicit Floodman API URL",
+            "description": "Optional complete URL when using a reverse proxy.",
+            "env_variable": "FLOODMAN_API_PUBLIC_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "RoomFlow URL",
+            "description": "Public RoomFlow web application linked from the Hub.",
+            "env_variable": "ROOMFLOW_WEB_URL",
+            "default_value": "https://theninjallo.github.io/roomflow/",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|url|max:500",
+            "field_type": "text"
+        },
+        {
+            "name": "Gauzy Node Heap MB",
+            "description": "Maximum Node heap for the genuine Gauzy API. 4096 works for testing; increase only when the server has sufficient RAM.",
+            "env_variable": "GAUZY_NODE_HEAP_MB",
+            "default_value": "4096",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:2048,12288",
+            "field_type": "text"
+        },
+        {
+            "name": "Competitor AI Provider",
+            "description": "deterministic requires no external key. openai requires OPENAI_API_KEY below.",
+            "env_variable": "AI_PROVIDER",
+            "default_value": "deterministic",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:deterministic,openai",
+            "field_type": "text"
+        },
+        {
+            "name": "Messaging AI Provider",
+            "description": "deterministic is the safe default for customer-message testing.",
+            "env_variable": "MESSAGING_AI_PROVIDER",
+            "default_value": "deterministic",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|in:deterministic,openai",
+            "field_type": "text"
+        },
+        {
+            "name": "OpenAI API Key",
+            "description": "Optional server-side key used only when an AI provider is set to openai. Pterodactyl variables are not a hardware-backed secret vault.",
+            "env_variable": "OPENAI_API_KEY",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": true,
+            "rules": "nullable|string|max:300",
+            "field_type": "text"
+        }
+    ]
+}

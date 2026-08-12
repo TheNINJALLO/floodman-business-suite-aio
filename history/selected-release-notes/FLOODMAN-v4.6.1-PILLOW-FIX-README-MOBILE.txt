@@ -1,0 +1,92 @@
+FLOODMAN v4.6.1 PTERODACTYL IMAGE/PDF STARTUP FIX
+=================================================
+
+CAUSE
+-----
+Floodman v4.6.0 imported Pillow with:
+
+    from PIL import Image
+
+The current Pterodactyl Docker image does not include Pillow. Floodman Office
+therefore restarted repeatedly with:
+
+    ModuleNotFoundError: No module named 'PIL'
+
+The ERP, PostgreSQL, and some workers could remain running, but Floodman Office,
+the Mobile API, estimate PDFs, invoice PDFs, and RoomFlow synchronization were
+not available.
+
+WHAT v4.6.1 CHANGES
+-------------------
+- Makes Pillow optional instead of a startup requirement.
+- Stores Android and PWA RoomFlow JPEG captures without Pillow.
+- Reads JPEG dimensions with a dependency-free parser.
+- Embeds the original JPEG bytes directly into estimate PDFs.
+- Retains Pillow resizing/conversion automatically if a future image includes it.
+- Keeps Android API compatibility at 0.3.0-alpha10.
+- Does not change or delete any database, customer, property, estimate, invoice,
+  payment, document, RoomFlow job, Tailscale state, or device enrollment.
+
+FILES TO UPLOAD
+---------------
+1. floodman-operations-runtime-v4.6.1.zip
+2. mobile-start-v4.6.1.sh
+
+INSTALL FROM THE PTERODACTYL MOBILE PANEL
+----------------------------------------
+1. Create a Pterodactyl backup.
+2. Press Stop and wait for Offline.
+3. Wait another 20 seconds.
+4. Open Files at the server root.
+5. Rename the current mobile-start.sh to:
+
+       mobile-start-v4.6.0-pil-error.backup.sh
+
+6. Upload both v4.6.1 files listed above.
+7. Do not extract floodman-operations-runtime-v4.6.1.zip.
+8. Rename mobile-start-v4.6.1.sh to exactly:
+
+       mobile-start.sh
+
+9. Leave the old v4.6.0 runtime ZIP in place until v4.6.1 is confirmed healthy.
+10. Press Start.
+11. Wait for:
+
+       FLOODMAN_SUITE_READY
+
+EXPECTED STARTUP CHECK
+----------------------
+The launcher validates the Pillow-independent image/PDF fallback before it
+starts Supervisor. The office-console process should remain RUNNING instead of
+restarting with ModuleNotFoundError.
+
+VERIFY
+------
+With Tailscale disabled on the phone, open:
+
+https://floodman-operations.tail274417.ts.net/mobile-api/v1/health
+
+The response should include:
+
+    "status": "ok"
+    "api_version": "0.3.0-alpha10"
+    "server_release": "pterodactyl-mobile-v4.6.1"
+
+Then open the private PWA through Tailscale and test:
+- one estimate PDF
+- one invoice PDF
+- one RoomFlow Save & Sync
+
+ANDROID
+-------
+Android 0.3.0-alpha10 remains the matched app. No Android source change is
+required for this server startup correction.
+
+ROLLBACK
+--------
+1. Stop the server.
+2. Rename mobile-start.sh to mobile-start-v4.6.1.failed.sh.
+3. Rename mobile-start-v4.6.0-pil-error.backup.sh back to mobile-start.sh.
+4. Start the server.
+
+The rollback restores the former launcher only. It does not alter data.

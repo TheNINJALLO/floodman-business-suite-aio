@@ -1,0 +1,38 @@
+FLOODMAN v4.6.2 NO-PILLOW STARTUP FIX
+
+The console path /home/container/runtime/floodman-v4.6.0 proves the old v4.6.0 launcher was still running. This replacement uses only v4.6.2 and contains no PIL/Pillow imports.
+
+INSTALL FROM PTERODACTYL
+
+1. Create a backup.
+2. Press Stop and wait for Offline.
+3. Wait another 20 seconds.
+4. Open Files at the server root.
+5. Rename mobile-start.sh to mobile-start-old-pillow-error.sh.
+6. Upload:
+   floodman-operations-runtime-v4.6.2.zip
+   mobile-start-v4.6.2.sh
+7. Do not extract the runtime ZIP.
+8. Rename mobile-start-v4.6.2.sh to mobile-start.sh.
+9. In Startup, confirm the command is exactly:
+   bash ./mobile-start.sh
+10. Press Start.
+11. Look for:
+   [Floodman Mobile v4.6.2] Office overlay preflight passed without Pillow/PIL
+12. Wait for:
+   FLOODMAN_SUITE_READY
+
+VERIFY
+
+Open config/floodman-active-runtime.txt. It must say:
+4.6.2
+
+Open config/floodman-active-office-path.txt. It must contain:
+/home/container/runtime/floodman-v4.6.2/app-overlay/floodman-operations-v4.6.2/office-console
+
+With Tailscale off on the phone, open:
+https://floodman-operations.tail274417.ts.net/mobile-api/v1/health
+
+The health response should report server release pterodactyl-mobile-v4.6.2 and API version 0.3.0-alpha10.
+
+Android 0.3.0-alpha10 does not need to be rebuilt. The update does not delete PostgreSQL, customers, properties, estimates, invoices, payments, documents, RoomFlow data, Tailscale state, or enrolled devices.

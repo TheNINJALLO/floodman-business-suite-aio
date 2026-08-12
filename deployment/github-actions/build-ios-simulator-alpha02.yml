@@ -1,0 +1,190 @@
+name: 1 - Compile Floodman Operations iOS Simulator 0.1.0-alpha02 (no signing)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - ios-v0.1.0-alpha02
+    paths:
+      - 'floodman-ios-source-v0.1.0-alpha02.zip'
+      - '.github/workflows/build-floodman-ios-simulator-v0.1.0-alpha02.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floodman-ios-v010-alpha02-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Confirm unsigned simulator build mode
+        shell: bash
+        run: |
+          echo 'This workflow compiles the unsigned iPhone/iPad simulator app.'
+          echo 'It does not require an Apple Developer account, certificates, provisioning profiles, or App Store Connect secrets.'
+
+      - name: Validate and extract iOS source
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive='floodman-ios-source-v0.1.0-alpha02.zip'
+          test -f "$archive" || { echo "Upload $archive to the repository root."; exit 1; }
+          rm -rf ios-build
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          import zipfile
+
+          archive = Path('floodman-ios-source-v0.1.0-alpha02.zip')
+          destination = Path('ios-build')
+          required = {
+              'floodman-ios/VERSION',
+              'floodman-ios/SOURCE-MANIFEST.sha256',
+              'floodman-ios/project.yml',
+              'floodman-ios/FloodmanOperations/Info.plist',
+              'floodman-ios/FloodmanOperations/FloodmanOperationsApp.swift',
+              'floodman-ios/FloodmanOperations/RoomFlow/RoomFlowView.swift',
+              'floodman-ios/FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js',
+              'floodman-ios/scripts/prepare-roomflow-assets.sh',
+          }
+          with zipfile.ZipFile(archive) as bundle:
+              names = set(bundle.namelist())
+              unsafe = [name for name in names if name.startswith('/') or '..' in PurePosixPath(name).parts]
+              if unsafe:
+                  raise SystemExit(f'Unsafe ZIP paths: {unsafe[:5]}')
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f'Missing required iOS source files: {missing}')
+              bundle.extractall(destination)
+          root = destination / 'floodman-ios'
+          if (root / 'VERSION').read_text().strip() != '0.1.0-alpha02':
+              raise SystemExit('The iOS source VERSION is not 0.1.0-alpha02')
+          print('iOS source archive structure is valid.')
+          PY
+          cd ios-build/floodman-ios
+          sha256sum -c SOURCE-MANIFEST.sha256
+
+      - name: Select Xcode 26
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' -print | sort -V | tail -n1)"
+          test -n "$xcode_path" || { echo 'The macos-26 runner did not contain Xcode 26.'; ls -1 /Applications/Xcode*.app || true; exit 1; }
+          sudo xcode-select -s "$xcode_path/Contents/Developer"
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Prepare pinned Floodman RoomFlow engine
+        working-directory: ios-build/floodman-ios
+        shell: bash
+        env:
+          ROOMFLOW_REF: 1f97817a52b916875e50cc6380c0d284072b8ce8
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-roomflow-assets.sh
+          test -s FloodmanOperations/Resources/RoomFlow/index.html
+          test -s FloodmanOperations/Resources/RoomFlow/app.js
+          test -s FloodmanOperations/Resources/RoomFlow/vendor/three.min.js
+          node --check FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js
+          if grep -Eq 'supabase-service\.js|roomflow-integrations\.js|townsquare-integration\.js' FloodmanOperations/Resources/RoomFlow/index.html; then
+            echo 'The Apple RoomFlow shell still references a removed login or legacy integration script.'
+            exit 1
+          fi
+          find FloodmanOperations/Resources/RoomFlow -type f -print0 | sort -z | xargs -0 sha256sum > ROOMFLOW-ASSET-SHA256SUMS.txt
+
+      - name: Validate Xcode 26 compiler corrections
+        working-directory: ios-build/floodman-ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'guard' FloodmanOperations/RoomFlow/LocalAssetServer.swift
+          grep -Fq 'let data,' FloodmanOperations/RoomFlow/LocalAssetServer.swift
+          grep -Fq 'requiredLocalEndpoint' FloodmanOperations/RoomFlow/LocalAssetServer.swift
+          grep -Fq 'MainActor.run' FloodmanOperations/Networking/APIClient.swift
+          ! grep -Fq 'guard let self,data' FloodmanOperations/RoomFlow/LocalAssetServer.swift
+
+      - name: Generate and validate Xcode project
+        working-directory: ios-build/floodman-ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          test -d FloodmanOperations.xcodeproj
+          xcodebuild \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -showBuildSettings \
+            > ../../xcode-build-settings.txt
+
+      - name: Build unsigned iPhone and iPad simulator app
+        working-directory: ios-build/floodman-ios
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+        run: |
+          set -o pipefail
+          api_url="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          xcodebuild \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            FLOODMAN_API_BASE_URL="$api_url" \
+            build 2>&1 | tee ../../xcodebuild-simulator.log
+
+      - name: Collect iOS simulator artifact
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          app_path="$(find ios-build/floodman-ios/build/DerivedData/Build/Products -maxdepth 2 -type d -name 'FloodmanOperations.app' | head -n1)"
+          test -n "$app_path" || { echo 'The simulator app bundle was not produced.'; exit 1; }
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" artifacts/FloodmanOperations-iOS-Simulator-v0.1.0-alpha02.zip
+          cp ios-build/floodman-ios/VERSION artifacts/VERSION
+          cp ios-build/floodman-ios/ROOMFLOW-ASSET-SHA256SUMS.txt artifacts/ 2>/dev/null || true
+          cp xcodebuild-simulator.log xcode-build-settings.txt artifacts/ 2>/dev/null || true
+          (cd artifacts && shasum -a 256 * > SHA256SUMS.txt)
+          ls -lh artifacts
+
+      - name: Upload iOS simulator build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Floodman-Operations-iOS-v0.1.0-simulator-alpha02
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload iOS build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Floodman-Operations-iOS-v0.1.0-alpha02-build-diagnostics
+          path: |
+            xcodebuild-simulator.log
+            xcode-build-settings.txt
+            ios-build/floodman-ios/build/DerivedData/Logs/
+            ios-build/floodman-ios/ROOMFLOW-ASSET-SHA256SUMS.txt
+          if-no-files-found: ignore
+          retention-days: 14

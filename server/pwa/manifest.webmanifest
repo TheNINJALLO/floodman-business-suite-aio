@@ -1,0 +1,100 @@
+{
+  "id": "/floodman-operations",
+  "name": "Floodman Operations",
+  "short_name": "Floodman",
+  "description": "Floodman Operations with separate desktop and mobile shells. The private root selects the correct workspace without depending on the full ERP frontend.",
+  "start_url": "/workspace?source=pwa&release=4.6.7",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#07111f",
+  "theme_color": "#102443",
+  "orientation": "any",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/floodman-pwa-icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/floodman-pwa-icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/floodman-pwa-icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Desktop Operations",
+      "short_name": "Desktop",
+      "description": "Open the Floodman desktop command center.",
+      "url": "/office/desktop?desktop=1&source=pwa-shortcut"
+    },
+    {
+      "name": "Mobile Operations",
+      "short_name": "Mobile",
+      "description": "Open the Floodman phone and tablet workspace.",
+      "url": "/office/mobile?mobile=1&source=pwa-shortcut"
+    },
+    {
+      "name": "Customers",
+      "short_name": "Customers",
+      "description": "Open Floodman customer files.",
+      "url": "/office/contacts?source=pwa-shortcut"
+    },
+    {
+      "name": "Jobs",
+      "short_name": "Jobs",
+      "description": "Open properties and jobs.",
+      "url": "/office/properties?source=pwa-shortcut"
+    },
+    {
+      "name": "RoomFlow Estimator",
+      "short_name": "RoomFlow",
+      "description": "Open customer-linked field layouts, measurements, scopes, and estimates.",
+      "url": "/roomflow/?source=pwa-shortcut"
+    },
+    {
+      "name": "Time Clock",
+      "short_name": "Time",
+      "description": "Clock in, clock out, and review time.",
+      "url": "/office/time?source=pwa-shortcut"
+    },
+    {
+      "name": "Documents",
+      "short_name": "Documents",
+      "description": "Open documents and signing.",
+      "url": "/office/documents?source=pwa-shortcut"
+    },
+    {
+      "name": "Billing",
+      "short_name": "Billing",
+      "description": "Open invoices and payments.",
+      "url": "/office/invoices?source=pwa-shortcut"
+    },
+    {
+      "name": "Competitors",
+      "short_name": "Competitors",
+      "description": "Open competitor intelligence.",
+      "url": "/office/intelligence?source=pwa-shortcut"
+    }
+  ]
+}

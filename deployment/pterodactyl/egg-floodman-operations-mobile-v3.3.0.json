@@ -1,0 +1,315 @@
+{
+  "_comment": "DO NOT EDIT: generated Floodman Operations PTDL_v2 egg",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-08-07T03:40:00Z",
+  "name": "Floodman Operations AIO - Mobile v3.3.0",
+  "author": "admin@floodman.com",
+  "description": "Mobile-friendly all-in-one Floodman Operations test suite for Pterodactyl. Fully Floodman-branded interface, customer CSV import, signed documents attached to client files, and ports 9000-9004. Created by Josh Aldrich.",
+  "features": null,
+  "docker_images": {
+    "Floodman Operations Runtime 3.3.0": "ghcr.io/theninjallo/floodman-business-suite-aio:3.3.0",
+    "Floodman Compatibility Tag 3.2.0": "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.0"
+  },
+  "file_denylist": [
+    "config/generated-secrets.env"
+  ],
+  "startup": "bash ./mobile-start.sh",
+  "config": {
+    "files": "{}",
+    "startup": "{\"done\":\"FLOODMAN_SUITE_READY\"}",
+    "logs": "{}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/ash\nset -eu\napk add --no-cache ca-certificates coreutils curl unzip >/dev/null\nmkdir -p /mnt/server/data /mnt/server/config /mnt/server/backups /mnt/server/diagnostics /mnt/server/logs\ncat > /mnt/server/mobile-start.sh <<'FLOODMAN_MOBILE_START'\n#!/bin/sh\nset -eu\n\ncd /home/container\n\nlog() { printf '[Floodman Mobile v3.3.0] %s\n' \"$*\"; }\ndie() { printf '[Floodman Mobile v3.3.0] ERROR: %s\n' \"$*\" >&2; exit 1; }\n\nbase='/opt/floodman/aio'\nhotfix='/home/container/runtime/floodman-v3.3.0'\nrun_dir='/home/container/run'\n\n[ -r \"$base/start-suite.sh\" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/start-suite.sh.'\n[ -r \"$base/supervisord.conf\" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/supervisord.conf.'\n[ -r \"$base/common.sh\" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/common.sh.'\n[ -r \"$base/start-hub.sh\" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/start-hub.sh.'\n[ -r \"$base/nginx.conf.template\" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/nginx.conf.template.'\n\ncase \"${FLOODMAN_SOURCE_MODE:-builtin}\" in\n  builtin|'') ;;\n  *) log 'Source Mode is not builtin. This emergency launcher uses the verified source already baked into the image.' ;;\nesac\n\nmkdir -p \"$hotfix\" \"$run_dir/postgres\" /home/container/logs\n\n# Runtime markers and sockets must never survive a Pterodactyl container restart.\nrm -f \\\n  \"$run_dir/databases-ready\" \\\n  \"$run_dir/gauzy-finalized\" \\\n  \"$run_dir/owner-linked\" \\\n  \"$run_dir/supervisord.pid\" \\\n  \"$run_dir/postgres-password\" \\\n  \"$run_dir/postgres/.s.PGSQL.5432\" \\\n  \"$run_dir/postgres/.s.PGSQL.5432.lock\"\nrm -rf \"$run_dir/documenso-cert\"\nlog 'Cleared stale database readiness markers and PostgreSQL sockets.'\n\ncat > \"$hotfix/start-competitor-api.sh\" <<'COMPETITOR_API'\n#!/bin/sh\nset -eu\n. /opt/floodman/aio/common.sh\n\nfm_log 'Waiting for the active PostgreSQL instance and Competitor Intelligence grants...'\nwhile :; do\n  if [ -f \"$FM_RUN/databases-ready\" ] && pg_isready -h 127.0.0.1 -p 5432 -U floodman >/dev/null 2>&1; then\n    if PGPASSWORD=\"$AI_DB_PASSWORD\" psql -h 127.0.0.1 -p 5432 -U \"$AI_DB_USER\" -d floodman -Atc 'SELECT 1' 2>/dev/null | grep -q '^1$'; then\n      break\n    fi\n  fi\n  sleep 2\ndone\n\ncd /opt/floodman/competitor-intel\nexport PYTHONPATH=\"/opt/pydeps/competitor-intel:/opt/floodman/competitor-intel\"\nexec python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8090 --no-access-log\nCOMPETITOR_API\n\ncat > \"$hotfix/start-competitor-scheduler.sh\" <<'COMPETITOR_SCHEDULER'\n#!/bin/sh\nset -eu\n. /opt/floodman/aio/common.sh\n\nwait_for_database() {\n  while :; do\n    if [ -f \"$FM_RUN/databases-ready\" ] && pg_isready -h 127.0.0.1 -p 5432 -U floodman >/dev/null 2>&1; then\n      if PGPASSWORD=\"$AI_DB_PASSWORD\" psql -h 127.0.0.1 -p 5432 -U \"$AI_DB_USER\" -d floodman -Atc 'SELECT 1' 2>/dev/null | grep -q '^1$'; then\n        return 0\n      fi\n    fi\n    sleep 2\n  done\n}\n\nfm_log 'Waiting for the active PostgreSQL instance and Competitor Intelligence grants...'\nwait_for_database\ncd /opt/floodman/competitor-intel\nexport PYTHONPATH=\"/opt/pydeps/competitor-intel:/opt/floodman/competitor-intel\"\n\nwhile :; do\n  set +e\n  python3 -m app.scheduler\n  code=$?\n  set -e\n  fm_warn \"Competitor Intelligence scheduler exited with status $code. Waiting for PostgreSQL before retrying.\"\n  wait_for_database\n  sleep 5\ndone\nCOMPETITOR_SCHEDULER\n\ncat > \"$hotfix/floodman-boot-guard.js\" <<'BOOT_GUARD'\n(() => {\n  'use strict';\n  const release = 'pterodactyl-mobile-v3.3.0';\n  const started = Date.now();\n\n  async function probe(path) {\n    try {\n      const response = await fetch(path, { cache: 'no-store', credentials: 'same-origin' });\n      return { ok: response.status < 500, status: response.status };\n    } catch (error) {\n      return { ok: false, status: 0, error: String(error) };\n    }\n  }\n\n  function appAppearsReady() {\n    return Boolean(\n      document.querySelector('nb-layout, nb-card, form input[type=\"password\"], [class*=\"dashboard\"], [class*=\"login\"]')\n    );\n  }\n\n  function showRecovery(api, hub) {\n    if (document.getElementById('floodman-boot-recovery')) return;\n    const panel = document.createElement('section');\n    panel.id = 'floodman-boot-recovery';\n    panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:22px;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif';\n    panel.innerHTML = `\n      <div style=\"width:min(560px,100%);background:#fff;border-radius:22px;padding:30px;box-shadow:0 24px 70px rgba(15,35,65,.18)\">\n        <div style=\"font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0ea5e9\">Floodman Operations</div>\n        <h1 style=\"margin:10px 0 8px;font-size:25px\">The ERP browser app did not finish opening</h1>\n        <p style=\"margin:0 0 18px;line-height:1.55;color:#52657c\">The server answered, but the Floodman Operations browser is still waiting. Use the direct login link below. This page also reports whether the Hub and API are responding.</p>\n        <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0\">\n          <div style=\"padding:12px;border-radius:12px;background:#f3f7fb\"><b>Hub</b><br><span>${hub.ok ? 'responding' : 'unavailable'} (${hub.status || 'no response'})</span></div>\n          <div style=\"padding:12px;border-radius:12px;background:#f3f7fb\"><b>Floodman Core API</b><br><span>${api.ok ? 'responding' : 'unavailable'} (${api.status || 'no response'})</span></div>\n        </div>\n        <div style=\"display:flex;flex-wrap:wrap;gap:10px\">\n          <a href=\"/#/auth/login?fm=${release}\" style=\"display:inline-block;padding:12px 16px;border-radius:12px;background:#0f5ea8;color:#fff;text-decoration:none;font-weight:750\">Open Floodman login</a>\n          <a href=\"/floodman-status.html?fm=${release}\" style=\"display:inline-block;padding:12px 16px;border-radius:12px;background:#e7eef6;color:#102443;text-decoration:none;font-weight:750\">Open status page</a>\n          <button type=\"button\" id=\"floodman-reload\" style=\"padding:12px 16px;border:0;border-radius:12px;background:#e7eef6;color:#102443;font-weight:750\">Reload without cache</button>\n        </div>\n        <p style=\"margin:16px 0 0;font-size:12px;color:#728197\">Created by Josh Aldrich \u00b7 Release ${release}</p>\n      </div>`;\n    document.body.appendChild(panel);\n    document.getElementById('floodman-reload').addEventListener('click', () => {\n      const url = new URL(window.location.href);\n      url.searchParams.set('fm', release + '-' + Date.now());\n      window.location.replace(url.toString());\n    });\n  }\n\n  async function check() {\n    if (appAppearsReady()) return;\n    const [api, hub] = await Promise.all([probe('/api/auth/authenticated'), probe('/health/live')]);\n\n    // A healthy API plus an empty route often means the Angular router did not\n    // complete its initial redirect. Move directly to the supported login route.\n    if (api.ok && !window.location.hash && Date.now() - started > 10000) {\n      window.location.hash = '/auth/login';\n    }\n\n    if (!appAppearsReady() && Date.now() - started > 25000) {\n      showRecovery(api, hub);\n      return;\n    }\n    window.setTimeout(check, 3000);\n  }\n\n  window.setTimeout(check, 9000);\n})();\nBOOT_GUARD\n\ncat > \"$hotfix/floodman-status.html\" <<'STATUS_PAGE'\n<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  <meta http-equiv=\"cache-control\" content=\"no-store\">\n  <title>Floodman Operations status</title>\n  <style>\n    html,body{min-height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#eef5fb;color:#102443}\n    body{display:grid;place-items:center;padding:22px;box-sizing:border-box}\n    main{width:min(620px,100%);background:#fff;border-radius:24px;padding:30px;box-shadow:0 24px 70px rgba(15,35,65,.16)}\n    h1{margin:8px 0 6px}.muted{color:#52657c;line-height:1.5}.grid{display:grid;gap:10px;margin:20px 0}.row{display:flex;justify-content:space-between;gap:18px;padding:13px;border-radius:12px;background:#f3f7fb}.ok{color:#0b7a50}.bad{color:#b42318}.actions{display:flex;flex-wrap:wrap;gap:10px}.actions a,.actions button{border:0;border-radius:12px;padding:12px 15px;font-weight:750;text-decoration:none;cursor:pointer}.primary{background:#0f5ea8;color:#fff}.secondary{background:#e7eef6;color:#102443}\n  </style>\n</head>\n<body><main>\n  <div style=\"font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0ea5e9\">Floodman Operations</div>\n  <h1>Runtime status</h1>\n  <p class=\"muted\">This page checks the public Hub, Floodman Core API, Floodman API, Documenso, Mailpit, and Engineering Sandbox from the same browser you are using.</p>\n  <div id=\"checks\" class=\"grid\"><div class=\"row\"><b>Checks</b><span>running\u2026</span></div></div>\n  <div class=\"actions\"><a class=\"primary\" href=\"/#/auth/login?fm=pterodactyl-mobile-v3.3.0\">Open Floodman login</a><button class=\"secondary\" id=\"again\">Run again</button></div>\n  <p class=\"muted\" style=\"font-size:12px;margin-top:18px\">Created by Josh Aldrich \u00b7 Release pterodactyl-mobile-v3.3.0</p>\n</main>\n<script>\n(() => {\n  const base = `${location.protocol}//${location.hostname}`;\n  const checks = [\n    ['Main Hub', `${location.origin}/health/live`],\n    ['Floodman Core API', `${location.origin}/api/auth/authenticated`, true],\n    ['Floodman API', `${base}:9004/health/ready`],\n    ['Documenso', `${base}:9001/api/health`, true],\n    ['Mailpit', `${base}:9002/api/v1/info`, true],\n    ['Engineering Sandbox', `${base}:9003/health/live`]\n  ];\n  const root = document.getElementById('checks');\n  async function probe(label, url, allow4xx) {\n    try {\n      const r = await fetch(url, {cache:'no-store', mode:'cors'});\n      const ok = r.ok || (allow4xx && r.status >= 400 && r.status < 500);\n      return [label, ok, r.status, url];\n    } catch (e) { return [label, false, 0, url]; }\n  }\n  async function run() {\n    root.innerHTML = '<div class=\"row\"><b>Checks</b><span>running\u2026</span></div>';\n    const results = await Promise.all(checks.map(c => probe(...c)));\n    root.innerHTML = '';\n    for (const [label, ok, status, url] of results) {\n      const row = document.createElement('div'); row.className='row';\n      row.innerHTML = `<b>${label}</b><span class=\"${ok?'ok':'bad'}\">${ok?'ready':'not ready'}${status?' \u00b7 HTTP '+status:''}</span>`;\n      row.title=url; root.appendChild(row);\n    }\n  }\n  document.getElementById('again').onclick=run; run();\n})();\n</script></body></html>\nSTATUS_PAGE\n\ncat > \"$hotfix/start-hub.sh\" <<'START_HUB'\n#!/bin/sh\nset -eu\n. /opt/floodman/aio/common.sh\nwhile [ ! -f \"$FM_RUN/gauzy-finalized\" ]; do sleep 2; done\nfm_wait_http \"http://127.0.0.1:8700/health/live\" 600 false || fm_die \"Floodman Office did not become ready before Hub startup.\"\n\nruntime_web=\"$FM_HOME/runtime/gauzy-web\"\nconfig_hash=\"$(printf '%s\n' \"$SERVER_PORT|$FLOODMAN_COMPANY_NAME|pterodactyl-mobile-v3.3.0\" | sha256sum | awk '{print $1}')\"\nold_hash=\"$(cat \"$runtime_web/.floodman-config-hash\" 2>/dev/null || true)\"\nif [ \"$config_hash\" != \"$old_hash\" ] || [ ! -s \"$runtime_web/index.html\" ]; then\n  fm_log \"Preparing the branded Floodman Operations browser with same-origin API routing...\"\n  rm -rf \"$runtime_web\"\n  mkdir -p \"$runtime_web\"\n  cp -a /opt/gauzy-web-pristine/. \"$runtime_web/\"\n  cd \"$runtime_web\"\n\n  # Use a deterministic localhost placeholder in the browser bundle. The public\n  # Nginx layer rewrites it to the actual host and scheme of every request. This\n  # prevents a blank/wrong Public Host variable from trapping Floodman Operations on its loader.\n  browser_origin=\"http://localhost:${SERVER_PORT}\"\n  API_BASE_URL=\"$browser_origin\" \\\n  CLIENT_BASE_URL=\"$browser_origin\" \\\n  APP_LINK=\"$browser_origin\" \\\n  APP_LOGO=\"${browser_origin}/floodman-brand/floodman-wordmark.svg\" \\\n  PLATFORM_LOGO=\"${browser_origin}/floodman-brand/floodman-wordmark.svg\" \\\n  NO_INTERNET_LOGO=\"${browser_origin}/floodman-brand/floodman-wordmark.svg\" \\\n    envsubst < replacements.sed > replacements_values.sed\n\n  for file in ./*.js; do\n    [ -f \"$file\" ] || continue\n    sed -i -f replacements_values.sed \"$file\"\n  done\n\n  if grep -l 'DOCKER_API_BASE_URL\\|DOCKER_CLIENT_BASE_URL' ./*.js >/dev/null 2>&1; then\n    fm_die 'The Floodman browser bundle still contains unresolved API placeholders.'\n  fi\n  if grep -l '/api/api/' ./*.js >/dev/null 2>&1; then\n    fm_die 'The Floodman browser bundle contains an invalid duplicate /api/api path.'\n  fi\n  printf '%s' \"$config_hash\" > .floodman-config-hash\nfi\n\nmkdir -p \"$FM_HOME/runtime/hub\"\nenvsubst '${HUB_TITLE} ${HUB_RELEASE} ${HUB_OFFICE_URL} ${HUB_ROOMFLOW_URL} ${HUB_DOCUMENSO_URL} ${HUB_MAILPIT_URL} ${HUB_ENGINEERING_URL} ${HUB_API_URL} ${HUB_COMPETITOR_URL} ${HUB_SYNC_STATUS_URL} ${HUB_REMOTE_ACCESS_ENABLED} ${HUB_REMOTE_DOCUMENSO_PORT} ${HUB_REMOTE_MAILPIT_PORT} ${HUB_REMOTE_ENGINEERING_PORT} ${HUB_REMOTE_API_PORT} ${HUB_REMOTE_DOCUMENSO_URL} ${HUB_REMOTE_MAILPIT_URL} ${HUB_REMOTE_ENGINEERING_URL} ${HUB_REMOTE_API_URL}' \\\n  < /opt/floodman/hub/hub-config.js.template \\\n  > \"$FM_HOME/runtime/hub/floodman-hub-config.js\"\nenvsubst '${SERVER_PORT} ${HUB_RELEASE}' \\\n  < \"$FM_HOME/runtime/floodman-v3.3.0/nginx.conf.template\" \\\n  > \"$FM_CONFIG/nginx.conf\"\n\nfm_log \"Starting Floodman Operations Hub on port $SERVER_PORT with same-origin browser routing...\"\nexec nginx -c \"$FM_CONFIG/nginx.conf\" -g 'daemon off;'\nSTART_HUB\n\n# Copy and extend the existing Nginx template. The existing dynamic JS rewrite\n# remains in place; the additions expose a direct login and browser status page.\ncp \"$base/nginx.conf.template\" \"$hotfix/nginx.conf.template\"\npython3 - \"$hotfix/nginx.conf.template\" <<'PY_PATCH_NGINX'\nfrom pathlib import Path\nimport sys\np = Path(sys.argv[1])\ns = p.read_text()\nneedle = '''        location = /floodman-hub-config.js {\n            alias /home/container/runtime/hub/floodman-hub-config.js;\n            add_header Cache-Control \"no-store\" always;\n        }\n'''\ninsert = needle + '''\n        location = /floodman-boot-guard.js {\n            alias /home/container/runtime/floodman-v3.3.0/floodman-boot-guard.js;\n            add_header Cache-Control \"no-store\" always;\n            default_type application/javascript;\n        }\n\n        location = /floodman-status.html {\n            alias /home/container/runtime/floodman-v3.3.0/floodman-status.html;\n            add_header Cache-Control \"no-store\" always;\n            default_type text/html;\n        }\n\n        location = /floodman-login {\n            return 302 /#/auth/login?fm=pterodactyl-mobile-v3.3.0;\n        }\n'''\nif needle not in s:\n    raise SystemExit('Could not locate the Hub config location in the Nginx template.')\ns = s.replace(needle, insert, 1)\nold = '''            sub_filter '</body>' '<script src=\"/floodman-hub-config.js\"></script><script src=\"/floodman-hub.js\"></script></body>';\n'''\nnew = '''            sub_filter '</body>' '<script src=\"/floodman-hub-config.js\"></script><script src=\"/floodman-hub.js\"></script><script src=\"/floodman-boot-guard.js?fm=${HUB_RELEASE}\"></script></body>';\n'''\nif old not in s:\n    raise SystemExit('Could not locate the Hub body injection in the Nginx template.')\ns = s.replace(old, new, 1)\n# Cover common direct-allocation placeholders in addition to the existing localhost rule.\nanchor = '''            sub_filter 'http://127.0.0.1:${SERVER_PORT}' '$fm_public_scheme://$http_host';\n'''\nif anchor in s:\n    s = s.replace(anchor, anchor + '''            sub_filter 'http://0.0.0.0:${SERVER_PORT}' '$fm_public_scheme://$http_host';\n''', 1)\np.write_text(s)\nPY_PATCH_NGINX\n\ncat > \"$hotfix/suite-monitor.sh\" <<'SUITE_MONITOR'\n#!/bin/sh\nset -eu\n. /opt/floodman/aio/common.sh\n\nfm_log 'Waiting for the complete Floodman suite...'\nfm_wait_http \"http://127.0.0.1:${SERVER_PORT}/health/live\" 2700 false || fm_die 'Main Hub did not become ready.'\nfm_wait_http 'http://127.0.0.1:3000/api/auth/authenticated' 60 true || fm_die 'Floodman Core API is unavailable.'\nfm_wait_http \"http://127.0.0.1:${SERVER_PORT}/api/auth/authenticated\" 60 true || fm_die 'The public Hub cannot reach the Floodman Core API proxy.'\nfm_wait_http \"http://127.0.0.1:${FLOODMAN_API_PORT}/health/ready\" 180 false || fm_die 'Floodman API is unavailable.'\nfm_wait_http \"http://127.0.0.1:${DOCUMENSO_PORT}/api/health\" 600 true || fm_die 'Documenso is unavailable.'\nfm_wait_http \"http://127.0.0.1:${MAILPIT_PORT}/api/v1/info\" 120 true || fm_die 'Mailpit is unavailable.'\nfm_wait_http \"http://127.0.0.1:${ENGINEERING_PORT}/health/live\" 120 false || fm_die 'Engineering Sandbox is unavailable.'\nfm_wait_http 'http://127.0.0.1:8100/health/live' 180 false || fm_die 'Messaging AI is unavailable.'\nfm_wait_http 'http://127.0.0.1:8090/health/ready' 600 false || fm_die 'Competitor Intelligence is unavailable.'\n\nwaited=0\nwhile [ ! -f \"$FM_RUN/owner-linked\" ]; do\n  [ \"$waited\" -lt 300 ] || fm_die 'Floodman Owner was not linked to Floodman modules.'\n  sleep 2\n  waited=$((waited + 2))\ndone\n\nprintf '\n============================================================\n'\nprintf 'FLOODMAN_SUITE_READY\n'\nprintf 'Main Hub: %s\n' \"$MAIN_PUBLIC_URL\"\nprintf 'Direct login: %s/floodman-login\n' \"$MAIN_PUBLIC_URL\"\nprintf 'Browser status: %s/floodman-status.html\n' \"$MAIN_PUBLIC_URL\"\nprintf 'Floodman Signing: %s\n' \"$DOCUMENSO_PUBLIC_URL\"\nprintf 'Local Email Inbox: %s\n' \"$MAILPIT_PUBLIC_URL\"\nprintf 'Engineering Sandbox: %s/lab\n' \"$ENGINEERING_PUBLIC_URL\"\nprintf 'Floodman API: %s/docs\n' \"$API_PUBLIC_URL\"\nprintf 'Owner: %s\n' \"$FLOODMAN_OWNER_EMAIL\"\nprintf '============================================================\n\n'\n\nwhile :; do\n  sleep 60\n  curl -fsS --max-time 5 \"http://127.0.0.1:${SERVER_PORT}/health/live\" >/dev/null 2>&1 || fm_warn 'Main Hub health check failed.'\n  code=\"$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \"http://127.0.0.1:${SERVER_PORT}/api/auth/authenticated\" 2>/dev/null || true)\"\n  case \"$code\" in 2??|3??|4??) ;; *) fm_warn 'Public Floodman Core API proxy health check failed.' ;; esac\n  curl -fsS --max-time 5 'http://127.0.0.1:8090/health/ready' >/dev/null 2>&1 || fm_warn 'Competitor Intelligence readiness check failed.'\ndone\nSUITE_MONITOR\n\nchmod 0755 \\\n  \"$hotfix/start-competitor-api.sh\" \\\n  \"$hotfix/start-competitor-scheduler.sh\" \\\n  \"$hotfix/start-hub.sh\" \\\n  \"$hotfix/suite-monitor.sh\"\n\n# Reuse the application Supervisor layout, replacing only patched processes.\nsed \\\n  -e \"s#^command=/opt/floodman/aio/start-competitor-api.sh\\$#command=$hotfix/start-competitor-api.sh#\" \\\n  -e \"s#^command=/opt/floodman/aio/start-competitor-scheduler.sh\\$#command=$hotfix/start-competitor-scheduler.sh#\" \\\n  -e \"s#^command=/opt/floodman/aio/start-hub.sh\\$#command=$hotfix/start-hub.sh#\" \\\n  -e \"s#^command=/opt/floodman/aio/suite-monitor.sh\\$#command=$hotfix/suite-monitor.sh#\" \\\n  \"$base/supervisord.conf\" > \"$hotfix/supervisord.conf\"\n\n# Keep all original secret generation and service configuration. Replace only\n# the runtime release and final Supervisor file.\nsed \\\n  -e 's/pterodactyl-mobile-v3\\.2\\.0/pterodactyl-mobile-v3.3.0/g' \\\n  -e \"s#exec supervisord -n -c /opt/floodman/aio/supervisord.conf#exec supervisord -n -c $hotfix/supervisord.conf#\" \\\n  \"$base/start-suite.sh\" > \"$hotfix/start-suite.sh\"\nchmod 0755 \"$hotfix/start-suite.sh\"\n\n# Fail clearly if the upstream image layout changes.\ngrep -Fq \"command=$hotfix/start-hub.sh\" \"$hotfix/supervisord.conf\" || die 'Could not patch the Floodman Operations Hub command.'\ngrep -Fq \"command=$hotfix/start-competitor-api.sh\" \"$hotfix/supervisord.conf\" || die 'Could not patch the Competitor Intelligence API command.'\ngrep -Fq \"command=$hotfix/start-competitor-scheduler.sh\" \"$hotfix/supervisord.conf\" || die 'Could not patch the Competitor Intelligence scheduler command.'\ngrep -Fq \"command=$hotfix/suite-monitor.sh\" \"$hotfix/supervisord.conf\" || die 'Could not patch the suite monitor command.'\ngrep -Fq \"exec supervisord -n -c $hotfix/supervisord.conf\" \"$hotfix/start-suite.sh\" || die 'Could not patch the Supervisor configuration path.'\ngrep -Fq '/floodman-status.html' \"$hotfix/nginx.conf.template\" || die 'Could not add the Floodman browser status page.'\ngrep -Fq 'same-origin API routing' \"$hotfix/start-hub.sh\" || die 'Could not install same-origin Floodman browser routing.'\n\n# Remove only the generated Floodman Operations browser copy so v3.3.0 is guaranteed to\n# rebuild it with same-origin URLs. Databases and configuration are untouched.\nrm -rf /home/container/runtime/gauzy-web\n\nlog 'Same-origin Hub routing and browser recovery are installed. Starting Floodman v3.3.0...'\nexec sh \"$hotfix/start-suite.sh\"\nFLOODMAN_MOBILE_START\nchmod 0755 /mnt/server/mobile-start.sh\ncat > /mnt/server/README-MOBILE.txt <<'README'\nFloodman mobile-panel installer\n\n1. In Startup, set Owner Email, Owner Password and Public Host.\n2. Confirm allocations 9000, 9001, 9002, 9003 and 9004 are assigned.\n3. Press Start. The initial source is already inside the runtime image.\n4. Optional updates: upload floodman-source.zip here, change Source Mode to auto, and restart. Do not extract the ZIP.\n\nData and secrets remain in data/ and config/.\nREADME\nif [ -n \"${FLOODMAN_SOURCE_URL:-}\" ] && [ ! -f \"/mnt/server/${FLOODMAN_SOURCE_ARCHIVE:-floodman-source.zip}\" ]; then\n  echo \"Downloading configured Floodman source bundle...\"\n  curl -fL --retry 4 --connect-timeout 20 --max-time 1800 \"$FLOODMAN_SOURCE_URL\" -o \"/mnt/server/${FLOODMAN_SOURCE_ARCHIVE:-floodman-source.zip}\"\nfi\necho 'Floodman Operations mobile panel files initialized. Set the Startup variables and press Start. No initial file upload is required; floodman-source.zip is optional for later source updates.'\n",
+      "container": "ghcr.io/ptero-eggs/installers:alpine",
+      "entrypoint": "ash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Source Mode",
+      "description": "builtin is the easiest first install and uses the source baked into the runtime image. Change to auto later to apply an uploaded floodman-source.zip when present.",
+      "env_variable": "FLOODMAN_SOURCE_MODE",
+      "default_value": "builtin",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:builtin,auto,upload,required,url",
+      "field_type": "text"
+    },
+    {
+      "name": "Source ZIP Filename",
+      "description": "Filename uploaded to the root of the Pterodactyl server. Do not extract it.",
+      "env_variable": "FLOODMAN_SOURCE_ARCHIVE",
+      "default_value": "floodman-source.zip",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|regex:/^[A-Za-z0-9._-]+\\.zip$/",
+      "field_type": "text"
+    },
+    {
+      "name": "Optional Source Download URL",
+      "description": "Optional HTTPS URL for panel-only automatic download. Leave blank when uploading floodman-source.zip from the Files tab.",
+      "env_variable": "FLOODMAN_SOURCE_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:1000",
+      "field_type": "text"
+    },
+    {
+      "name": "Optional Source SHA-256",
+      "description": "Optional archive checksum. Leave blank when using the internal signed manifest or upload a companion floodman-source.zip.sha256 file.",
+      "env_variable": "FLOODMAN_SOURCE_SHA256",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|regex:/^[a-fA-F0-9]{64}$/",
+      "field_type": "text"
+    },
+    {
+      "name": "Force Source Reapply",
+      "description": "Set true for one restart to reapply the same uploaded ZIP, then return it to false.",
+      "env_variable": "FLOODMAN_FORCE_SOURCE_REAPPLY",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Company Name",
+      "description": "Floodman organization name shown in Floodman Operations and the unified Hub.",
+      "env_variable": "FLOODMAN_COMPANY_NAME",
+      "default_value": "Floodman",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|min:2|max:80",
+      "field_type": "text"
+    },
+    {
+      "name": "Owner First Name",
+      "description": "First name for the primary Floodman Operations Super Administrator and Floodman Owner.",
+      "env_variable": "FLOODMAN_OWNER_FIRST_NAME",
+      "default_value": "Josh",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|min:1|max:60",
+      "field_type": "text"
+    },
+    {
+      "name": "Owner Last Name",
+      "description": "Last name for the primary Floodman Operations Super Administrator and Floodman Owner.",
+      "env_variable": "FLOODMAN_OWNER_LAST_NAME",
+      "default_value": "Aldrich",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|min:1|max:60",
+      "field_type": "text"
+    },
+    {
+      "name": "Owner Email",
+      "description": "Real email used to create the primary Owner. Use the same email later in RoomFlow.",
+      "env_variable": "FLOODMAN_OWNER_EMAIL",
+      "default_value": "owner@example.com",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|email|max:120",
+      "field_type": "text"
+    },
+    {
+      "name": "Owner Password",
+      "description": "Initial Owner password. 12-64 characters; letters, numbers and ! @ % _ + - are accepted. Treat this as a secret.",
+      "env_variable": "FLOODMAN_OWNER_PASSWORD",
+      "default_value": "ChangeMe12345!",
+      "user_viewable": false,
+      "user_editable": true,
+      "rules": "required|string|min:12|max:64|regex:/^[A-Za-z0-9!@%_+\\-]+$/",
+      "field_type": "text"
+    },
+    {
+      "name": "Time Zone",
+      "description": "IANA time zone used by Floodman Operations, receivables and schedules.",
+      "env_variable": "TZ",
+      "default_value": "America/Detroit",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:64",
+      "field_type": "text"
+    },
+    {
+      "name": "Public Host",
+      "description": "Public IP or DNS hostname used to build browser links. Leave blank to use the primary allocation IP. Do not include http:// or a port.",
+      "env_variable": "FLOODMAN_PUBLIC_HOST",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:255",
+      "field_type": "text"
+    },
+    {
+      "name": "Public Scheme",
+      "description": "Use http for direct allocation testing. Use https only when a reverse proxy terminates TLS.",
+      "env_variable": "FLOODMAN_PUBLIC_SCHEME",
+      "default_value": "http",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:http,https",
+      "field_type": "text"
+    },
+    {
+      "name": "Enforce 9000 Port Scheme",
+      "description": "When true, startup requires primary allocation 9000 and additional allocations 9001-9004. Set false only when the panel cannot provide this block.",
+      "env_variable": "FLOODMAN_ENFORCE_9000_PORT_SCHEME",
+      "default_value": "true",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Explicit Main Hub URL",
+      "description": "Optional complete public Hub URL. Leave blank to derive it from Public Host and the primary allocation.",
+      "env_variable": "FLOODMAN_PUBLIC_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Documenso Port",
+      "description": "Assign TCP allocation 9001 to this server. This is the Documenso signing interface.",
+      "env_variable": "DOCUMENSO_PORT",
+      "default_value": "9001",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|between:1024,65535",
+      "field_type": "text"
+    },
+    {
+      "name": "Explicit Documenso URL",
+      "description": "Optional complete URL when using a reverse proxy or separate hostname.",
+      "env_variable": "FLOODMAN_DOCUMENSO_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Mailpit Port",
+      "description": "Assign TCP allocation 9002. Mailpit is a test inbox and must not be exposed to untrusted users.",
+      "env_variable": "MAILPIT_PORT",
+      "default_value": "9002",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|between:1024,65535",
+      "field_type": "text"
+    },
+    {
+      "name": "Explicit Mailpit URL",
+      "description": "Optional complete URL when using a reverse proxy.",
+      "env_variable": "FLOODMAN_MAILPIT_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Engineering Sandbox Port",
+      "description": "Assign TCP allocation 9003 for Square, signing, SMS, and workflow simulation.",
+      "env_variable": "ENGINEERING_PORT",
+      "default_value": "9003",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|between:1024,65535",
+      "field_type": "text"
+    },
+    {
+      "name": "Explicit Engineering URL",
+      "description": "Optional complete URL when using a reverse proxy.",
+      "env_variable": "FLOODMAN_ENGINEERING_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Floodman API Port",
+      "description": "Assign TCP allocation 9004 for RoomFlow, provider webhooks, and Floodman API documentation.",
+      "env_variable": "FLOODMAN_API_PORT",
+      "default_value": "9004",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|between:1024,65535",
+      "field_type": "text"
+    },
+    {
+      "name": "Explicit Floodman API URL",
+      "description": "Optional complete URL when using a reverse proxy.",
+      "env_variable": "FLOODMAN_API_PUBLIC_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "RoomFlow URL",
+      "description": "Public RoomFlow web application linked from the Hub.",
+      "env_variable": "ROOMFLOW_WEB_URL",
+      "default_value": "https://theninjallo.github.io/roomflow/",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|url|max:500",
+      "field_type": "text"
+    },
+    {
+      "name": "Floodman Core Node Heap MB",
+      "description": "Node.js memory limit for the internal Floodman Operations ERP service.",
+      "env_variable": "GAUZY_NODE_HEAP_MB",
+      "default_value": "4096",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|between:2048,12288",
+      "field_type": "text"
+    },
+    {
+      "name": "Competitor AI Provider",
+      "description": "deterministic requires no external key. openai requires OPENAI_API_KEY below.",
+      "env_variable": "AI_PROVIDER",
+      "default_value": "deterministic",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:deterministic,openai",
+      "field_type": "text"
+    },
+    {
+      "name": "Messaging AI Provider",
+      "description": "deterministic is the safe default for customer-message testing.",
+      "env_variable": "MESSAGING_AI_PROVIDER",
+      "default_value": "deterministic",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:deterministic,openai",
+      "field_type": "text"
+    },
+    {
+      "name": "OpenAI API Key",
+      "description": "Optional server-side key used only when an AI provider is set to openai. Pterodactyl variables are not a hardware-backed secret vault.",
+      "env_variable": "OPENAI_API_KEY",
+      "default_value": "",
+      "user_viewable": false,
+      "user_editable": true,
+      "rules": "nullable|string|max:300",
+      "field_type": "text"
+    }
+  ]
+}

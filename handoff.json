@@ -1,0 +1,25 @@
+{
+  "project": "Floodman Operations",
+  "handoff_version": "4.6.7-vscode-codex",
+  "server_version": "4.6.7",
+  "server_release": "pterodactyl-mobile-v4.6.7",
+  "android_version": "0.3.0-alpha11",
+  "ios_version": "0.1.0-alpha02",
+  "roomflow_commit": "1f97817a52b916875e50cc6380c0d284072b8ce8",
+  "timezone": "America/Detroit",
+  "creator": "Josh Aldrich",
+  "generated_for": "VS Code and Codex handoff",
+  "data_included": false,
+  "secrets_included": false,
+  "custom_route_count": 304,
+  "environment_variable_count": 180,
+  "roomflow_repository": "https://github.com/TheNINJALLO/roomflow.git",
+  "upstream_source_vendored": false,
+  "live_customer_data_included": false,
+  "latest_live_boundary": "v4.6.7 Full ERP routing package was locally validated but not confirmed on the live Pterodactyl/Tailscale node before handoff",
+  "build_boundaries": {
+    "server": "source/static and packaged smoke tests passed in handoff environment; live node validation required",
+    "android": "source included; clean Gradle and physical-device acceptance required",
+    "ios": "source included; Xcode simulator, parity and TestFlight acceptance required"
+  }
+}

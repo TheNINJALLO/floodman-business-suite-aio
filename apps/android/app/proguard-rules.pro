@@ -1,0 +1,4 @@
+-keep class sqip.** { *; }
+-keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
+-keepclassmembers class **$$serializer { *; }
+-keep,includedescriptorclasses class com.floodman.operations.data.**$$serializer { *; }

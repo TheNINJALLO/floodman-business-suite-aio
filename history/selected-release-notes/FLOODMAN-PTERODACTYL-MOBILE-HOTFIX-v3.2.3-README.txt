@@ -1,0 +1,35 @@
+Floodman Pterodactyl mobile hotfix v3.2.3
+
+Purpose
+-------
+Fixes the Competitor Intelligence scheduler/API startup race shown as:
+  connection to 127.0.0.1:5432 failed: Connection refused
+  competitor-scheduler entered FATAL state
+
+This does not delete or replace the embedded PostgreSQL database.
+
+Mobile install
+--------------
+1. Stop the Floodman Pterodactyl server.
+2. Open the Files tab.
+3. Rename the current root file mobile-start.sh to mobile-start-v3.2.2.backup.sh.
+4. Upload mobile-start-v3.2.3.sh from this kit.
+5. Rename the uploaded file to exactly mobile-start.sh.
+6. In Startup, keep Source Mode set to builtin.
+7. Press Start.
+8. Wait for FLOODMAN_SUITE_READY.
+
+Expected early console lines
+----------------------------
+[Floodman Mobile v3.2.3] Cleared stale database readiness markers and PostgreSQL sockets.
+[Floodman Mobile v3.2.3] Restart-safe database gates are installed. Starting Floodman v3.2.3...
+[Floodman] Waiting for the active PostgreSQL instance and Competitor Intelligence grants...
+
+Protected data
+--------------
+The script does not delete data/, config/, logs/, backups/, documents, or PostgreSQL.
+It clears only ephemeral readiness files and Unix socket files in run/.
+
+Rollback
+--------
+Stop the server, remove mobile-start.sh, rename mobile-start-v3.2.2.backup.sh back to mobile-start.sh, then start.

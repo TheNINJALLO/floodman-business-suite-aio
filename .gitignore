@@ -1,0 +1,83 @@
+# Floodman Operations repository exclusions
+
+# Secrets and runtime configuration
+.env
+.env.*
+!.env.example
+!*.env.example
+**/secrets/
+**/*-auth-key.txt
+**/*token*.txt
+**/*private-key*.pem
+**/*.p8
+**/*.p12
+**/*.mobileprovision
+**/*.jks
+**/*.keystore
+
+# Live and imported business data
+Clients.csv
+clients.csv
+customer-data/
+imports/
+uploads/
+data/
+logs/
+backups/
+runtime/
+config/*.env
+config/*.json
+!deployment/env/*.example
+**/office-state.json
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/postgres/
+**/documenso/
+**/roomflow/current/
+
+# Generated packages and build products
+*.apk
+*.aab
+*.ipa
+*.xcarchive
+*.app
+*.dSYM.zip
+*.tar
+*.tar.gz
+*.zip
+!server/resources/import-templates/*.zip
+!release-artifacts/*.zip
+build/
+dist/
+out/
+.gradle/
+**/.gradle/
+**/build/
+DerivedData/
+.swiftpm/
+
+# IDE and operating system
+.idea/
+.vscode/*.local.json
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Python / Node caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# RoomFlow is fetched at a pinned commit; do not commit fetched working copies.
+vendor/roomflow/source/
+apps/android/app/src/main/assets/roomflow/upstream/
+apps/ios/FloodmanOperations/Resources/RoomFlow/upstream/
