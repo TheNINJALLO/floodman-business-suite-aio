@@ -9,9 +9,9 @@
     "orchestrator": 27
   },
   "environment_variable_count": 180,
-  "source_file_count": 545,
-  "source_bytes": 6149608,
-  "text_line_count": 72887,
+  "source_file_count": 551,
+  "source_bytes": 6150845,
+  "text_line_count": 73102,
   "file_counts_by_extension": {
     ".1": 1,
     ".code-workspace": 1,
@@ -29,7 +29,7 @@
     ".json": 26,
     ".kt": 14,
     ".kts": 3,
-    ".md": 89,
+    ".md": 95,
     ".mjs": 4,
     ".pdf": 2,
     ".plist": 1,

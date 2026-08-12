@@ -7,6 +7,7 @@ import json
 import os
 import plistlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -29,8 +30,16 @@ def warning(message: str) -> None:
 
 
 def run(command: list[str], cwd: Path | None = None, required: bool = True) -> None:
+    resolved_command = list(command)
+    if os.name == "nt" and not Path(command[0]).is_absolute():
+        # Windows CreateProcess searches system directories before PATH. That can
+        # select the WSL bash shim even when Git Bash is first on PATH. Resolve
+        # explicitly so the command verified by shutil is the command executed.
+        executable = shutil.which(command[0])
+        if executable:
+            resolved_command[0] = executable
     try:
-        completed = subprocess.run(command, cwd=cwd or ROOT, text=True, capture_output=True, check=False)
+        completed = subprocess.run(resolved_command, cwd=cwd or ROOT, text=True, capture_output=True, check=False)
     except FileNotFoundError:
         if required:
             error(f"Required command not found: {command[0]}")
