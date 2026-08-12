@@ -41,7 +41,7 @@ c41b4aae33130c7a77016373be53ba1f1268d45ce2e35ef5fa3db8721da977a4  ./database/ini
 31f7682677ebba4c6f9089e495c11b875ba707b2d98effe138deab7fb71a6aeb  ./hub/brand/floodman-wordmark.svg
 79cbadf272f9e2496c7b8e91900325de7fc8876c1522c7283dca5c7157c6f174  ./hub/hub-config.js.template
 bf5c91abf6180bc1900ba06ef64ba5f16873df3e6898f52d63f4ae43d91aafd7  ./hub/hub.css
-20a4ef5721a6123b10dd3f81dff3a08cd4dc1755e1855f8ff4a3e59eb07054e5  ./hub/hub.js
+207743bfc2831b50538a689a82ee0ce9280b844164aff58219c7e59d26ad9af9  ./hub/hub.js
 f7f050da3f7bf7100f6f5c3dc68db7e7a41a2ab32d49a9b5a75c365e37b922cd  ./hub/starting.html
 a70e0160944c212b6cc13a886ddea6f22245b2374aff64a2284282947bb07a1e  ./hub/third-party-notices.html
 532ff7bfa193b95509812d447e3fb906aa14a8862219c33cf6c3bce384896f8e  ./local-lab/app/__init__.py
@@ -68,7 +68,7 @@ f3165b1bfd0f3eb849e5d05bc065a78021dd2a4235f5e48caa530c939f969ba6  ./office-conso
 5f10b5e6e673ea7a859e9b5b3bcc23d5ec7de253f83567d19e2cecd6524d9895  ./office-console/app/main.py
 b130a1c065fcc0665e760ba434b77ae4f65cde21e60110cecfa215aef0c0abc3  ./office-console/app/mobile_api.py
 73f95ddb9e9763e2eecaa7fc25b2c7fe113d990e0db225c57044cbddd8d14dfc  ./office-console/app/mobile_operations.py
-371d0f17248edc4883cc75be5b96acacca5552c41c153eaf000febaa580caaed  ./office-console/app/pdf_documents.py
+d9aea4155ae632f55da4b08f75930a0ec38d79b51b6621415fd8c70c7b317267  ./office-console/app/pdf_documents.py
 d2505213c0a55a3d6dad54773ec53bbfbf1de488b5cb72b1b3ca9d6d8c7eab4f  ./office-console/app/project_plans.py
 bb238aacb0e3388188cd45ae1308d635dd156a82b1f9d0bbed8ad10029833700  ./office-console/app/providers.py
 18c40f0405cfe2d6d64e84562d905bf27e0d4db8427dad89a9b5a9b8d27d8693  ./office-console/app/roomflow_assets.py
@@ -107,8 +107,8 @@ a2414316e666682fc025b5dd41aa78fe07b1ce5bee9633b2602065458c201512  ./orchestrator
 9a0d1c94f6ee3cf9735b7cfb86e16a59ba009531c1f79c498a1d1e024468d1ae  ./overlay.json
 83252e5f5f192408f1c68ea0c8cfaed1217d2b57b6a040c8604e286691d56193  ./public-signing/README.txt
 4c2023ee6b208e85e85839b1f830b17e4ccefc652ac4373dffc7a6596eb60be1  ./pwa/erp.html
-c5cdeffe5ead1866b521499019421f20380195db30ca1eb8325d415d72ed04ce  ./pwa/floodman-pwa.css
-e65bb3d58417da4940baa4a5c532a918112514f83909ca33241ba53ec7731ed7  ./pwa/floodman-pwa.js
+fd4bea05152c4138fe28b48528bad7176b848d365fd0269a0fd1783cd978ffff  ./pwa/floodman-pwa.css
+4e1e6360ce289fb780586a6aecae6a1be07bc9fc94a02bc653bad30a4924fbf2  ./pwa/floodman-pwa.js
 9f110fa8f8558684a6a2ea79bc3ef91e084c6cdf9f6bdc8c1cfa7546de36f95b  ./pwa/floodman-sw.js
 f3caee410f2e73f525a677227f11ac25f2fbab504ffaac89bfbd125993cdd044  ./pwa/icons/apple-touch-icon-180.png
 577d2c325e1afb4af43730475a8a2717640223dd14f0c88e189fd210241c1a98  ./pwa/icons/badge-96.png
@@ -143,10 +143,10 @@ a3446fb908229b0638f59bff2939e044f97af8014faa0fb0927e7b3d0b06c61a  ./resources/im
 15e98087fa299570dccffe088d8bbe7aef165e6447d2c3e4c6e442fe8901751f  ./resources/roomflow-integration/README.md
 d4ec0f7b8f56e1e839341cf94a4aab0e69da1a4304ab036c83d0cb5a2c8efd07  ./resources/roomflow-integration/build-floodman-payload.mjs
 5db1419ae53c0a0757ed3c6991065154d3df2776837837dbab8fe2cc9e300f4a  ./resources/roomflow-integration/floodman-orchestrator-client.mjs
-53a04d588e546341fb5be9c221fc4dadc0cd582bbea1decfb149c1633ce26522  ./roomflow/floodman-panel.css
-9ecdf8fa67efa21705cc378f55b9bca29c365c4ee9772aaf51c3bc0badeb5a5c  ./roomflow/floodman-panel.js
-7b0902cd88aec7f9aa8089440593c035604e047c117c9cc47ec2f5002f3a8e0b  ./roomflow/floodman-roomflow.css
-2f9eff57a7da967fb0e841f80011e1e72aa130a38f3108f4a560af4e5f1cc14e  ./roomflow/floodman-roomflow.js
+60997c02be4b018c559594e120c96a9d38d92375e2ae973be9782ffafb450f64  ./roomflow/floodman-panel.css
+3e66f1a466b2ef6562baab0659a7c251645b78349cd04a3accfb2fa6d4226811  ./roomflow/floodman-panel.js
+edf6195867776e4f3c20d0a710b58fe23fc25aa2f63338119d4f0b63cf840362  ./roomflow/floodman-roomflow.css
+acb40d9e04f31af380d1d29f88d6e06cd5c5f07b54a0a4ec34ebb136ebc4a1b6  ./roomflow/floodman-roomflow.js
 5403cbce4bcd806b088135fa578a2d6da52c4016ce1c8d1ba52eeb792a16b59a  ./roomflow/prepare-roomflow.py
 0f7473814aa435b8330ec632fdb64c58befae8398a3ec2c03b2497322ed36197  ./roomflow/unavailable.html
 1b6899a56cc9aa27be4cab221170f0399ae5733cceaf6e84dba8c57633319afd  ./tailscale/README.txt
@@ -159,3 +159,4 @@ fad5af4dbe9eaa064d290f77a63a07e24931403fe65307d4c253e5198217a05c  ./tests/pdf_ru
 8dd85182d66ee0888810ee20b410174a24d16cf239ebc27cf5537713683da181  ./tests/roomflow_native_smoke.py
 76d5cea505a0259f86d96314427e4c39a6b587880b8d8d02403663684b001b0b  ./tests/roomflow_supabase_import_smoke.py
 b725621eb0d967dea60298b19122f70a5a8db2baa83d4eafdf4f2b2414fb14e7  ./tests/roomflow_workspace_smoke.py
+0949b67166e996af2827436db6342b9119f6a883c797a2a94cc1a2bfc9eb8767  ./tests/web_ui_smoke.py

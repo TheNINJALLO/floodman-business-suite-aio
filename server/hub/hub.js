@@ -233,10 +233,15 @@
     const trigger = create('button', 'fm-hub-trigger');
     trigger.type = 'button';
     trigger.setAttribute('aria-label', 'Open Floodman Operations');
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.setAttribute('aria-expanded', 'false');
     trigger.innerHTML = '<img class="fm-hub-trigger-logo" src="/floodman-brand/floodman-mark.svg" alt=""><span class="fm-hub-trigger-text">Floodman</span>';
 
     const drawer = create('aside', 'fm-hub-drawer');
     drawer.setAttribute('aria-hidden', 'true');
+    drawer.setAttribute('role', 'dialog');
+    drawer.setAttribute('aria-modal', 'true');
+    drawer.setAttribute('aria-label', 'Floodman Operations tools');
     drawer.innerHTML = `
       <header class="fm-hub-drawer-header">
         <div>
@@ -264,9 +269,12 @@
 
     const overlay = create('section', 'fm-hub-overlay');
     overlay.setAttribute('aria-hidden', 'true');
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'fm-hub-overlay-title');
     overlay.innerHTML = `
       <div class="fm-hub-overlay-bar">
-        <div class="fm-hub-overlay-title-wrap"><img class="fm-hub-overlay-mark" src="${brandMark}" alt=""><div><div class="fm-hub-overlay-kicker">Floodman module</div><strong class="fm-hub-overlay-title">Module</strong></div></div>
+        <div class="fm-hub-overlay-title-wrap"><img class="fm-hub-overlay-mark" src="${brandMark}" alt=""><div><div class="fm-hub-overlay-kicker">Floodman module</div><strong class="fm-hub-overlay-title" id="fm-hub-overlay-title">Module</strong></div></div>
         <div class="fm-hub-overlay-actions"><a class="fm-hub-overlay-link" href="#" target="_blank" rel="noreferrer">Open full screen ↗</a><button class="fm-hub-overlay-close" type="button">Back to Floodman</button></div>
       </div>
       <div class="fm-hub-frame-wrap"><div class="fm-hub-frame-loading"><div><span class="fm-hub-spinner"></span><b>Loading module…</b><small>This should take only a moment.</small></div></div><iframe class="fm-hub-frame" title="Floodman module" referrerpolicy="same-origin"></iframe></div>`;
@@ -290,7 +298,7 @@
     moreButton.type = 'button';
     moreButton.setAttribute('aria-label', 'Open all Floodman tools');
     moreButton.innerHTML = '<span class="fm-hub-mobile-icon">☰</span><span>More</span>';
-    moreButton.addEventListener('click', openDrawer);
+    moreButton.addEventListener('click', () => openDrawer());
     mobileDock.appendChild(moreButton);
 
     root.append(trigger, backdrop, drawer, overlay, mobileDock);
@@ -319,9 +327,12 @@
       drawer.querySelectorAll('.fm-hub-section').forEach((section) => { section.hidden = !Array.from(section.querySelectorAll('.fm-hub-module')).some((node) => !node.hidden); });
     });
 
-    const closeDrawer = () => {
+    let moduleReturnFocus = null;
+    const closeDrawer = (restoreFocus = true) => {
+      const wasOpen = drawer.classList.contains('is-open');
       drawer.classList.remove('is-open'); backdrop.classList.remove('is-open');
       drawer.setAttribute('aria-hidden', 'true'); backdrop.setAttribute('aria-hidden', 'true'); trigger.setAttribute('aria-expanded', 'false');
+      if (wasOpen && restoreFocus) trigger.focus();
     };
     const openDrawer = () => {
       drawer.classList.add('is-open'); backdrop.classList.add('is-open');
@@ -339,7 +350,8 @@
     });
 
     function openModule(item) {
-      closeDrawer();
+      moduleReturnFocus = document.activeElement;
+      closeDrawer(false);
       if (item.desktop) writePreference('desktop');
       if (item.mobile) writePreference('mobile');
       if (item.native) { window.location.assign(item.url); return; }
@@ -354,6 +366,7 @@
       loading.classList.remove('is-hidden', 'is-error');
       loading.innerHTML = '<div><span class="fm-hub-spinner"></span><b>Loading module…</b><small>This should take only a moment.</small></div>';
       frame.title = item.label; overlay.classList.add('is-open'); overlay.setAttribute('aria-hidden', 'false'); document.documentElement.classList.add('fm-hub-module-open');
+      window.setTimeout(() => $('.fm-hub-overlay-close', overlay).focus(), 0);
       let settled = false;
       const timeout = window.setTimeout(() => {
         if (settled) return;
@@ -365,9 +378,11 @@
     }
 
     function closeModule() {
+      const wasOpen = overlay.classList.contains('is-open');
       const frame = $('.fm-hub-frame', overlay); frame.onload = null;
       overlay.classList.remove('is-open'); overlay.setAttribute('aria-hidden', 'true'); document.documentElement.classList.remove('fm-hub-module-open');
       window.setTimeout(() => { frame.src = 'about:blank'; }, 180);
+      if (wasOpen && moduleReturnFocus?.focus) moduleReturnFocus.focus();
     }
   }
 

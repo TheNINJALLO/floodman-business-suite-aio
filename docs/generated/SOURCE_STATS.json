@@ -1,17 +1,18 @@
 {
   "generated_at_note": "Generated from the checked-in handoff source; no live customer data was inspected.",
-  "route_count": 304,
+  "route_count": 310,
   "route_counts_by_service": {
     "competitor-intel": 10,
     "local-lab": 46,
     "messaging-ai": 2,
     "office-console": 219,
-    "orchestrator": 27
+    "orchestrator": 27,
+    "tests": 6
   },
   "environment_variable_count": 180,
-  "source_file_count": 551,
-  "source_bytes": 6150845,
-  "text_line_count": 73102,
+  "source_file_count": 552,
+  "source_bytes": 6181987,
+  "text_line_count": 73651,
   "file_counts_by_extension": {
     ".1": 1,
     ".code-workspace": 1,
@@ -37,7 +38,7 @@
     ".pro": 1,
     ".properties": 1,
     ".ps1": 2,
-    ".py": 171,
+    ".py": 172,
     ".sh": 49,
     ".sha256": 5,
     ".sql": 2,

@@ -613,11 +613,15 @@ cat > "$hotfix/floodman-boot-guard.js" <<'BOOT_GUARD'
     if (document.getElementById('floodman-boot-recovery')) return;
     const panel = document.createElement('section');
     panel.id = 'floodman-boot-recovery';
-    panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;padding:22px;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif';
+    panel.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;overflow:auto;padding:22px;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', 'floodman-recovery-title');
     panel.innerHTML = `
-      <div style="width:min(560px,100%);background:#fff;border-radius:22px;padding:30px;box-shadow:0 24px 70px rgba(15,35,65,.18)">
+      <div style="position:relative;width:min(560px,100%);max-height:calc(100dvh - 44px);overflow:auto;background:#fff;border-radius:22px;padding:30px;box-shadow:0 24px 70px rgba(15,35,65,.18)">
+        <button type="button" id="floodman-dismiss-recovery" aria-label="Dismiss recovery notice" style="position:absolute;top:12px;right:12px;display:grid;place-items:center;width:44px;min-height:44px;border:0;border-radius:12px;background:#e7eef6;color:#102443;font-size:24px;font-weight:800;cursor:pointer">×</button>
         <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0ea5e9">Floodman Operations</div>
-        <h1 style="margin:10px 0 8px;font-size:25px">Floodman ERP browser did not finish rendering</h1>
+        <h1 id="floodman-recovery-title" style="margin:10px 48px 8px 0;font-size:25px">Floodman ERP browser did not finish rendering</h1>
         <p style="margin:0 0 18px;line-height:1.55;color:#52657c">The Hub and ERP API answered, but the embedded ERP browser did not draw its login or dashboard within 90 seconds.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0">
           <div style="padding:12px;border-radius:12px;background:#f3f7fb"><b>Hub</b><br><span>${hub.ok ? 'responding' : 'unavailable'} (${hub.status || 'no response'})</span></div>
@@ -628,9 +632,14 @@ cat > "$hotfix/floodman-boot-guard.js" <<'BOOT_GUARD'
           <a href="/floodman-status.html?fm=${release}" style="display:inline-block;padding:12px 16px;border-radius:12px;background:#e7eef6;color:#102443;text-decoration:none;font-weight:750">Open status page</a>
           <button type="button" id="floodman-reload" style="padding:12px 16px;border:0;border-radius:12px;background:#e7eef6;color:#102443;font-weight:750">Reload without cache</button>
         </div>
-        <p style="margin:16px 0 0;font-size:12px;color:#728197">Release ${release}</p>
+        <p style="margin:16px 0 0;font-size:12px;color:#728197">Created by Josh Aldrich · Release ${release}</p>
       </div>`;
     document.body.appendChild(panel);
+    const dismiss = () => { document.removeEventListener('keydown', dismissOnEscape); panel.remove(); };
+    const dismissOnEscape = (event) => { if (event.key === 'Escape') dismiss(); };
+    document.getElementById('floodman-dismiss-recovery').addEventListener('click', dismiss);
+    document.addEventListener('keydown', dismissOnEscape);
+    document.getElementById('floodman-dismiss-recovery').focus();
     document.getElementById('floodman-reload').addEventListener('click', () => {
       const url = new URL(window.location.href);
       url.searchParams.set('fm', release + '-' + Date.now());

@@ -17,6 +17,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ERRORS: list[str] = []
 WARNINGS: list[str] = []
+EXCLUDED_PARTS = {
+    ".git", ".gradle", ".venv", "venv", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    "build", "dist", "out", "node_modules", "DerivedData", "__pycache__",
+}
 
 
 def error(message: str) -> None:
@@ -35,7 +39,17 @@ def run(command: list[str], cwd: Path | None = None, required: bool = True) -> N
         # Windows CreateProcess searches system directories before PATH. That can
         # select the WSL bash shim even when Git Bash is first on PATH. Resolve
         # explicitly so the command verified by shutil is the command executed.
-        executable = shutil.which(command[0])
+        executable = None
+        if command[0].lower() == "bash":
+            git = shutil.which("git")
+            candidates = []
+            if git:
+                candidates.append(Path(git).resolve().parent.parent / "bin" / "bash.exe")
+            for variable in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"):
+                if os.getenv(variable):
+                    candidates.append(Path(str(os.getenv(variable))) / "Git" / "bin" / "bash.exe")
+            executable = next((str(path) for path in candidates if path.is_file()), None)
+        executable = executable or shutil.which(command[0])
         if executable:
             resolved_command[0] = executable
     try:
@@ -71,18 +85,22 @@ for path in sorted((ROOT / "server").rglob("*.py")):
 
 # JSON, XML and plist validation.
 for path in sorted(ROOT.rglob("*.json")):
-    if any(part in {"build", ".gradle", "DerivedData"} for part in path.parts):
+    if any(part in EXCLUDED_PARTS for part in path.parts):
         continue
     try:
         json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         error(f"JSON parse failed: {path.relative_to(ROOT)}: {exc}")
 for path in sorted(ROOT.rglob("*.xml")):
+    if any(part in EXCLUDED_PARTS for part in path.parts):
+        continue
     try:
         ET.parse(path)
     except Exception as exc:
         error(f"XML parse failed: {path.relative_to(ROOT)}: {exc}")
 for path in sorted(ROOT.rglob("*.plist")):
+    if any(part in EXCLUDED_PARTS for part in path.parts):
+        continue
     try:
         with path.open("rb") as handle:
             plistlib.load(handle)
@@ -91,11 +109,11 @@ for path in sorted(ROOT.rglob("*.plist")):
 
 # Shell and JavaScript syntax.
 for path in sorted(ROOT.rglob("*.sh")):
-    if any(part in {"build", ".gradle", "DerivedData"} for part in path.parts):
+    if any(part in EXCLUDED_PARTS for part in path.parts):
         continue
     run(["bash", "-n", str(path)])
 for path in sorted(ROOT.rglob("*.js")) + sorted(ROOT.rglob("*.mjs")):
-    if any(part in {"build", ".gradle", "DerivedData", "source"} for part in path.parts):
+    if any(part in EXCLUDED_PARTS | {"source"} for part in path.parts):
         continue
     run(["node", "--check", str(path)], required=False)
 
@@ -106,6 +124,8 @@ except Exception:
     warning("PyYAML not installed; YAML syntax was not parsed by verify_repo.py")
 else:
     for path in sorted(list(ROOT.rglob("*.yml")) + list(ROOT.rglob("*.yaml"))):
+        if any(part in EXCLUDED_PARTS for part in path.parts):
+            continue
         try:
             yaml.safe_load(path.read_text(encoding="utf-8"))
         except Exception as exc:
@@ -126,6 +146,8 @@ secret_patterns = {
 scan_suffixes = {".py", ".sh", ".js", ".mjs", ".kt", ".kts", ".swift", ".json", ".yml", ".yaml", ".md", ".txt", ".env", ".example", ".properties"}
 for path in sorted(ROOT.rglob("*")):
     if not path.is_file() or path.suffix.lower() not in scan_suffixes:
+        continue
+    if any(part in EXCLUDED_PARTS for part in path.parts):
         continue
     if "release-artifacts" in path.parts or "provenance" in path.parts or "tests" in path.parts:
         continue

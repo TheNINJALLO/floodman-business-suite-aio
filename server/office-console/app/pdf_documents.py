@@ -107,7 +107,7 @@ def _date(value: Any, fallback: str = "") -> str:
             dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
         except Exception:
             return text[:32]
-    return dt.strftime("%b %-d, %Y") if hasattr(dt, "strftime") else str(value)
+    return f"{dt:%b} {dt.day}, {dt:%Y}" if hasattr(dt, "strftime") else str(value)
 
 
 def _contact_name(contact: dict[str, Any]) -> str:

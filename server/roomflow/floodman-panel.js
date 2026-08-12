@@ -105,9 +105,13 @@
     node.textContent = message || ''; node.className = `fm-rf-status ${kind} ${message ? 'is-open' : ''}`;
   }
   function panelOpen(open = true) {
-    $('#fm-roomflow-panel')?.classList.toggle('is-open', open);
-    $('#fm-roomflow-backdrop')?.classList.toggle('is-open', open);
-    $('#fm-roomflow-panel')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    const root = document.documentElement;
+    const panel = $('#fm-roomflow-panel');
+    root.classList.toggle('fm-rf-panel-dismissed', !open && root.classList.contains('fm-rf-panel-pinned'));
+    panel?.classList.toggle('is-open', open);
+    $('#fm-roomflow-backdrop')?.classList.toggle('is-open', open && !root.classList.contains('fm-rf-panel-pinned'));
+    panel?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    if ('inert' in HTMLElement.prototype && panel) panel.inert = !open;
   }
   function updateJobChip() {
     const value = model.contact?.name || appState().currentJobName || 'No customer selected';
@@ -554,7 +558,7 @@
     const topbar = document.createElement('header'); topbar.id = 'fm-roomflow-topbar';
     topbar.innerHTML = `<div class="fm-rf-brand"><img class="fm-rf-brand-mark" src="/floodman-brand/floodman-mark.svg" alt=""><div class="fm-rf-brand-copy"><strong>Floodman RoomFlow</strong><small>Customer-linked field estimating</small></div></div><div class="fm-rf-top-actions"><span id="fm-rf-job-chip" class="fm-rf-job-chip">No customer selected</span><a class="fm-rf-top-button secondary" href="/office" target="_top">Back to Operations</a><button type="button" class="fm-rf-top-button" id="fm-rf-open-panel">Customer & job file</button></div>`;
     const backdrop = document.createElement('div'); backdrop.id = 'fm-roomflow-backdrop';
-    const panel = document.createElement('aside'); panel.id = 'fm-roomflow-panel'; panel.setAttribute('aria-hidden', 'true');
+    const panel = document.createElement('aside'); panel.id = 'fm-roomflow-panel'; panel.setAttribute('aria-hidden', 'true'); panel.setAttribute('aria-label', 'Customer and job file');
     panel.innerHTML = `<header class="fm-rf-panel-header"><div><h2>Customer & job file</h2><p>Link this sketch to one Floodman customer and property, then sync the estimate directly into Floodman ERP.</p></div><button type="button" class="fm-rf-icon-button" id="fm-rf-close-panel" aria-label="Close">×</button></header><div class="fm-rf-panel-body">
       <section class="fm-rf-card"><h3>1. Customer</h3><p class="fm-rf-card-intro">Search by name, company, email, phone, address, or tag. No thousand-item dropdown.</p><div class="fm-rf-field"><label>Find customer</label><input class="fm-rf-input" id="fm-rf-customer-search" autocomplete="off" placeholder="Start typing a customer…"><div class="fm-rf-results" id="fm-rf-customer-results"></div></div><div id="fm-rf-customer-summary"></div></section>
       <section class="fm-rf-card"><h3>2. Service property</h3><p class="fm-rf-card-intro">Results are filtered to the selected customer.</p><div class="fm-rf-field"><label>Find property</label><input class="fm-rf-input" id="fm-rf-property-search" autocomplete="off" disabled placeholder="Choose a customer first"><div class="fm-rf-results" id="fm-rf-property-results"></div></div><div id="fm-rf-property-summary"></div></section>
@@ -566,7 +570,7 @@
     mobileNav.innerHTML = `<button type="button" data-rf-tab="jobs"><b>⌂</b>Jobs</button><button type="button" data-rf-tab="project"><b>▱</b>Sketch</button><button type="button" data-rf-tab="add"><b>＋</b>Add</button><button type="button" data-rf-tab="review"><b>✓</b>Review</button><button type="button" data-rf-panel><b>◎</b>Customer</button>`;
     document.body.append(topbar, backdrop, panel, mobileNav);
     neutralizeLegacyCloudControls();
-    $('#fm-rf-open-panel')?.addEventListener('click', () => panelOpen(true)); $('#fm-rf-close-panel')?.addEventListener('click', () => panelOpen(false)); backdrop.addEventListener('click', () => panelOpen(false));
+    $('#fm-rf-open-panel')?.addEventListener('click', () => { panelOpen(true); $('#fm-rf-close-panel')?.focus(); }); $('#fm-rf-close-panel')?.addEventListener('click', () => { panelOpen(false); $('#fm-rf-open-panel')?.focus(); }); backdrop.addEventListener('click', () => panelOpen(false));
     $('#fm-rf-customer-search')?.addEventListener('input', event => { clearTimeout(model.searchTimer); model.searchTimer = setTimeout(() => searchCustomers(event.target.value), 220); });
     $('#fm-rf-property-search')?.addEventListener('input', event => { clearTimeout(model.propertyTimer); model.propertyTimer = setTimeout(() => searchProperties(event.target.value), 220); });
     $('#fm-rf-property-search')?.addEventListener('focus', event => { if (model.contact && !event.target.value) searchProperties(''); });
@@ -575,7 +579,18 @@
     $('[data-rf-panel]', mobileNav)?.addEventListener('click', () => panelOpen(true));
     document.addEventListener('click', event => { if (!event.target.closest('.fm-rf-field')) $$('.fm-rf-results').forEach(node => node.classList.remove('is-open')); });
     document.addEventListener('keydown', event => { if (event.key === 'Escape') panelOpen(false); });
-    if (window.matchMedia('(min-width: 1200px)').matches) document.documentElement.classList.add('fm-rf-panel-pinned');
+    const widePanel = window.matchMedia('(min-width: 1200px)');
+    const syncPinnedPanel = () => {
+      if (widePanel.matches) {
+        document.documentElement.classList.add('fm-rf-panel-pinned');
+        if (!document.documentElement.classList.contains('fm-rf-panel-dismissed')) panelOpen(true);
+      } else {
+        document.documentElement.classList.remove('fm-rf-panel-pinned', 'fm-rf-panel-dismissed');
+        panelOpen(false);
+      }
+    };
+    if (widePanel.addEventListener) widePanel.addEventListener('change', syncPinnedPanel); else widePanel.addListener(syncPinnedPanel);
+    syncPinnedPanel();
     renderCustomer(); renderProperty(); renderEstimateScope(); updateJobChip();
   }
   async function initialize() {

@@ -9,11 +9,10 @@
 
 ## Phase 1 — web correctness and usability
 
-- Enumerate all custom HTML/CSS/JavaScript producers and public/private route families.
-- Run existing render/routing smoke tests with temporary state.
-- Add focused automated checks for dialog/drawer close paths, Escape behavior, responsive bounds, stacking contexts, loading masks, and failure recovery.
-- Repair concrete failures while preserving Floodman branding and `Created by Josh Aldrich` attribution where displayed.
-- Validate representative desktop, tablet, and mobile viewport behavior. Browser automation is preferred when available; static assertions are supplemental evidence only.
+- **Complete (2026-08-12).** Enumerated custom HTML/CSS/JavaScript producers and public/private route families.
+- Rendered 37 authenticated route states plus public estimate, invoice, payment, receipt, and PDF routes with fictional temporary data.
+- Added a real Chromium-family browser gate for dialog/drawer close paths, Escape behavior, focus restoration, and horizontal overflow at 1440×900 and 390×844.
+- Repaired PWA, Hub, active/legacy RoomFlow, Full ERP recovery, Windows time-zone, and PDF portability defects while preserving Floodman branding and attribution.
 
 ## Phase 2 — RoomFlow and Supabase
 

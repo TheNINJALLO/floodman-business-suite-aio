@@ -25,7 +25,11 @@
       root.id = 'fm-pwa-toast';
       root.className = 'fm-pwa-toast';
       root.setAttribute('role', 'status');
-      root.innerHTML = '<div class="fm-pwa-toast-copy"></div><div class="fm-pwa-toast-actions"></div>';
+      root.innerHTML = '<div class="fm-pwa-toast-copy"></div><div class="fm-pwa-toast-actions"></div><button type="button" class="fm-pwa-toast-dismiss" aria-label="Dismiss notification">×</button>';
+      root.querySelector('.fm-pwa-toast-dismiss').addEventListener('click', () => {
+        root.classList.remove('is-visible');
+        window.clearTimeout(root.__hideTimer);
+      });
       document.body.appendChild(root);
     }
     root.dataset.tone = tone;

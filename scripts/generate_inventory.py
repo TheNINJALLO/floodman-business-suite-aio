@@ -19,7 +19,10 @@ TEXT_SUFFIXES = {
     ".json", ".yml", ".yaml", ".xml", ".plist", ".html", ".css", ".md", ".txt", ".sql",
     ".template", ".env", ".properties", ".gradle",
 }
-EXCLUDE_PARTS = {".git", ".gradle", "build", "DerivedData", "__pycache__", "release-artifacts", "source", "generated"}
+EXCLUDE_PARTS = {
+    ".git", ".gradle", ".venv", "venv", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    "build", "dist", "out", "node_modules", "DerivedData", "__pycache__", "release-artifacts", "source", "generated",
+}
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head", "api_route", "websocket"}
 
 

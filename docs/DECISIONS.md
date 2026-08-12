@@ -32,3 +32,22 @@
 - Date: 2026-08-12
 - Decision: Do not rewrite root `MANIFEST.sha256` after development begins. Refresh generated inventories and the component source manifests/checksums that cover modified deliverables instead.
 - Reason: Rewriting the root manifest would erase the byte-level record of the untouched handoff preserved by `handoff-v4.6.7`.
+
+## DEC-006 — Require browser evidence for persistent overlays
+
+- Date: 2026-08-12
+- Decision: Keep the new `server/tests/web_ui_smoke.py` in the normal server smoke glob and use a locally installed Chromium-family browser when available, while retaining route and static contract coverage when a browser is absent.
+- Reason: A real browser exposed a Hub temporal-dead-zone initialization failure that JavaScript syntax checks and server route tests could not detect.
+- Scope: The test uses fictional temporary records and no provider credentials or live data.
+
+## DEC-007 — Make the Office test/runtime dependency set Windows-capable
+
+- Date: 2026-08-12
+- Decision: Pin `tzdata==2026.3` for the Office runtime, pin `playwright==1.62.0` for development tests, and format PDF dates without Unix-only `strftime` flags.
+- Reason: `America/Detroit` resolution and `%-d` formatting failed on a clean Windows environment even though the application logic was otherwise valid.
+
+## DEC-008 — Exclude local tool environments from repository evidence
+
+- Date: 2026-08-12
+- Decision: Exclude `.venv`, dependency/build directories, and test/type-check caches from generated source inventory, syntax validation, structured-file parsing, and secret-pattern scans. On Windows, prefer the Git installation's `bin/bash.exe` before the WSL shim.
+- Reason: Local Playwright and Python dependencies are ignored test infrastructure, not checked-in Floodman source; counting or validating them made evidence host-dependent and allowed Windows executable search order to select an unusable Bash shim.
