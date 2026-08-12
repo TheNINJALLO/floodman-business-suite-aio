@@ -51,3 +51,17 @@
 - Date: 2026-08-12
 - Decision: Exclude `.venv`, dependency/build directories, and test/type-check caches from generated source inventory, syntax validation, structured-file parsing, and secret-pattern scans. On Windows, prefer the Git installation's `bin/bash.exe` before the WSL shim.
 - Reason: Local Playwright and Python dependencies are ignored test infrastructure, not checked-in Floodman source; counting or validating them made evidence host-dependent and allowed Windows executable search order to select an unusable Bash shim.
+
+## DEC-009 — Preserve the RoomFlow pin and apply a deterministic package overlay
+
+- Date: 2026-08-12
+- Decision: Keep commit `1f97817a52b916875e50cc6380c0d284072b8ce8` untouched and ignored, then apply the reviewed duplicate-job-renderer repair only to prepared server/Android/iOS bundles.
+- Reason: The pin's `app.js` declares two `renderJobsList` functions for different surfaces. Chromium runs it, but Node rejects the duplicate declaration and callers cannot explicitly refresh both lists. Advancing the pin is outside the release boundary.
+- Gate: The overlay must reject an unexpected source layout, be idempotent, pass Node syntax, and pass a real browser render/close test.
+
+## DEC-010 — Replace upstream native cloud sessions with Floodman Mobile API bridges
+
+- Date: 2026-08-12
+- Decision: Package the complete core RoomFlow estimator in both native apps while removing upstream Supabase/Townsquare browser-session scripts from native HTML. Use the authenticated Floodman Mobile API for workspaces, shared jobs, catalog data, stable imports, actual layouts, and grouped estimates.
+- Reason: A second browser login would weaken the private-surface and short-lived-token contract. Original Supabase data remains available through a one-time RLS-scoped import using credentials that are never persisted.
+- Consequence: Android exposes the import inside its RoomFlow bar; iOS exposes workspace selection/creation and import as native, dismissible sheets and bootstraps the WebView from the same shared Mobile API contract.

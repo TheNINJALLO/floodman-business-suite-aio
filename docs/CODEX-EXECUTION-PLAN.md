@@ -16,11 +16,11 @@
 
 ## Phase 2 — RoomFlow and Supabase
 
-- Fetch only the pinned RoomFlow commit into the ignored vendor source location.
-- Inventory upstream features and compare them with the server, Android, and iOS prepared assets and versioned bridge events.
-- Review the schema/bridge without advancing the pin.
-- Run RoomFlow native, workspace, snapshot, catalog, actual-layout, and Supabase-import smoke tests.
-- Prove stable-source repeat import updates existing mapped records and does not create duplicates using fictional temporary fixtures.
+- **Complete (2026-08-12).** Fetched and verified only the pinned RoomFlow commit in the ignored vendor location: 1,032 tracked files, clean checkout.
+- Inventoried estimator, jobs, geometry, AR/3D, costing, documents, recovery, guide, shared-data, and external-integration features across server, Android, and iOS packages.
+- Repaired the Windows fetch failure reporting, required the previously omitted native `cost-tests.js`, added full local-dependency validation, and applied a deterministic overlay for the pinned duplicate job renderer.
+- Passed 35 upstream Node tests, 9 upstream Edge smoke pages, the prepared-bundle Edge test, server/native RoomFlow smoke tests, and source/server/native package validation without advancing the pin.
+- Proved authenticated, RLS-scoped original Supabase reads and stable repeat updates with fictional/mock fixtures; credentials and access tokens are not persisted.
 
 ## Phase 3 — Android
 

@@ -9,6 +9,8 @@ Commit: 1f97817a52b916875e50cc6380c0d284072b8ce8
 
 The repository is not duplicated in this source archive. Fetch it through the provided scripts. This keeps provenance clear and prevents an accidental unreviewed update.
 
+The 2026-08-12 source, feature, package, and Supabase evidence is recorded in `ROOMFLOW-PIN-AUDIT.md`.
+
 ## Data contract
 
 A RoomFlow synchronization can carry:
@@ -46,3 +48,4 @@ The project-plan page of the estimate must use the actual captured RoomFlow layo
 - RoomFlow must not bypass the Mobile API to perform privileged Floodman writes.
 - Bridge event schemas must be versioned before breaking changes.
 - Advancing the RoomFlow commit requires Android, iOS, server, snapshot restoration, catalog, layout, and estimate regression tests.
+- Android and iOS package the complete pinned estimator runtime, but replace the upstream Supabase/Townsquare browser session layers with the authenticated Floodman Mobile API.

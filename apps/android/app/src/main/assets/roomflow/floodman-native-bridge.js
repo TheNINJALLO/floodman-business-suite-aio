@@ -401,16 +401,23 @@
       const modal = document.createElement('div');
       modal.id = 'fm-roomflow-workspace-modal';
       modal.className = 'fm-roomflow-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'fm-workspace-title');
       modal.innerHTML = `
         <form id="fm-roomflow-workspace-form" autocomplete="off">
-          <h2>Create Floodman workspace</h2>
+          <h2 id="fm-workspace-title">Create Floodman workspace</h2>
           <p>Create a company workspace only when it does not already exist. Imported Supabase companies appear automatically after Cloud Import.</p>
           <label>Company or workspace name<input id="fm-workspace-name" type="text" maxlength="300" required></label>
           <label>Time zone<input id="fm-workspace-timezone" type="text" maxlength="80" value="${this.escape(this.activeWorkspace?.timezone || 'America/Detroit')}" required></label>
           <div><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Create</button></div>
         </form>`;
       document.body.appendChild(modal);
-      modal.querySelector('[data-cancel]').onclick = () => modal.remove();
+      const close = () => modal.remove();
+      modal.querySelector('[data-cancel]').onclick = close;
+      modal.onclick = event => { if (event.target === modal) close(); };
+      modal.onkeydown = event => { if (event.key === 'Escape') close(); };
+      modal.querySelector('#fm-workspace-name').focus();
       modal.querySelector('#fm-roomflow-workspace-form').onsubmit = event => {
         event.preventDefault();
         const name = modal.querySelector('#fm-workspace-name').value.trim();
@@ -427,16 +434,23 @@
       const modal = document.createElement('div');
       modal.id = 'fm-roomflow-import-modal';
       modal.className = 'fm-roomflow-modal';
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-labelledby', 'fm-import-title');
       modal.innerHTML = `
         <form id="fm-roomflow-import-form" autocomplete="off">
-          <h2>Import original RoomFlow</h2>
+          <h2 id="fm-import-title">Import original RoomFlow</h2>
           <p>Use the email and password from the former RoomFlow Supabase login. Floodman uses them for this import only and does not save the password. Existing imports are updated, not intentionally duplicated.</p>
           <label>Email<input id="fm-import-email" type="email" autocomplete="username" required></label>
           <label>Password<input id="fm-import-password" type="password" autocomplete="current-password" required></label>
           <div><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Import</button></div>
         </form>`;
       document.body.appendChild(modal);
-      modal.querySelector('[data-cancel]').onclick = () => modal.remove();
+      const close = () => modal.remove();
+      modal.querySelector('[data-cancel]').onclick = close;
+      modal.onclick = event => { if (event.target === modal) close(); };
+      modal.onkeydown = event => { if (event.key === 'Escape') close(); };
+      modal.querySelector('#fm-import-email').focus();
       modal.querySelector('#fm-roomflow-import-form').onsubmit = event => {
         event.preventDefault();
         const email = modal.querySelector('#fm-import-email').value.trim();
@@ -619,7 +633,7 @@
       #fm-bootstrap-error:empty{display:none}
       #fm-bootstrap-error{position:fixed;z-index:29999;top:52px;left:8px;right:8px;background:#7f1d1d;color:#fff;padding:10px;border-radius:8px;font:600 12px system-ui}
       .fm-roomflow-modal{position:fixed;z-index:40000;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:18px}
-      .fm-roomflow-modal form{width:min(430px,100%);background:#102536;color:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 80px #000}
+      .fm-roomflow-modal form{width:min(430px,100%);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box;background:#102536;color:#fff;border-radius:18px;padding:22px;box-shadow:0 24px 80px #000}
       .fm-roomflow-modal h2{margin:0 0 8px}
       .fm-roomflow-modal p{color:#cbd5e1;line-height:1.45}
       .fm-roomflow-modal label{display:block;margin:12px 0;color:#dbeafe;font-weight:700}

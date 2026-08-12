@@ -10,12 +10,21 @@ import tarfile
 import tempfile
 import urllib.request
 import zipfile
+from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote, urlsplit
 
 RELEASE = "4.6.7"
 ROOMFLOW_COMMIT = "1f97817a52b916875e50cc6380c0d284072b8ce8"
 ARCHIVE_URL = f"https://github.com/TheNINJALLO/roomflow/archive/{ROOMFLOW_COMMIT}.tar.gz"
-ESSENTIAL = ("index.html", "app.js", "styles.css", "config.js", "supabase-service.js")
+CORE_RUNTIME = (
+    "index.html", "app.js", "ar-estimator.js", "cost-catalog.js", "cost-engine.js",
+    "cost-tests.js", "cost-ui.js", "document-workflow.js", "jobs.json", "migration.js",
+    "renderer3d.js", "spatial-engine.js", "styles.css", "user-guide.html", "work-order.js",
+    "catalog/floodman-products.json",
+)
+CLOUD_RUNTIME = ("config.js", "roomflow-integrations.js", "supabase-service.js", "townsquare-integration.js")
+ESSENTIAL = CORE_RUNTIME + CLOUD_RUNTIME
 EXCLUDED_TOP = {
     ".git", ".github", ".gradle", "app", "build", "gradle", "supabase",
     "sync-station", "tests", "node_modules", "dist", "townsquare-bridge-extension",
@@ -34,6 +43,41 @@ def archive_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+class LocalReferenceParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.references: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        attribute = "href" if tag == "link" else "poster" if tag == "video" else "src"
+        value = values.get(attribute)
+        if value:
+            self.references.append(value)
+
+
+def validate_web_runtime(root: Path) -> None:
+    missing = [name for name in ESSENTIAL if not (root / name).is_file()]
+    for page_name in ("index.html", "user-guide.html"):
+        page = root / page_name
+        if not page.is_file():
+            continue
+        parser = LocalReferenceParser()
+        parser.feed(page.read_text(encoding="utf-8", errors="replace"))
+        for reference in parser.references:
+            parsed = urlsplit(reference)
+            if parsed.scheme or parsed.netloc or reference.startswith(("#", "data:", "mailto:", "javascript:")):
+                continue
+            local = unquote(parsed.path).lstrip("/")
+            if not local or "{" in local:
+                continue
+            resolved = root / local
+            if not resolved.is_file():
+                missing.append(f"{page_name} -> {local}")
+    if missing:
+        raise RuntimeError("RoomFlow web runtime is incomplete: " + ", ".join(sorted(set(missing))))
 
 
 def download(url: str, destination: Path) -> None:
@@ -58,8 +102,7 @@ def extract_archive(archive: Path, destination: Path) -> Path:
             bundle.extractall(destination)
     candidates = [path for path in destination.iterdir() if path.is_dir()]
     root = candidates[0] if len(candidates) == 1 else destination
-    if not all((root / name).is_file() for name in ESSENTIAL):
-        raise RuntimeError("RoomFlow archive does not contain the expected web application files")
+    validate_web_runtime(root)
     return root
 
 
@@ -79,9 +122,7 @@ def copy_web_source(source: Path, target: Path) -> None:
             )
         elif entry.is_file():
             shutil.copy2(entry, destination)
-    for required in ESSENTIAL:
-        if not (staging / required).is_file():
-            raise RuntimeError(f"RoomFlow staging copy is missing {required}")
+    validate_web_runtime(staging)
     backup = target.parent / f".{target.name}.previous"
     shutil.rmtree(backup, ignore_errors=True)
     if target.exists():
@@ -90,7 +131,37 @@ def copy_web_source(source: Path, target: Path) -> None:
     shutil.rmtree(backup, ignore_errors=True)
 
 
+def repair_job_list_renderers(target: Path) -> None:
+    """Separate two same-name upstream renderers at the reviewed RoomFlow pin."""
+    app = target / "app.js"
+    text = app.read_text(encoding="utf-8")
+    declaration = "function renderJobsList() {"
+    first = text.find(declaration)
+    second = text.find(declaration, first + len(declaration)) if first >= 0 else -1
+    if first < 0:
+        raise RuntimeError("RoomFlow app.js does not contain its jobs renderer")
+    if second < 0:
+        if "function renderLegacyJobsList() {" in text and "function refreshJobLists() {" in text:
+            return
+        raise RuntimeError("RoomFlow app.js jobs renderer layout differs from the reviewed pin")
+    prefix = text[:second].replace("renderJobsList", "refreshJobLists")
+    marker = "// Render jobs list helper\nfunction refreshJobLists() {"
+    replacement = (
+        "// Keep the toolbar job database and the newer dashboard in sync.\n"
+        "function refreshJobLists() {\n"
+        "    renderLegacyJobsList();\n"
+        "    renderJobsList();\n"
+        "}\n\n"
+        "// Render jobs list helper\n"
+        "function renderLegacyJobsList() {"
+    )
+    if marker not in prefix:
+        raise RuntimeError("RoomFlow legacy jobs renderer marker differs from the reviewed pin")
+    app.write_text(prefix.replace(marker, replacement, 1) + text[second:], encoding="utf-8")
+
+
 def inject_panel(target: Path, overlay: Path) -> None:
+    repair_job_list_renderers(target)
     shutil.copy2(overlay / "floodman-panel.css", target / "floodman-panel.css")
     shutil.copy2(overlay / "floodman-panel.js", target / "floodman-panel.js")
 
@@ -137,6 +208,7 @@ if (window.RoomFlowConfig) {{
         "timezone": "America/Detroit",
     }
     (target / ".floodman-roomflow.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    validate_web_runtime(target)
 
 
 def fallback(target: Path, error: Exception) -> None:
