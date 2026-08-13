@@ -22,6 +22,8 @@ customer-data/
 imports/
 uploads/
 data/
+!apps/android/app/src/main/java/com/floodman/operations/data/
+!apps/android/app/src/main/java/com/floodman/operations/data/*.kt
 logs/
 backups/
 runtime/
@@ -81,3 +83,9 @@ yarn-error.log*
 vendor/roomflow/source/
 apps/android/app/src/main/assets/roomflow/upstream/
 apps/ios/FloodmanOperations/Resources/RoomFlow/upstream/
+# Prepared RoomFlow runtime files are generated from that checkout during builds.
+apps/android/app/src/main/assets/roomflow/*
+!apps/android/app/src/main/assets/roomflow/ASSETS_FETCHED_BY_GITHUB_ACTIONS.txt
+!apps/android/app/src/main/assets/roomflow/floodman-native-bridge.js
+apps/ios/FloodmanOperations/Resources/RoomFlow/*
+!apps/ios/FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js

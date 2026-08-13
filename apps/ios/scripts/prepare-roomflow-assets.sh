@@ -12,7 +12,12 @@ else
   unzip -q "$TMP/roomflow.zip" -d "$TMP/src"
   SRC="$(find "$TMP/src" -mindepth 1 -maxdepth 1 -type d|head -n1)"
 fi
-DEST="${ROOMFLOW_DEST:-$APP_ROOT/FloodmanOperations/Resources/RoomFlow}";mkdir -p "$DEST/vendor"
+DEST="${ROOMFLOW_DEST:-$APP_ROOT/FloodmanOperations/Resources/RoomFlow}"
+mkdir -p "$DEST"
+find "$DEST" -depth -mindepth 1 \
+  ! -path "$DEST/floodman-ios-bridge.js" \
+  -delete
+mkdir -p "$DEST/vendor"
 for f in index.html app.js ar-estimator.js cost-catalog.js cost-engine.js cost-tests.js cost-ui.js document-workflow.js migration.js renderer3d.js spatial-engine.js styles.css user-guide.html work-order.js jobs.json;do test -f "$SRC/$f";cp "$SRC/$f" "$DEST/$f";done
 test -f "$SRC/catalog/floodman-products.json"
 rm -rf "$DEST/catalog"&&cp -a "$SRC/catalog" "$DEST/catalog"
@@ -34,7 +39,7 @@ for name in ('supabase-service.js','roomflow-integrations.js','townsquare-integr
 s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanRoomFlow.close()"')
 if 'floodman-ios-bridge.js' not in s:s=s.replace('</body>','<script src="floodman-ios-bridge.js?v=1"></script>\n</body>')
 p.write_text(s, encoding='utf-8')
-(p.parent / '.floodman-roomflow.json').write_text(json.dumps({
+(p.parent / 'floodman-roomflow.json').write_text(json.dumps({
     'release': '4.6.7',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'prepared_by': 'Floodman Operations iOS',
@@ -43,5 +48,5 @@ p.write_text(s, encoding='utf-8')
 }, indent=2), encoding='utf-8')
 PYROOMFLOW
 node --check "$DEST/floodman-ios-bridge.js"
-"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-ios-bridge.js
+"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-ios-bridge.js --require floodman-roomflow.json
 echo "Prepared pinned Floodman RoomFlow engine at $DEST"

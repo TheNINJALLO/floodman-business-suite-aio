@@ -27,7 +27,7 @@ Audit date: 2026-08-12
 | Upstream Supabase login/sync in the web application | Disabled in embedded mode | Replaced | Replaced | Staff keep one Floodman session. No service-role key or second durable native data store is introduced. |
 | Townsquare browser automation, Tracker, Zapier, and OutreachGenius infrastructure | Source retained; legacy auto-load disabled | Not embedded | Not embedded | These are external integration surfaces, not estimator engine prerequisites. Floodman native shells use the authenticated Mobile API and do not ship upstream credentials or browser automation. |
 
-All three preparation paths now validate every required core module and every local `src`/`href` reference. Prepared bundles carry `.floodman-roomflow.json` with release, pin, attribution, and time-zone metadata.
+All three preparation paths now validate every required core module and every local `src`/`href` reference. The server bundle carries `.floodman-roomflow.json`; native bundles carry package-visible `floodman-roomflow.json`. Both record release, pin, attribution, and time-zone metadata.
 
 ## Reviewed compatibility overlay
 

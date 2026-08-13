@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -57,10 +58,10 @@ class SecureStore(context: Context) {
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val payload = json.encodeToString(session).toByteArray(Charsets.UTF_8)
         val encrypted = cipher.doFinal(payload)
-        prefs.edit()
-            .putString("session_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .putString("session_data", Base64.encodeToString(encrypted, Base64.NO_WRAP))
-            .apply()
+        prefs.edit {
+            putString("session_iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            putString("session_data", Base64.encodeToString(encrypted, Base64.NO_WRAP))
+        }
     }
 
     fun load(): StoredSession? = runCatching {
@@ -72,14 +73,17 @@ class SecureStore(context: Context) {
     }.getOrNull()
 
     fun clear() {
-        prefs.edit().remove("session_iv").remove("session_data").apply()
+        prefs.edit {
+            remove("session_iv")
+            remove("session_data")
+        }
     }
 
     fun deviceId(): String {
         val existing = prefs.getString("device_id", null)
         if (!existing.isNullOrBlank()) return existing
         val value = "android-${java.util.UUID.randomUUID()}"
-        prefs.edit().putString("device_id", value).apply()
+        prefs.edit { putString("device_id", value) }
         return value
     }
 
@@ -87,12 +91,12 @@ class SecureStore(context: Context) {
     fun apiBaseUrl(defaultValue: String): String = prefs.getString("api_base_url", null)?.trim()?.takeIf { it.isNotBlank() } ?: defaultValue
 
     fun setApiBaseUrl(value: String) {
-        prefs.edit().putString("api_base_url", value.trim().trimEnd('/') + "/").apply()
+        prefs.edit { putString("api_base_url", value.trim().trimEnd('/') + "/") }
     }
 
     fun biometricEnabled(): Boolean = prefs.getBoolean("biometric_enabled", true)
-    fun setBiometricEnabled(enabled: Boolean) = prefs.edit().putBoolean("biometric_enabled", enabled).apply()
+    fun setBiometricEnabled(enabled: Boolean) = prefs.edit { putBoolean("biometric_enabled", enabled) }
 
     fun appearanceMode(): String = prefs.getString("appearance_mode", "SYSTEM") ?: "SYSTEM"
-    fun setAppearanceMode(value: String) = prefs.edit().putString("appearance_mode", value.uppercase()).apply()
+    fun setAppearanceMode(value: String) = prefs.edit { putString("appearance_mode", value.uppercase()) }
 }

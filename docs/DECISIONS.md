@@ -65,3 +65,17 @@
 - Decision: Package the complete core RoomFlow estimator in both native apps while removing upstream Supabase/Townsquare browser-session scripts from native HTML. Use the authenticated Floodman Mobile API for workspaces, shared jobs, catalog data, stable imports, actual layouts, and grouped estimates.
 - Reason: A second browser login would weaken the private-surface and short-lived-token contract. Original Supabase data remains available through a one-time RLS-scoped import using credentials that are never persisted.
 - Consequence: Android exposes the import inside its RoomFlow bar; iOS exposes workspace selection/creation and import as native, dismissible sheets and bootstraps the WebView from the same shared Mobile API contract.
+
+## DEC-011 — Keep the Android alpha toolchain fixed and separate buildability from signing
+
+- Date: 2026-08-13
+- Decision: Validate alpha11 with JDK 17, Gradle 8.13, SDK 36, AGP 8.13.2, and Kotlin 2.3.20; do not absorb lint-advertised dependency upgrades into this fixed release. Use a short ignored Gradle user home on Windows when the long checkout path prevents atomic cache moves.
+- Reason: The exact source gate passes with zero lint errors. Unreviewed dependency changes would expand the release scope, while the short cache path is host infrastructure only.
+- Consequence: Debug and unsigned release packages are build-ready and checksummed. Release signing, store upload, and physical-device acceptance remain BLK-006/BLK-007 rather than being represented as local passes.
+
+## DEC-012 — Narrow the live-data ignore exception for Android source
+
+- Date: 2026-08-13
+- Decision: Keep the repository-wide `data/` safety exclusion, but explicitly unignore only `apps/android/app/src/main/java/com/floodman/operations/data/*.kt`.
+- Reason: Comparing the immutable 553-file handoff manifest to the baseline Git tree showed that the broad live-data rule had hidden four required Kotlin source files. Their bytes remained on disk and still matched both root and Android component hashes.
+- Consequence: The original baseline tag is not rewritten. The four unchanged sources join version control in the Android milestone, while runtime/live data and the seven other policy-excluded archive/environment artifacts stay untracked and covered by manifest evidence.

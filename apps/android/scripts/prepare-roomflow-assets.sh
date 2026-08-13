@@ -13,6 +13,11 @@ else
   SRC="$(find "$TMP/src" -mindepth 1 -maxdepth 1 -type d | head -n1)"
 fi
 DEST="${ROOMFLOW_DEST:-$APP_ROOT/app/src/main/assets/roomflow}"
+mkdir -p "$DEST"
+find "$DEST" -depth -mindepth 1 \
+  ! -path "$DEST/ASSETS_FETCHED_BY_GITHUB_ACTIONS.txt" \
+  ! -path "$DEST/floodman-native-bridge.js" \
+  -delete
 mkdir -p "$DEST/vendor"
 for file in index.html app.js ar-estimator.js cost-catalog.js cost-engine.js cost-tests.js cost-ui.js document-workflow.js migration.js renderer3d.js spatial-engine.js styles.css user-guide.html work-order.js jobs.json; do
   test -f "$SRC/$file"
@@ -46,7 +51,7 @@ s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanNative.close()"
 if 'floodman-native-bridge.js' not in s:
     s=s.replace('</body>','<script src="floodman-native-bridge.js?v=11"></script>\n</body>')
 p.write_text(s,encoding='utf-8')
-(p.parent / '.floodman-roomflow.json').write_text(json.dumps({
+(p.parent / 'floodman-roomflow.json').write_text(json.dumps({
     'release': '4.6.7',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'prepared_by': 'Floodman Operations Android',
@@ -55,5 +60,5 @@ p.write_text(s,encoding='utf-8')
 }, indent=2), encoding='utf-8')
 PYROOMFLOW
 node --check "$DEST/floodman-native-bridge.js"
-"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-native-bridge.js
+"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-native-bridge.js --require floodman-roomflow.json
 echo "Prepared pinned Floodman RoomFlow engine at $DEST"

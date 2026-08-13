@@ -1,3 +1,5 @@
+de4963aaf1c576d6e267bdfed54687e59fc5dd45d94fc591c92435ccc85f11bb  ./docs/APPLE_BUILD.md
+c551a7428a643d1e665771789f3eb353e05dc2ae0bcb65e74aa75342e387e730  ./docs/RELEASE_NOTES-v0.1.0-alpha02.md
 c0fbec0d3a91b79e36590550cc032510b0393e81ffa1a4ebe7b2eb1465a30ed0  ./FloodmanOperations/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 a6fb41fba836b2a9c636a05567b9d05532405d4b4db62511e3c668e4d1352076  ./FloodmanOperations/Assets.xcassets/AppIcon.appiconset/AppIcon-120.png
 b823723811ac48638b6ef0a611841738c550b25948fdb773d00c4a7e1c9460e7  ./FloodmanOperations/Assets.xcassets/AppIcon.appiconset/AppIcon-152.png
@@ -22,9 +24,7 @@ fbe2f5fa212376823e74b8be579f632f57cf909d9a68f762e4f3ce86dc9c4ffd  ./FloodmanOper
 00d8dfd4e4e5bd0e485e2d23c1794ecfe3a596994423f85fb61def4eeab86e70  ./FloodmanOperations/Security/KeychainStore.swift
 c9fce38e9ec31976f2c5fda1281ab8e6349768779b071f643f7e8e6ffd64e5ea  ./FloodmanOperations/SessionStore.swift
 ed22bcf0e5b54b4fb7512b5a1149ff4bd4cf8f529270a7c2abbe8ddc5a221140  ./FloodmanOperations/Views/RootView.swift
-eda5686cd8b055f5172bb1ddaa0cc7dd46ac5ffda142f91d306f575a47ee11e7  ./README.md
-10385e4ce5080ceec88cb36165a3d301076f477e864d49af464be71258cbc559  ./VERSION
-de4963aaf1c576d6e267bdfed54687e59fc5dd45d94fc591c92435ccc85f11bb  ./docs/APPLE_BUILD.md
-c551a7428a643d1e665771789f3eb353e05dc2ae0bcb65e74aa75342e387e730  ./docs/RELEASE_NOTES-v0.1.0-alpha02.md
 22ced67a540ea0196da1bb75f922a766e040b422e5ce128ff9c4d55c05a9dbd1  ./project.yml
-dcca2675e04061649fba3bea1301bfa4616441dd73e685423a2ea238a19c7b23  ./scripts/prepare-roomflow-assets.sh
+eda5686cd8b055f5172bb1ddaa0cc7dd46ac5ffda142f91d306f575a47ee11e7  ./README.md
+26bcd880fc60b3f04ec77d191be3db06bd7bdeb1f0f985088651de565de36928  ./scripts/prepare-roomflow-assets.sh
+10385e4ce5080ceec88cb36165a3d301076f477e864d49af464be71258cbc559  ./VERSION

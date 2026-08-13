@@ -2,7 +2,6 @@ package com.floodman.operations.ui
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -16,15 +15,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -137,7 +139,9 @@ private fun LockedScreen(onUnlock: () -> Unit, onLogout: () -> Unit) {
 @Composable
 private fun MainWorkspace(viewModel: MainViewModel, snackbar: SnackbarHostState, startCardEntry: () -> Unit) {
     val nav = rememberNavController()
-    val wide = LocalConfiguration.current.screenWidthDp >= 700
+    val density = LocalDensity.current
+    val windowInfo = LocalWindowInfo.current
+    val wide = with(density) { windowInfo.containerSize.width.toDp() >= 700.dp }
     val destinations = listOf(Destination.Home, Destination.Calendar, Destination.Customers, Destination.Estimates, Destination.More)
     var currentRoute by remember { mutableStateOf(Destination.Home.route) }
     LaunchedEffect(nav) { nav.currentBackStackEntryFlow.collect { currentRoute = it.destination.route.orEmpty() } }
@@ -364,7 +368,7 @@ private fun EstimateDetailScreen(viewModel: MainViewModel, nav: NavHostControlle
                 Text("Estimate actions", fontWeight = FontWeight.Bold)
                 if ("edit" in detail.allowedActions) OutlinedButton(onClick = { nav.navigate("estimate/$id/edit") }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Edit, null); Text(" Edit estimate") }
                 Button(onClick = { viewModel.loadEstimatePdf(id) { bytes -> openPdf(context, bytes, "${e.estimateNumber ?: "estimate"}.pdf") } }, Modifier.fillMaxWidth()) { Icon(Icons.Default.PictureAsPdf, null); Text(" View Floodman PDF") }
-                if ("send" in detail.allowedActions || "resend" in detail.allowedActions) Button(onClick = { viewModel.estimateAction(id, if (e.status == "DRAFT") "send" else "resend") }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Send, null); Text(if (e.status == "DRAFT") " Send estimate" else " Resend estimate") }
+                if ("send" in detail.allowedActions || "resend" in detail.allowedActions) Button(onClick = { viewModel.estimateAction(id, if (e.status == "DRAFT") "send" else "resend") }, Modifier.fillMaxWidth()) { Icon(Icons.AutoMirrored.Filled.Send, null); Text(if (e.status == "DRAFT") " Send estimate" else " Resend estimate") }
                 if ("send_work_authorization" in detail.allowedActions) OutlinedButton(onClick = { viewModel.estimateAction(id, "send_work_authorization") { response -> response.signingUrl?.let { openUrl(context, it) } } }, Modifier.fillMaxWidth()) { Text("Send Work Authorization") }
                 if ("mark_accepted" in detail.allowedActions) OutlinedButton(onClick = { viewModel.estimateAction(id, "mark_accepted") }, Modifier.fillMaxWidth()) { Text("Mark accepted") }
                 if ("activate_deposit" in detail.allowedActions) OutlinedButton(onClick = { viewModel.estimateAction(id, "activate_deposit") }, Modifier.fillMaxWidth()) { Text("Activate deposit payment") }
@@ -423,7 +427,7 @@ private fun InvoiceDetailScreen(viewModel: MainViewModel, nav: NavHostController
                 Text("Invoice actions", fontWeight = FontWeight.Bold)
                 if ("edit" in detail.allowedActions) OutlinedButton(onClick = { nav.navigate("invoice/$id/edit") }, Modifier.fillMaxWidth()) { Text("Edit invoice") }
                 Button(onClick = { viewModel.loadInvoicePdf(id) { bytes -> openPdf(context, bytes, "${i.invoiceNumber ?: "invoice"}.pdf") } }, Modifier.fillMaxWidth()) { Icon(Icons.Default.PictureAsPdf, null); Text(" View Floodman PDF") }
-                if ("send" in detail.allowedActions || "resend" in detail.allowedActions) Button(onClick = { viewModel.invoiceAction(id, if (i.status == "DRAFT") "send" else "resend") }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Send, null); Text(if (i.status == "DRAFT") " Send invoice" else " Resend invoice") }
+                if ("send" in detail.allowedActions || "resend" in detail.allowedActions) Button(onClick = { viewModel.invoiceAction(id, if (i.status == "DRAFT") "send" else "resend") }, Modifier.fillMaxWidth()) { Icon(Icons.AutoMirrored.Filled.Send, null); Text(if (i.status == "DRAFT") " Send invoice" else " Resend invoice") }
                 if ("take_payment" in detail.allowedActions && i.balanceCents > 0) Button(onClick = { showPayment = true }, Modifier.fillMaxWidth()) { Text("Take payment ${money(i.balanceCents)}") }
                 OutlinedButton(onClick = { viewModel.invoiceAction(id, "ensure_public") { response -> response.invoice?.publicUrl?.let { openUrl(context, it) } } }, Modifier.fillMaxWidth()) { Text("Open customer invoice") }
                 if ("open_payment_link" in detail.allowedActions) OutlinedButton(onClick = { viewModel.invoiceAction(id, "ensure_public") { response -> response.invoice?.publicPayUrl?.let { openUrl(context, it) } } }, Modifier.fillMaxWidth()) { Text("Open customer payment page") }
@@ -1234,13 +1238,13 @@ private fun AppointmentDialog(
 
     LaunchedEffect(appointment?.contactId, viewModel.customers) {
         if (selectedCustomer == null && !appointment?.contactId.isNullOrBlank()) {
-            selectedCustomer = viewModel.customers.firstOrNull { it.id == appointment?.contactId }
+            selectedCustomer = viewModel.customers.firstOrNull { it.id == appointment.contactId }
             selectedCustomer?.let { viewModel.loadProperties(it.id) }
         }
     }
     LaunchedEffect(appointment?.propertyId, viewModel.properties) {
         if (selectedProperty == null && !appointment?.propertyId.isNullOrBlank()) {
-            selectedProperty = viewModel.properties.firstOrNull { it.id == appointment?.propertyId }
+            selectedProperty = viewModel.properties.firstOrNull { it.id == appointment.propertyId }
         }
     }
 
@@ -1504,7 +1508,7 @@ private fun SettingsScreen(viewModel: MainViewModel) {
 
 private fun openUrl(context: Context, url: String) {
     if (url.isBlank()) return
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
 private fun openPdf(context: Context, bytes: ByteArray, filename: String) =

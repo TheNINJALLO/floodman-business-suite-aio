@@ -23,6 +23,15 @@ EXCLUDE_PARTS = {
     ".git", ".gradle", ".venv", "venv", ".pytest_cache", ".mypy_cache", ".ruff_cache",
     "build", "dist", "out", "node_modules", "DerivedData", "__pycache__", "release-artifacts", "source", "generated",
 }
+GENERATED_ROOMFLOW_ROOTS = {
+    Path("apps/android/app/src/main/assets/roomflow"): {
+        "ASSETS_FETCHED_BY_GITHUB_ACTIONS.txt",
+        "floodman-native-bridge.js",
+    },
+    Path("apps/ios/FloodmanOperations/Resources/RoomFlow"): {
+        "floodman-ios-bridge.js",
+    },
+}
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head", "api_route", "websocket"}
 
 
@@ -36,6 +45,16 @@ def sha256(path: Path) -> str:
 
 def text_file(path: Path) -> bool:
     return path.suffix.lower() in TEXT_SUFFIXES or path.name in {"Dockerfile", "Makefile", "VERSION", "REPOSITORY", "PINNED_COMMIT"}
+
+
+def generated_roomflow_file(rel: Path) -> bool:
+    for root, retained_files in GENERATED_ROOMFLOW_ROOTS.items():
+        try:
+            nested = rel.relative_to(root)
+        except ValueError:
+            continue
+        return len(nested.parts) != 1 or nested.name not in retained_files
+    return False
 
 
 def service_for(path: Path) -> str:
@@ -152,7 +171,7 @@ def source_inventory() -> list[dict[str, object]]:
         if not path.is_file():
             continue
         rel = path.relative_to(ROOT)
-        if any(part in EXCLUDE_PARTS for part in rel.parts):
+        if any(part in EXCLUDE_PARTS for part in rel.parts) or generated_roomflow_file(rel):
             continue
         size = path.stat().st_size
         line_count = ""

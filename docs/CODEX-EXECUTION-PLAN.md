@@ -24,10 +24,10 @@
 
 ## Phase 3 — Android
 
-- Check Gradle wrapper/toolchain reproducibility and dependency pins.
-- Prepare RoomFlow assets from the pinned source.
-- Run `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`, `assembleRelease`, and `bundleRelease` without weakening lint.
-- Record artifact SHA-256 values. Physical-device/public-HTTPS acceptance remains a separate external gate.
+- **Complete (2026-08-13).** Fixed the build to JDK 17, Gradle 8.13, Android SDK 36, AGP 8.13.2, and Kotlin 2.3.20, using a short ignored Gradle cache to avoid Windows long-path atomic-move failures.
+- Prepared and validated RoomFlow assets from the exact pin with package-visible release/pin provenance.
+- Passed `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`, `assembleRelease`, and `bundleRelease` without weakening lint; the only 17 lint notices concern newer dependency versions.
+- Recorded local artifact SHA-256 values and added CI checksum generation. Physical-device/public-HTTPS and release signing remain separate external gates.
 
 ## Phase 4 — iOS
 

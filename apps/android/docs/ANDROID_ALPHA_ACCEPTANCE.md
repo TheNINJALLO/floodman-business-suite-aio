@@ -2,7 +2,7 @@
 
 ## Matched deployment
 
-1. Install Floodman Operations runtime v4.6.3 and wait for `FLOODMAN_SUITE_READY`.
+1. Install the current Floodman Operations runtime v4.6.7 and wait for `FLOODMAN_SUITE_READY` (v4.6.3 is the minimum alpha11 capability baseline, not the current release).
 2. With Tailscale disabled on the phone, open `/mobile-api/v1/health` and confirm API version `0.3.0-alpha11`.
 3. Install the alpha11 debug APK and sign in.
 4. Confirm an older server is rejected with the matched-server message rather than opening JSON as a document.

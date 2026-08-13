@@ -66,6 +66,7 @@ def main() -> int:
         for cloud_file in CLOUD_RUNTIME:
             require(cloud_file in normalized_script, f"{platform} preparation does not explicitly handle {cloud_file}", problems)
         require("validate_roomflow_web.py" in script, f"{platform} preparation lacks bundle validation", problems)
+        require("floodman-roomflow.json" in script, f"{platform} preparation lacks package-visible provenance metadata", problems)
 
     lock_path = ROOT / "vendor" / "UPSTREAMS.lock.json"
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
