@@ -31,10 +31,10 @@
 
 ## Phase 4 — iOS
 
-- Review source parity, bundle preparation, entitlements, transport security, API capability checks, PDF validation, and project-generation inputs.
-- Prepare RoomFlow assets from the same pin.
-- Generate the project and run an unsigned simulator build on macOS.
-- Keep signing, archive, TestFlight, and device acceptance blocked until explicitly authorized and configured.
+- **Local readiness complete (2026-08-13); compiler gate blocked by BLK-004.** Verified project generation inputs, plist/ATS, all icon slots, HTTPS/minimum-version/capability enforcement, device-bound session storage, coordinated refresh, and PDF MIME/signature validation.
+- Prepared and validated the complete native RoomFlow bundle from the same exact pin; hardened loopback HTTP framing, WebView origin permissions, and all native close/cancel paths.
+- Rebuilt the simulator workflow to select Xcode 26, validate sources/assets, generate the project, build unsigned, package the `.app`, and record checksums. The guarded TestFlight path now repeats the unsigned simulator compile for the same commit before signing.
+- Actual `xcodebuild` remains `BLOCKED`, not passed, until the macOS workflow runs. Signing, archive, TestFlight, and device acceptance remain blocked until explicitly authorized and configured.
 
 ## Phase 5 — server and packaging
 

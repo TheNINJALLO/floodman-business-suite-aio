@@ -1,4 +1,5 @@
 name: Build Floodman iOS simulator
+
 on:
   workflow_dispatch:
   push:
@@ -7,29 +8,123 @@ on:
       - 'apps/ios/**'
       - 'vendor/roomflow/**'
       - 'scripts/fetch-roomflow.sh'
+      - 'scripts/patch_roomflow_bundle.py'
+      - 'scripts/validate_roomflow_web.py'
+      - 'scripts/verify_ios_readiness.py'
       - '.github/workflows/build-ios-simulator.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: floodman-ios-simulator-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   simulator:
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - name: Install XcodeGen
-        run: brew install xcodegen
-      - name: Prepare RoomFlow assets
+
+      - name: Select Xcode 26 and install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' -print | sort -V | tail -n1)"
+          test -n "$xcode_path" || { echo 'The macos-26 runner did not contain Xcode 26.'; exit 1; }
+          sudo xcode-select -s "$xcode_path/Contents/Developer"
+          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodebuild -version
+          swift --version
+          xcodegen --version
+
+      - name: Prepare and validate pinned RoomFlow
         working-directory: apps/ios
-        run: bash scripts/prepare-roomflow-assets.sh
-      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-roomflow-assets.sh
+          python3 ../../scripts/validate_roomflow_web.py \
+            --root FloodmanOperations/Resources/RoomFlow \
+            --mode native \
+            --require floodman-ios-bridge.js \
+            --require floodman-roomflow.json
+          node --check FloodmanOperations/Resources/RoomFlow/app.js
+          node --check FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js
+          find FloodmanOperations/Resources/RoomFlow -type f -print0 | sort -z | xargs -0 shasum -a 256 > ROOMFLOW-ASSET-SHA256SUMS.txt
+
+      - name: Validate source readiness and generate project
         working-directory: apps/ios
-        run: xcodegen generate
-      - name: Build unsigned simulator application
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../../scripts/verify_ios_readiness.py
+          xcodegen generate
+          test -d FloodmanOperations.xcodeproj
+          xcodebuild \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -showBuildSettings \
+            > ../../xcode-build-settings.txt
+
+      - name: Build unsigned iPhone and iPad simulator app
         working-directory: apps/ios
+        shell: bash
         env:
           FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
         run: |
-          xcodebuild             -project FloodmanOperations.xcodeproj             -scheme FloodmanOperations             -sdk iphonesimulator             -configuration Debug             -derivedDataPath DerivedData             CODE_SIGNING_ALLOWED=NO             build
+          set -euo pipefail
+          set -o pipefail
+          api_url="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          python3 - "$api_url" <<'PY'
+          from sys import argv
+          from urllib.parse import urlparse
+          value = urlparse(argv[1])
+          if value.scheme != "https" or not value.hostname or value.username or value.password or value.query or value.fragment or value.path.rstrip("/") != "/mobile-api":
+              raise SystemExit("FLOODMAN_API_BASE_URL must be an HTTPS URL ending in /mobile-api/.")
+          PY
+          xcodebuild \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$PWD/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            FLOODMAN_API_BASE_URL="$api_url" \
+            build 2>&1 | tee ../../xcodebuild-simulator.log
+
+      - name: Package simulator application and checksums
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          app_path="$(find apps/ios/DerivedData/Build/Products -maxdepth 2 -type d -name 'FloodmanOperations.app' | head -n1)"
+          test -n "$app_path" || { echo 'The simulator application was not produced.'; exit 1; }
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" artifacts/FloodmanOperations-iOS-Simulator-v0.1.0-alpha02.zip
+          cp apps/ios/VERSION artifacts/VERSION
+          cp apps/ios/ROOMFLOW-ASSET-SHA256SUMS.txt artifacts/
+          cp xcodebuild-simulator.log xcode-build-settings.txt artifacts/
+          (cd artifacts && shasum -a 256 * > SHA256SUMS.txt)
+
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: Floodman-Operations-iOS-0.1.0-alpha02-simulator
-          path: apps/ios/DerivedData/Build/Products/Debug-iphonesimulator/FloodmanOperations.app
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Floodman-Operations-iOS-0.1.0-alpha02-diagnostics
+          path: |
+            xcodebuild-simulator.log
+            xcode-build-settings.txt
+            apps/ios/DerivedData/Logs/
+            apps/ios/ROOMFLOW-ASSET-SHA256SUMS.txt
+          if-no-files-found: ignore
+          retention-days: 14

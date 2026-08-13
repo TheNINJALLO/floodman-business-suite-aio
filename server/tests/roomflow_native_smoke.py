@@ -86,6 +86,7 @@ def run() -> None:
     bootstrap = client.get("/mobile-api/v1/roomflow/bootstrap", headers=headers)
     assert bootstrap.status_code == 200, bootstrap.text
     assert bootstrap.json()["api_version"] == "0.3.0-alpha11"
+    assert bootstrap.json()["minimum_ios_version"] == "0.1.0-alpha02"
     assert bootstrap.json()["active_workspace"]["id"] == default_workspace["id"]
     assert bootstrap.json()["jobs"][0]["workspace"]["id"] == default_workspace["id"]
     assert bootstrap.json()["jobs"][0]["job"]["snapshot"]["rooms"][0]["name"] == "Basement"

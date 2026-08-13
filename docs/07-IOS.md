@@ -20,6 +20,9 @@ Build target: iPhone and iPad
 - dark/light/system appearance
 - bundled RoomFlow engine and local asset server
 - customer/property/job/layout synchronization scaffolding
+- HTTPS, minimum-version and required-capability validation before session use
+- PDF MIME and `%PDF-` signature rejection
+- loopback-only, dismissible RoomFlow with cancellable import/workspace sheets
 
 ## Simulator build
 
@@ -29,7 +32,7 @@ Use the unsigned simulator workflow first:
 deployment/github-actions/build-ios-simulator-alpha02.yml
 ```
 
-It requires the `FLOODMAN_API_BASE_URL` repository variable but no Apple signing secrets.
+It uses the HTTPS default when `FLOODMAN_API_BASE_URL` is absent and validates any repository override. It requires no Apple signing secrets.
 
 ## TestFlight
 
@@ -49,4 +52,4 @@ Never commit those values. Store them only as GitHub Actions secrets or in a ded
 
 ## Known status
 
-The last TestFlight attempt in the session failed before compilation because Apple signing secrets were missing. The alpha02 source includes the Swift fixes from the first compiler pass, but a new simulator build is still required. Native estimate, invoice, payment, scheduling, and employee-assignment depth must be verified against Android before calling the Apple app feature-complete.
+The 2026-08-13 Windows source/readiness gate passes, including the exact prepared RoomFlow pin and all 9 server smoke programs. Windows cannot run Xcode, so a new simulator build is still required and remains `BLK-004`; no compiler pass is inferred. Native estimate, invoice, payment, scheduling, and employee-assignment depth must be verified against Android before calling the Apple app feature-complete.

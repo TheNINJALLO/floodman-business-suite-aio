@@ -41,6 +41,7 @@ from .roomflow_supabase import (
 API_PREFIX = "/mobile-api/v1"
 API_VERSION = "0.3.0-alpha11"
 MIN_ANDROID_VERSION = "0.3.0-alpha11"
+MIN_IOS_VERSION = "0.1.0-alpha02"
 MOBILE_CAPABILITIES = [
     "mobile.compatibility.v1",
     "estimate.detail.v1",
@@ -502,6 +503,7 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
             "authentication_configured": security.configured,
             "time_zone": settings.ar_timezone,
             "minimum_android_version": MIN_ANDROID_VERSION,
+            "minimum_ios_version": MIN_IOS_VERSION,
             "capabilities": MOBILE_CAPABILITIES,
         }
 
@@ -520,6 +522,7 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
             },
             "customer_public_url": settings.customer_public_url,
             "minimum_android_version": MIN_ANDROID_VERSION,
+            "minimum_ios_version": MIN_IOS_VERSION,
             "capabilities": MOBILE_CAPABILITIES,
             "roomflow_import": {
                 "enabled": True,
@@ -1363,6 +1366,7 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
             "api_version": API_VERSION,
             "server_release": settings.release,
             "minimum_android_version": MIN_ANDROID_VERSION,
+            "minimum_ios_version": MIN_IOS_VERSION,
             "capabilities": MOBILE_CAPABILITIES,
             "workspaces": [workspace_public(record) for record in workspaces],
             "selected_workspace_id": selected_id,

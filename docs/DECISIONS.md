@@ -79,3 +79,16 @@
 - Decision: Keep the repository-wide `data/` safety exclusion, but explicitly unignore only `apps/android/app/src/main/java/com/floodman/operations/data/*.kt`.
 - Reason: Comparing the immutable 553-file handoff manifest to the baseline Git tree showed that the broad live-data rule had hidden four required Kotlin source files. Their bytes remained on disk and still matched both root and Android component hashes.
 - Consequence: The original baseline tag is not rewritten. The four unchanged sources join version control in the Android milestone, while runtime/live data and the seven other policy-excluded archive/environment artifacts stay untracked and covered by manifest evidence.
+
+## DEC-013 — Separate iOS source readiness from the macOS compiler gate
+
+- Date: 2026-08-13
+- Decision: Mark every locally verifiable iOS source, project, asset, transport, session, PDF, RoomFlow, and workflow contract with a dedicated static gate, while leaving the actual simulator result BLOCKED until Xcode runs it.
+- Reason: Windows can prove deterministic inputs and catch platform-independent failures, but it cannot honestly substitute for Swift/Xcode compilation. The simulator workflow now creates the project, compiles without signing, packages the app, and records checksums; TestFlight repeats that compile for the same commit before touching signing.
+- Consequence: IOS-001 advances past all available local work without creating a false T-014 pass. Feature-depth and physical-device acceptance remain separate staging/device gates.
+
+## DEC-014 — Advertise and enforce the minimum iOS client additively
+
+- Date: 2026-08-13
+- Decision: Add `minimum_ios_version: 0.1.0-alpha02` to Mobile API health, config, and RoomFlow bootstrap responses, and require the iOS app to validate that value plus its capability set before login or session restore.
+- Reason: Android already had a minimum-client field, while the Apple client had no equivalent compatibility contract. The additive field is ignored safely by older Android decoders and is smoke-tested across all three response surfaces.

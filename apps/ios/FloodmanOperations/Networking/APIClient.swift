@@ -3,19 +3,70 @@ import CryptoKit
 import UIKit
 
 actor APIClient {
+    private static let appVersion = "0.1.0-alpha02"
+    private static let fallbackBaseURL = URL(string: "https://floodman-operations.tail274417.ts.net/mobile-api/")!
+    private static let requiredCapabilities: Set<String> = [
+        "mobile.compatibility.v1",
+        "estimate.pdf.v1",
+        "invoice.pdf.v1",
+        "roomflow.bootstrap.v1",
+        "roomflow.snapshot.v1",
+        "roomflow.supabase-import.v1",
+        "roomflow.workspaces.v1"
+    ]
+
     private let keychain = KeychainStore()
     private var baseURL: URL
-    private let decoder = JSONDecoder()
+    private let configurationError: String?
+    private var refreshTask: Task<Void, Error>?
 
     init() {
-        let configured = Bundle.main.object(forInfoDictionaryKey: "FLOODMAN_API_BASE_URL") as? String
-        baseURL = URL(string: configured?.isEmpty == false ? configured! : "https://floodman-operations.tail274417.ts.net/mobile-api/")!
+        let configured = (Bundle.main.object(forInfoDictionaryKey: "FLOODMAN_API_BASE_URL") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if configured.isEmpty {
+            baseURL = Self.fallbackBaseURL
+            configurationError = nil
+        } else {
+            let normalized = configured.hasSuffix("/") ? configured : configured + "/"
+            if let candidate = URL(string: normalized),
+               candidate.scheme?.lowercased() == "https",
+               candidate.host?.isEmpty == false,
+               candidate.user == nil,
+               candidate.password == nil,
+               candidate.query == nil,
+               candidate.fragment == nil,
+               candidate.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == "mobile-api" {
+                baseURL = candidate
+                configurationError = nil
+            } else {
+                baseURL = Self.fallbackBaseURL
+                configurationError = "Floodman iOS requires an HTTPS API address ending in /mobile-api/."
+            }
+        }
     }
 
     func apiURL() -> String { baseURL.absoluteString }
     func isSignedIn() -> Bool { keychain.get("accessToken") != nil && keychain.get("refreshToken") != nil }
 
+    func validateCompatibility() async throws {
+        let data = try await raw(path: "v1/config", method: "GET", authorized: false, retry: false)
+        guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              value["api_version"] as? String != nil,
+              let minimumIOSVersion = value["minimum_ios_version"] as? String,
+              let capabilities = value["capabilities"] as? [String] else {
+            throw APIError.message("The Floodman server capability response was invalid.")
+        }
+        guard Self.appVersion.compare(minimumIOSVersion, options: [.numeric, .caseInsensitive]) != .orderedAscending else {
+            throw APIError.message("This server requires Floodman iOS \(minimumIOSVersion) or newer.")
+        }
+        let missing = Self.requiredCapabilities.subtracting(capabilities)
+        guard missing.isEmpty else {
+            throw APIError.message("This iOS build needs a newer compatible Floodman server (missing: \(missing.sorted().joined(separator: ", "))).")
+        }
+    }
+
     func login(email: String, password: String, local: Bool) async throws {
+        try await validateCompatibility()
         let deviceID: String
         if let savedDeviceID = keychain.get("deviceID") {
             deviceID = savedDeviceID
@@ -33,6 +84,8 @@ actor APIClient {
     }
 
     func logout() async {
+        refreshTask?.cancel()
+        refreshTask = nil
         _ = try? await raw(path: "v1/auth/logout", method: "POST", body: ["refresh_token":keychain.get("refreshToken") ?? ""], authorized: true, retry: false)
         for key in ["accessToken","refreshToken","deviceSecret"] { keychain.delete(key) }
     }
@@ -46,8 +99,19 @@ actor APIClient {
         try await raw(path: path, method: method, bodyData: bodyData, authorized: true, retry: true)
     }
 
-    private func raw(path: String, method: String, body: Any? = nil, bodyData: Data? = nil, authorized: Bool, retry: Bool) async throws -> Data {
-        let url = URL(string: path, relativeTo: baseURL)!
+    func pdf(path: String) async throws -> Data {
+        try await raw(path: path, method: "GET", authorized: true, retry: true, expectedPDF: true)
+    }
+
+    private func raw(path: String, method: String, body: Any? = nil, bodyData: Data? = nil, authorized: Bool, retry: Bool, expectedPDF: Bool = false) async throws -> Data {
+        if let configurationError { throw APIError.message(configurationError) }
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL,
+              url.scheme?.lowercased() == baseURL.scheme?.lowercased(),
+              url.host?.lowercased() == baseURL.host?.lowercased(),
+              url.port == baseURL.port,
+              url.path.hasPrefix(baseURL.path) else {
+            throw APIError.message("Floodman refused an invalid Mobile API path.")
+        }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 180
@@ -56,21 +120,51 @@ actor APIClient {
         else if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         if authorized, let token = keychain.get("accessToken") { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: request)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if code == 401 && authorized && retry { try await refresh(); return try await raw(path: path, method: method, body: body, bodyData: bodyData, authorized: true, retry: false) }
+        let http = response as? HTTPURLResponse
+        let code = http?.statusCode ?? 0
+        if code == 401 && authorized && retry {
+            try await refreshOnce()
+            return try await raw(path: path, method: method, body: body, bodyData: bodyData, authorized: true, retry: false, expectedPDF: expectedPDF)
+        }
         guard (200..<300).contains(code) else {
             let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
             throw APIError.message(detail ?? "Floodman request failed (\(code)).")
         }
+        if expectedPDF {
+            let contentType = http?.value(forHTTPHeaderField: "Content-Type")?
+                .split(separator: ";", maxSplits: 1)
+                .first?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            guard contentType == "application/pdf", data.starts(with: Data("%PDF-".utf8)) else {
+                throw APIError.message("Floodman refused a response that was not a valid PDF.")
+            }
+        }
         return data
     }
 
-    private func refresh() async throws {
+    private func refreshOnce() async throws {
+        if let refreshTask {
+            try await refreshTask.value
+            return
+        }
+        let task = Task { try await self.performRefresh() }
+        refreshTask = task
+        do {
+            try await task.value
+            refreshTask = nil
+        } catch {
+            refreshTask = nil
+            throw error
+        }
+    }
+
+    private func performRefresh() async throws {
         guard let refresh = keychain.get("refreshToken"), let deviceID = keychain.get("deviceID"), let secretText = keychain.get("deviceSecret") else { throw APIError.message("Sign in again.") }
         let timestamp = Int(Date().timeIntervalSince1970), nonce = UUID().uuidString
         let tokenHash = SHA256.hash(data: Data(refresh.utf8)).map { String(format:"%02x",$0) }.joined()
         let canonical = "\(deviceID).\(timestamp).\(nonce).\(tokenHash)"
-        let secret = Data(base64URLEncoded: secretText) ?? Data()
+        guard let secret = Data(base64URLEncoded: secretText), !secret.isEmpty else { throw APIError.message("The device session proof is invalid. Sign in again.") }
         let signature = HMAC<SHA256>.authenticationCode(for: Data(canonical.utf8), using: SymmetricKey(data: secret))
         let proof = Data(signature).base64URLEncodedString()
         let data = try await raw(path: "v1/auth/refresh", method: "POST", body: ["refresh_token":refresh,"device_id":deviceID,"timestamp":timestamp,"nonce":nonce,"proof":proof], authorized: false, retry: false)

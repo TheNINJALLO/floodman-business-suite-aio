@@ -41,6 +41,7 @@ The server contract at handoff is:
 ```text
 API version:              0.3.0-alpha11
 Minimum Android version: 0.3.0-alpha11
+Minimum iOS version:     0.1.0-alpha02
 Required capability:     roomflow.workspaces.v1
 ```
 

@@ -43,10 +43,12 @@ def run() -> None:
     assert health.status_code == 200, health.text
     assert health.json()["api_version"] == "0.3.0-alpha11"
     assert health.json()["minimum_android_version"] == "0.3.0-alpha11"
+    assert health.json()["minimum_ios_version"] == "0.1.0-alpha02"
     assert "roomflow.supabase-import.v1" in health.json()["capabilities"]
     assert "roomflow.workspaces.v1" in health.json()["capabilities"]
     config = client.get("/mobile-api/v1/config")
     assert config.status_code == 200, config.text
+    assert config.json()["minimum_ios_version"] == "0.1.0-alpha02"
     assert config.json()["roomflow_import"]["enabled"] is True
 
     login = client.post(

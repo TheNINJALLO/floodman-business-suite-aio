@@ -84,8 +84,22 @@ struct RoomFlowJobsView: View {
         .task { await load() }
         .refreshable { await load() }
         .fullScreenCover(isPresented: $showWorkspace) {
-            RoomFlowWebView(jobID: selectedJobID, isPresented: $showWorkspace)
-                .environmentObject(session)
+            ZStack(alignment: .topTrailing) {
+                RoomFlowWebView(jobID: selectedJobID, isPresented: $showWorkspace)
+                    .environmentObject(session)
+                Button {
+                    showWorkspace = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.headline)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+                .accessibilityLabel("Close RoomFlow")
+            }
         }
         .sheet(isPresented: $showImport) {
             RoomFlowImportView(isPresented: $showImport) {
@@ -143,6 +157,7 @@ struct RoomFlowImportView: View {
     @State private var password = ""
     @State private var busy = false
     @State private var error = ""
+    @State private var importTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -162,25 +177,35 @@ struct RoomFlowImportView: View {
                 }
             }
             .navigationTitle("Import RoomFlow")
-            .interactiveDismissDisabled(busy)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { password = ""; isPresented = false }
-                        .disabled(busy)
+                    Button("Cancel") { cancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Importing…" : "Import") { Task { await importData() } }
+                    Button(busy ? "Importing…" : "Import") {
+                        importTask = Task { await importData() }
+                    }
                         .disabled(busy || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
                 }
             }
         }
+        .onDisappear {
+            importTask?.cancel()
+            password = ""
+        }
+    }
+
+    private func cancel() {
+        importTask?.cancel()
+        password = ""
+        isPresented = false
     }
 
     @MainActor
     private func importData() async {
         busy = true
         error = ""
-        defer { busy = false }
+        defer { busy = false; importTask = nil }
         let suppliedPassword = password
         password = ""
         do {
@@ -191,6 +216,8 @@ struct RoomFlowImportView: View {
             )
             isPresented = false
             onImported()
+        } catch is CancellationError {
+            return
         } catch {
             self.error = error.localizedDescription
         }
@@ -205,6 +232,7 @@ struct RoomFlowWorkspaceCreateView: View {
     @State private var timezone = "America/Detroit"
     @State private var busy = false
     @State private var error = ""
+    @State private var createTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -215,24 +243,31 @@ struct RoomFlowWorkspaceCreateView: View {
                 if !error.isEmpty { Text(error).foregroundStyle(.red) }
             }
             .navigationTitle("New workspace")
-            .interactiveDismissDisabled(busy)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { isPresented = false }.disabled(busy)
+                    Button("Cancel") { cancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Creating…" : "Create") { Task { await create() } }
+                    Button(busy ? "Creating…" : "Create") {
+                        createTask = Task { await create() }
+                    }
                         .disabled(busy || name.trimmingCharacters(in: .whitespacesAndNewlines).count < 2)
                 }
             }
         }
+        .onDisappear { createTask?.cancel() }
+    }
+
+    private func cancel() {
+        createTask?.cancel()
+        isPresented = false
     }
 
     @MainActor
     private func create() async {
         busy = true
         error = ""
-        defer { busy = false }
+        defer { busy = false; createTask = nil }
         do {
             _ = try await session.api.json(
                 path: "v1/roomflow/workspaces",
@@ -244,6 +279,8 @@ struct RoomFlowWorkspaceCreateView: View {
             )
             isPresented = false
             onCreated()
+        } catch is CancellationError {
+            return
         } catch {
             self.error = error.localizedDescription
         }
@@ -262,7 +299,7 @@ struct RoomFlowWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-        configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(context.coordinator, name: "FloodmanNative")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -273,6 +310,11 @@ struct RoomFlowWebView: UIViewRepresentable {
             DispatchQueue.main.async {
                 if case .success(let url) = result {
                     webView.load(URLRequest(url: url))
+                } else {
+                    webView.loadHTMLString(
+                        "<html><meta name=\"viewport\" content=\"width=device-width\"><body style=\"font-family:-apple-system;padding:32px\"><h1>RoomFlow could not start</h1><p>Close this screen and try again.</p></body></html>",
+                        baseURL: nil
+                    )
                 }
             }
         }
@@ -342,16 +384,23 @@ struct RoomFlowWebView: UIViewRepresentable {
             case "searchCustomers":
                 let query = body["query"] as? String ?? ""
                 Task {
-                    let escaped = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                    let result = (try? await parent.session.api.data(path: "v1/customers?q=\(escaped)&page_size=20")) ?? Data("{\"items\":[]}".utf8)
+                    let path = queryPath("v1/customers", items: [
+                        URLQueryItem(name: "q", value: query),
+                        URLQueryItem(name: "page_size", value: "20")
+                    ])
+                    let result = (try? await parent.session.api.data(path: path)) ?? Data("{\"items\":[]}".utf8)
                     respondItems(function: "receiveCustomers", data: result)
                 }
             case "searchProperties":
                 let contactID = body["contactId"] as? String ?? ""
                 let query = body["query"] as? String ?? ""
                 Task {
-                    let escaped = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                    let result = (try? await parent.session.api.data(path: "v1/properties?contact_id=\(contactID)&q=\(escaped)&page_size=20")) ?? Data("{\"items\":[]}".utf8)
+                    let path = queryPath("v1/properties", items: [
+                        URLQueryItem(name: "contact_id", value: contactID),
+                        URLQueryItem(name: "q", value: query),
+                        URLQueryItem(name: "page_size", value: "20")
+                    ])
+                    let result = (try? await parent.session.api.data(path: path)) ?? Data("{\"items\":[]}".utf8)
                     respondItems(function: "receiveProperties", data: result)
                 }
             case "close":
@@ -364,6 +413,13 @@ struct RoomFlowWebView: UIViewRepresentable {
         private func quoted(_ text: String) -> String {
             let data = try? JSONEncoder().encode(text)
             return data.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        }
+
+        private func queryPath(_ path: String, items: [URLQueryItem]) -> String {
+            var components = URLComponents()
+            components.path = path
+            components.queryItems = items
+            return components.string ?? path
         }
 
         private func respond(function: String, data: Data) {
@@ -394,7 +450,25 @@ struct RoomFlowWebView: UIViewRepresentable {
             type: WKMediaCaptureType,
             decisionHandler: @escaping (WKPermissionDecision) -> Void
         ) {
-            decisionHandler(.grant)
+            decisionHandler(origin.host == "127.0.0.1" ? .grant : .deny)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if navigationAction.request.url?.absoluteString == "about:blank" {
+                decisionHandler(.allow)
+                return
+            }
+            guard let url = navigationAction.request.url,
+                  url.scheme?.lowercased() == "http",
+                  url.host == "127.0.0.1" else {
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
         }
     }
 }

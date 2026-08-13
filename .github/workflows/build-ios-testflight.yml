@@ -65,6 +65,34 @@ jobs:
           test -s FloodmanOperations/Resources/RoomFlow/app.js
           xcodegen generate
 
+      - name: Require a successful unsigned simulator compile for this commit
+        working-directory: apps/ios
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          api_url="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          python3 ../../scripts/verify_ios_readiness.py
+          python3 - "$api_url" <<'PY'
+          from sys import argv
+          from urllib.parse import urlparse
+          value = urlparse(argv[1])
+          if value.scheme != "https" or not value.hostname or value.username or value.password or value.query or value.fragment or value.path.rstrip("/") != "/mobile-api":
+              raise SystemExit("FLOODMAN_API_BASE_URL must be an HTTPS URL ending in /mobile-api/.")
+          PY
+          xcodebuild \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$PWD/DerivedData-SimulatorGate" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            FLOODMAN_API_BASE_URL="$api_url" \
+            build 2>&1 | tee ../../xcodebuild-simulator-gate.log
+
       - name: Install distribution certificate and provisioning profile
         shell: bash
         env:
@@ -171,6 +199,7 @@ jobs:
           mkdir -p artifacts
           cp apps/ios/build/export/FloodmanOperations.ipa artifacts/ 2>/dev/null || true
           cp xcodebuild-archive.log xcodebuild-export.log artifacts/ 2>/dev/null || true
+          cp xcodebuild-simulator-gate.log artifacts/ 2>/dev/null || true
           cp apps/ios/VERSION artifacts/VERSION 2>/dev/null || true
           (cd artifacts && shasum -a 256 * > SHA256SUMS.txt) 2>/dev/null || true
 

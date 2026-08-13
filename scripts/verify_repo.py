@@ -182,13 +182,14 @@ def verify_manifest(base: Path, manifest: Path) -> None:
 verify_manifest(ROOT / "server", ROOT / "server" / "MANIFEST.sha256")
 verify_manifest(ROOT / "apps" / "android", ROOT / "apps" / "android" / "SOURCE-MANIFEST.sha256")
 verify_manifest(ROOT / "apps" / "ios", ROOT / "apps" / "ios" / "SOURCE-MANIFEST.sha256")
+run([sys.executable, str(ROOT / "scripts" / "verify_ios_readiness.py")])
 
 # Static contract checks.
 overlay = json.loads((ROOT / "server" / "overlay.json").read_text(encoding="utf-8"))
 if overlay.get("version") != "4.6.7":
     error("server/overlay.json is not v4.6.7")
 mobile_api = (ROOT / "server" / "office-console" / "app" / "mobile_api.py").read_text(encoding="utf-8")
-for token in ["API_VERSION = \"0.3.0-alpha11\"", "roomflow.workspaces.v1", "/mobile-api/v1"]:
+for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "/mobile-api/v1"]:
     if token not in mobile_api:
         error(f"Mobile API contract is missing {token}")
 
