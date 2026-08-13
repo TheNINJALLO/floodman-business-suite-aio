@@ -106,3 +106,10 @@
 - Decision: Audit the built image only in a one-shot container with networking disabled and no mounts or published ports. Do not start, stop, restart, or reuse the unrelated running host containers discovered during Docker inspection.
 - Reason: The available Docker engine contains pre-existing Floodman and supporting service containers whose data and operational ownership were not placed in scope. Exercising them would cross the staging and database safety boundaries.
 - Consequence: PKG-001 can prove image contents and package reproducibility locally, while startup/restart/backup/restore remain STAGE-001. A vulnerability scan that produced no report remains BLK-008 rather than a pass.
+
+## DEC-017 — Regenerate deployable Pterodactyl artifacts without rewriting rollback provenance
+
+- Date: 2026-08-13
+- Decision: Treat `launcher/mobile-start.sh`, current tracked server runtime files, and the reviewed immutable AIO base as the inputs for `deployment/releases/`. Generate the ZIP, its internal manifest, deployment checksum list, synchronized release launcher, and v4.6.7 egg through one deterministic script.
+- Reason: The deployable ZIP preceded later web, RoomFlow, native contract, and test repairs, and the egg still embedded a v3.3.0 launcher even though its filename described v4.6.7. That combination could install stale code on a new server.
+- Consequence: `scripts/verify_pterodactyl_release.py` is a repository gate. `release-artifacts/` remains immutable historical/rollback evidence; it is deliberately not overwritten by current deployment packaging.

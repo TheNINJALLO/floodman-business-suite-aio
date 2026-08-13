@@ -16,6 +16,21 @@ run_dir='/home/container/run'
 [ -r "$base/start-hub.sh" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/start-hub.sh.'
 [ -r "$base/nginx.conf.template" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/nginx.conf.template.'
 
+: "${FLOODMAN_OWNER_FIRST_NAME:?Set Owner First Name in the Pterodactyl Startup tab.}"
+: "${FLOODMAN_OWNER_LAST_NAME:?Set Owner Last Name in the Pterodactyl Startup tab.}"
+: "${FLOODMAN_OWNER_EMAIL:?Set Owner Email in the Pterodactyl Startup tab.}"
+: "${FLOODMAN_OWNER_PASSWORD:?Set Owner Password in the Pterodactyl Startup tab.}"
+case "$FLOODMAN_OWNER_EMAIL" in
+  *@*.*) ;;
+  *) die 'Owner Email must be a valid email address.' ;;
+esac
+[ "${#FLOODMAN_OWNER_PASSWORD}" -ge 12 ] || die 'Owner Password must contain at least 12 characters.'
+case "$FLOODMAN_OWNER_PASSWORD" in
+  ChangeMe12345\!|REPLACE_ME*|replace-me*|owner-password*)
+    die 'Replace the example Owner Password in the Pterodactyl Startup tab before starting Floodman.'
+    ;;
+esac
+
 case "${FLOODMAN_SOURCE_MODE:-builtin}" in
   builtin|'') ;;
   *) log 'Source Mode is not builtin. This emergency launcher uses the verified source already baked into the image.' ;;

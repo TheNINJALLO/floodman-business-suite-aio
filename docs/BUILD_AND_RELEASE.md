@@ -53,7 +53,14 @@ The server-image workflow is fixed to reviewed action commits and publishes v4.6
 
 ## Runtime overlay release
 
-The original Pterodactyl workflow also supports a cumulative runtime ZIP plus `mobile-start.sh`. The exact v4.6.7 artifacts are retained in `release-artifacts/` for reproducibility and rollback comparison.
+The Pterodactyl workflow supports a cumulative runtime ZIP plus `mobile-start.sh`. Current installable/upload artifacts live in `deployment/releases/` and are regenerated from reviewed tracked source with:
+
+```bash
+python3 scripts/package_pterodactyl_release.py
+python3 scripts/verify_pterodactyl_release.py
+```
+
+The packager produces a stable ZIP, an internal source manifest, synchronized launcher, matched egg installer, and deployment `SHA256SUMS`. The exact handoff-era v4.6.7 artifacts retained in `release-artifacts/` are immutable comparison/rollback provenance and are not silently overwritten.
 
 New development should prefer versioned container images from source, with overlays reserved for emergency patches.
 

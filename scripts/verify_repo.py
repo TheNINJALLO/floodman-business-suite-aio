@@ -184,6 +184,7 @@ verify_manifest(ROOT / "apps" / "android", ROOT / "apps" / "android" / "SOURCE-M
 verify_manifest(ROOT / "apps" / "ios", ROOT / "apps" / "ios" / "SOURCE-MANIFEST.sha256")
 run([sys.executable, str(ROOT / "scripts" / "verify_ios_readiness.py")])
 run([sys.executable, str(ROOT / "scripts" / "verify_container_inputs.py")])
+run([sys.executable, str(ROOT / "scripts" / "verify_pterodactyl_release.py")])
 
 # Static contract checks.
 overlay = json.loads((ROOT / "server" / "overlay.json").read_text(encoding="utf-8"))

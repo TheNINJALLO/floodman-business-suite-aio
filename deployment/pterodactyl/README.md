@@ -16,6 +16,15 @@ Apple:   0.1.0-alpha02 development source
 bash ./mobile-start.sh
 ```
 
+Import `egg-floodman-operations-mobile-v4.6.7.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
+
+```text
+mobile-start-v4.6.7.sh -> mobile-start.sh
+floodman-operations-runtime-v4.6.7.zip (do not extract)
+```
+
+The egg installs the same current launcher automatically on a fresh server. The ZIP remains a separate upload so its SHA-256 can be verified before startup. Set a non-placeholder Owner password and create `config/tailscale-auth-key.txt` with a one-off non-ephemeral auth key before the first start.
+
 ## Allocations
 
 ```text
@@ -37,4 +46,4 @@ bash ./mobile-start.sh
 7. Verify `/mobile-api/v1/health`, `/office-health/live`, private desktop/mobile routes, signing, and one PDF.
 8. Roll back the launcher and runtime only if the matching release fails. Never delete data directories as a repair shortcut.
 
-The included egg is historical and should be reviewed before reuse. The current system evolved beyond that egg through cumulative launchers and runtime overlays.
+The v4.6.7 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Historical copies under `release-artifacts/` are rollback provenance, not the current upload source.

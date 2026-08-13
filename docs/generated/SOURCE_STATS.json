@@ -10,9 +10,9 @@
     "tests": 6
   },
   "environment_variable_count": 180,
-  "source_file_count": 568,
-  "source_bytes": 6304221,
-  "text_line_count": 76064,
+  "source_file_count": 570,
+  "source_bytes": 6394588,
+  "text_line_count": 76372,
   "file_counts_by_extension": {
     ".1": 1,
     ".code-workspace": 1,
@@ -38,7 +38,7 @@
     ".pro": 1,
     ".properties": 1,
     ".ps1": 2,
-    ".py": 178,
+    ".py": 180,
     ".sh": 49,
     ".sha256": 5,
     ".sql": 2,

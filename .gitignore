@@ -50,6 +50,7 @@ config/*.json
 *.zip
 !server/resources/import-templates/*.zip
 !release-artifacts/*.zip
+!deployment/releases/floodman-operations-runtime-v4.6.7.zip
 build/
 dist/
 out/

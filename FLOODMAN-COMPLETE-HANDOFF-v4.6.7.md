@@ -277,7 +277,7 @@ Two server image paths are included:
 1. `containers/derivative/Dockerfile` layers the current source onto the existing Floodman AIO base image. Use this first.
 2. `containers/base-aio/Dockerfile` rebuilds the complete AIO image by composing Gauzy, Documenso, Mailpit, PostgreSQL, and Floodman custom source.
 
-The complete AIO Dockerfile currently references mutable upstream image tags in places. Pin them by immutable digest before production.
+The active derivative and complete-AIO image inputs are pinned by registry digest and checked by `scripts/verify_container_inputs.py`. A completed SBOM/advisory review and live staging acceptance are still required before production.
 
 ---
 
@@ -408,14 +408,15 @@ The complete AIO Dockerfile currently references mutable upstream image tags in 
 ## Current deployment inputs
 
 ```text
-Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.0
+Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.6.7.json
 Launcher: deployment/releases/mobile-start-v4.6.7.sh
 Runtime: deployment/releases/floodman-operations-runtime-v4.6.7.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The source handoff also contains Dockerfiles for replacing the overlay method with a source-built image.
+The current deployment artifacts are regenerated from verified source with `python scripts/package_pterodactyl_release.py` and checked with `python scripts/verify_pterodactyl_release.py`. The egg installs the matching launcher; the runtime ZIP must be uploaded separately without extraction. Historical copies in `release-artifacts/` remain immutable rollback provenance.
 
 ## Current update procedure
 

@@ -1,4 +1,4 @@
-.PHONY: help inventory verify smoke fetch-roomflow server-image derivative-image android ios-simulator checksums
+.PHONY: help inventory verify smoke fetch-roomflow pterodactyl-release server-image derivative-image android ios-simulator checksums
 
 help:
 	@echo "Floodman Operations developer commands"
@@ -6,6 +6,7 @@ help:
 	@echo "  make verify             Run static source and package checks"
 	@echo "  make smoke              Run packaged server smoke tests"
 	@echo "  make fetch-roomflow     Fetch pinned RoomFlow source"
+	@echo "  make pterodactyl-release Rebuild and verify current Pterodactyl upload files"
 	@echo "  make derivative-image   Build a new image on the existing AIO base"
 	@echo "  make server-image       Build the complete AIO image"
 	@echo "  make android            Compile/test/lint/build Android"
@@ -22,6 +23,10 @@ smoke:
 
 fetch-roomflow:
 	bash scripts/fetch-roomflow.sh
+
+pterodactyl-release:
+	python3 scripts/package_pterodactyl_release.py
+	python3 scripts/verify_pterodactyl_release.py
 
 derivative-image:
 	docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.6.7 .

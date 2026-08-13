@@ -100,4 +100,4 @@ Two server image paths are included:
 1. `containers/derivative/Dockerfile` layers the current source onto the existing Floodman AIO base image. Use this first.
 2. `containers/base-aio/Dockerfile` rebuilds the complete AIO image by composing Gauzy, Documenso, Mailpit, PostgreSQL, and Floodman custom source.
 
-The complete AIO Dockerfile currently references mutable upstream image tags in places. Pin them by immutable digest before production.
+The active derivative and complete-AIO image inputs are pinned by registry digest and checked by `scripts/verify_container_inputs.py`. A completed SBOM/advisory review and live staging acceptance are still required before production.

@@ -54,7 +54,8 @@ provenance/base-aio-v3.1.1/       Original AIO source package and build provenan
 containers/base-aio/          Current full AIO image build
 containers/derivative/        Current overlay-on-base image build
 launcher/                     Current Pterodactyl launcher
-release-artifacts/             Current original release archives
+deployment/releases/          Current regenerated Pterodactyl upload artifacts
+release-artifacts/             Immutable handoff-era comparison/rollback archives
 reference/                     Fictional approved document references and blank import template
 deployment/                    Pterodactyl, Docker, Tailscale, and GitHub workflow files
 vendor/                        Pinned upstream source records and RoomFlow fetch information
@@ -68,6 +69,8 @@ history/                       Reconstructed release and artifact history
 ```bash
 python scripts/generate_inventory.py
 python scripts/verify_repo.py
+python scripts/package_pterodactyl_release.py
+python scripts/verify_pterodactyl_release.py
 bash scripts/fetch-roomflow.sh
 make derivative-image
 ```
