@@ -24,10 +24,10 @@ fetch-roomflow:
 	bash scripts/fetch-roomflow.sh
 
 derivative-image:
-	docker build -f containers/derivative/Dockerfile -t floodman-operations:4.6.7 .
+	docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.6.7 .
 
 server-image:
-	docker build -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.6.7 .
+	docker build --pull --no-cache -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.6.7 .
 
 android:
 	cd apps/android && gradle --no-daemon :app:compileDebugKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease

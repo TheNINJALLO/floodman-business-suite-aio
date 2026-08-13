@@ -1,0 +1,32 @@
+# The active AIO Dockerfiles need only their definitions and the custom server
+# source. Start denied, then allow the reviewed build inputs explicitly.
+**
+!.dockerignore
+!containers/
+!containers/base-aio/
+!containers/base-aio/Dockerfile
+!containers/derivative/
+!containers/derivative/Dockerfile
+!server/
+!server/**
+
+# Never send local runtime state, secrets, generated packages, or caches even
+# when they exist beneath the allowed server source tree.
+server/**/.env
+server/**/.env.*
+server/**/Clients.csv
+server/**/clients.csv
+server/**/office-state.json
+server/**/*.sqlite
+server/**/*.sqlite3
+server/**/*.db
+server/**/data/
+server/**/logs/
+server/**/uploads/
+server/**/backups/
+server/**/runtime/
+server/**/postgres/
+server/**/documenso/
+server/**/__pycache__/
+server/**/.pytest_cache/
+server/roomflow/current/

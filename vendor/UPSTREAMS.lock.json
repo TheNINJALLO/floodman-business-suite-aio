@@ -32,28 +32,40 @@
       "notes": "Pinned external repository. Do not silently advance the commit."
     },
     {
-      "name": "Gauzy API",
-      "image": "ghcr.io/ever-co/gauzy-api:latest",
+      "name": "Floodman AIO derivative base",
+      "image": "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5",
+      "resolved_from": "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2",
+      "linux_amd64_manifest": "sha256:d11f6369084d407ac26d5f0702541dc8d813169c108cf7ef4b4d6e23ba11be6d",
       "included": false,
-      "notes": "Upstream source is not copied into this archive. Replace mutable tag with an immutable digest."
+      "notes": "Immutable OCI index and linux/amd64 platform manifests resolved 2026-08-13 for the derivative production path."
+    },
+    {
+      "name": "Gauzy API",
+      "image": "ghcr.io/ever-co/gauzy-api:latest@sha256:b99003e2c3f575b615a693af6d94887ae6a9de31c5a488f5dcc64800ec14a33e",
+      "resolved_from": "ghcr.io/ever-co/gauzy-api:latest",
+      "included": false,
+      "notes": "Upstream source is not copied into this archive. Registry manifest digest resolved 2026-08-13."
     },
     {
       "name": "Gauzy Web",
-      "image": "ghcr.io/ever-co/gauzy-webapp:latest",
+      "image": "ghcr.io/ever-co/gauzy-webapp:latest@sha256:dfe1ae5e057c12ebaff562310c9b670d9fde71fae481f1891194454da1bd57b4",
+      "resolved_from": "ghcr.io/ever-co/gauzy-webapp:latest",
       "included": false,
-      "notes": "Upstream source is not copied into this archive. Replace mutable tag with an immutable digest."
+      "notes": "Upstream source is not copied into this archive. Registry manifest digest resolved 2026-08-13."
     },
     {
       "name": "Documenso",
-      "image": "documenso/documenso:v2.11.0",
+      "image": "documenso/documenso:v2.11.0@sha256:d9b9a21841e28ebf08d747706e15319a485aa19afea09ab1c926b025c2ce4a18",
+      "resolved_from": "documenso/documenso:v2.11.0",
       "included": false,
-      "notes": "Signing runtime composed into the AIO image. Review license and source-offer obligations."
+      "notes": "Signing runtime composed into the AIO image. Multi-platform registry digest resolved 2026-08-13; review license and source-offer obligations."
     },
     {
       "name": "Mailpit",
-      "image": "axllent/mailpit:latest",
+      "image": "axllent/mailpit:latest@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a",
+      "resolved_from": "axllent/mailpit:latest",
       "included": false,
-      "notes": "Local email capture. Pin an immutable version or digest."
+      "notes": "Local email capture. Multi-platform registry digest resolved 2026-08-13."
     },
     {
       "name": "Square",

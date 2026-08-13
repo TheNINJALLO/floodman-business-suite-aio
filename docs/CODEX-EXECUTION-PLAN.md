@@ -38,10 +38,11 @@
 
 ## Phase 5 — server and packaging
 
-- Run the complete server smoke suite with isolated data.
-- Re-run static, secret, structured-file, and manifest checks.
-- Inspect container inputs for mutable tags and verify the derivative build when Docker/network are available.
-- Defer live staging and release work to their recorded safety boundaries.
+- **Local gates complete (2026-08-13); external acceptance remains blocked.** All 9 server smoke programs pass with isolated fictional state.
+- Pinned the derivative base and four complete-AIO upstream images by registry digest, plus all five server-image workflow actions by commit.
+- Added service-specific transitive Python constraints, a deny-by-default Docker context, and an automated immutable-input verifier.
+- Completed a clean `--pull --no-cache` linux/amd64 derivative build and a network-isolated image audit: 174/174 server manifest entries, all five installed Python package sets, non-root ownership, empty inherited development-secret placeholders, and live-state exclusions passed.
+- The publishing workflow now emits the registry digest, input hashes, provenance, and SBOM. Local Docker Scout advisory output is still unavailable under BLK-008; live staging, signing, and deployment remain at their recorded safety boundaries.
 
 ## Continuous evidence
 

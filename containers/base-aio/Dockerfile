@@ -1,10 +1,11 @@
 # Complete AIO build. This composes upstream Gauzy, Documenso and Mailpit
 # runtimes with the original Floodman integration source in this repository.
-# Review all upstream licenses and pin image digests before redistribution.
-ARG GAUZY_API_IMAGE=ghcr.io/ever-co/gauzy-api:latest
-ARG GAUZY_WEB_IMAGE=ghcr.io/ever-co/gauzy-webapp:latest
-ARG DOCUMENSO_IMAGE=documenso/documenso:v2.11.0
-ARG MAILPIT_IMAGE=axllent/mailpit:latest
+# Tags are retained for human traceability; digests are the immutable inputs
+# resolved for the Floodman v4.6.7 readiness gate on 2026-08-13.
+ARG GAUZY_API_IMAGE=ghcr.io/ever-co/gauzy-api:latest@sha256:b99003e2c3f575b615a693af6d94887ae6a9de31c5a488f5dcc64800ec14a33e
+ARG GAUZY_WEB_IMAGE=ghcr.io/ever-co/gauzy-webapp:latest@sha256:dfe1ae5e057c12ebaff562310c9b670d9fde71fae481f1891194454da1bd57b4
+ARG DOCUMENSO_IMAGE=documenso/documenso:v2.11.0@sha256:d9b9a21841e28ebf08d747706e15319a485aa19afea09ab1c926b025c2ce4a18
+ARG MAILPIT_IMAGE=axllent/mailpit:latest@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
 
 FROM ${GAUZY_WEB_IMAGE} AS gauzy_web
 FROM ${DOCUMENSO_IMAGE} AS documenso
@@ -25,7 +26,7 @@ COPY --from=documenso --chown=container:container /usr/local/ /opt/documenso-run
 COPY --from=mailpit /mailpit /usr/local/bin/mailpit
 
 COPY server/requirements/ /tmp/floodman-requirements/
-RUN set -eux;     for service in orchestrator messaging-ai competitor-intel office-console local-lab; do       python3 -m pip install --no-cache-dir --break-system-packages         --target "/opt/pydeps/${service}"         -r "/tmp/floodman-requirements/${service}.txt";     done;     rm -rf /tmp/floodman-requirements;     apk del .python-build-deps
+RUN set -eux;     for service in orchestrator messaging-ai competitor-intel office-console local-lab; do       rm -rf "/opt/pydeps/${service}";       python3 -m pip install --no-cache-dir --break-system-packages         --target "/opt/pydeps/${service}"         -r "/tmp/floodman-requirements/${service}.txt"         -c "/tmp/floodman-requirements/constraints/${service}.txt";     done;     rm -rf /tmp/floodman-requirements;     apk del .python-build-deps
 
 COPY --chown=container:container server/ /opt/floodman/
 

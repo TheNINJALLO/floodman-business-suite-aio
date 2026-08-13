@@ -92,3 +92,17 @@
 - Date: 2026-08-13
 - Decision: Add `minimum_ios_version: 0.1.0-alpha02` to Mobile API health, config, and RoomFlow bootstrap responses, and require the iOS app to validate that value plus its capability set before login or session restore.
 - Reason: Android already had a minimum-client field, while the Apple client had no equivalent compatibility contract. The additive field is ignored safely by older Android decoders and is smoke-tested across all three response surfaces.
+
+## DEC-015 — Make production container inputs immutable and minimal
+
+- Date: 2026-08-13
+- Decision: Pin every active upstream image by registry digest, pin server-image workflow actions by commit, constrain every installed Python package version per service, and send only reviewed Dockerfiles plus server source through a deny-by-default build context.
+- Reason: Mutable image tags, unconstrained transitive packages, and a broad repository context prevented a later build from being reproduced or proved free of ignored live-state files.
+- Consequence: The active derivative and complete-AIO Dockerfiles share reviewed input identities; `verify_container_inputs.py` is part of repository verification; CI always pulls and builds without cache and records provenance, SBOM, published digest, and build-input hashes.
+
+## DEC-016 — Separate isolated image verification from live-host acceptance
+
+- Date: 2026-08-13
+- Decision: Audit the built image only in a one-shot container with networking disabled and no mounts or published ports. Do not start, stop, restart, or reuse the unrelated running host containers discovered during Docker inspection.
+- Reason: The available Docker engine contains pre-existing Floodman and supporting service containers whose data and operational ownership were not placed in scope. Exercising them would cross the staging and database safety boundaries.
+- Consequence: PKG-001 can prove image contents and package reproducibility locally, while startup/restart/backup/restore remain STAGE-001. A vulnerability scan that produced no report remains BLK-008 rather than a pass.

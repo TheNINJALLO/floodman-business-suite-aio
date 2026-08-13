@@ -16,6 +16,21 @@ python3 scripts/generate_checksums.py
 
 Use `containers/derivative/Dockerfile` first. It builds the latest custom Floodman layer over the existing AIO base image used during Pterodactyl testing.
 
+The v4.6.7 base is fixed in both the Dockerfile and `vendor/UPSTREAMS.lock.json` as:
+
+```text
+ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
+```
+
+Build the reviewed path with:
+
+```bash
+python3 scripts/verify_container_inputs.py
+docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.6.7 .
+```
+
+The Docker context is deny-by-default. It includes the two active Dockerfiles and reviewed `server/` source while excluding environment files, Office state, customer CSVs, databases, uploads, logs, backups, runtime volumes, and prepared RoomFlow checkouts. Each service install uses its committed file under `server/requirements/constraints/`.
+
 Advantages:
 
 - minimal system-runtime change;
@@ -27,13 +42,14 @@ Advantages:
 
 Use `containers/base-aio/Dockerfile` when the derivative image is stable. It reconstructs the AIO from upstream images and this repository's Floodman source.
 
-Before release:
+The Gauzy API/web, Documenso, and Mailpit sources are also fixed by registry digest in the Dockerfile and upstream lock. Before release:
 
-- pin upstream images by digest;
 - run a clean build without layer cache;
-- inspect SBOM and vulnerabilities;
+- inspect the generated SBOM and obtain a completed critical/high advisory report (BLK-008 is currently open);
 - test startup, restart and restore;
 - verify required license notices.
+
+The server-image workflow is fixed to reviewed action commits and publishes v4.6.7 plus commit-specific tags. Its build evidence contains the registry digest and SHA-256 values for the Docker context policy, derivative Dockerfile, server manifest, and upstream lock. Publishing is a release action and does not replace staging acceptance.
 
 ## Runtime overlay release
 

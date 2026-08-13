@@ -9,5 +9,6 @@
 | BLK-005 | Staging acceptance | OPEN | No approved staging Pterodactyl/Tailscale node or sanitized backup is present. | Complete all local source, unit, smoke, and package checks. |
 | BLK-006 | Native device acceptance | OPEN | Physical Android/iPhone/iPad devices and public staging HTTPS are external. | Produce unsigned/local artifacts and acceptance checklists. |
 | BLK-007 | Signing and production release | OPEN | Apple/Android signing, provider credentials, store uploads, and production deployment require explicit approval. | Do not access credentials; finish pre-signing gates. |
+| BLK-008 | Container advisory scan | OPEN | Docker Scout 1.23.1 did not return a local CVE report within five minutes, so no vulnerability result exists to evaluate. | The immutable clean build and isolated contract audit are complete. Re-run a critical/high scan in CI or a dedicated scanner and review the generated SBOM before any release. |
 
 An open blocker applies only to its named scope and does not pause unrelated tasks.

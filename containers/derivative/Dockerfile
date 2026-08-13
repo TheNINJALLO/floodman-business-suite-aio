@@ -1,18 +1,30 @@
 # Builds the current Floodman custom source on the existing AIO foundation.
-# Pin the base image digest before a production release.
-ARG FLOODMAN_BASE_IMAGE=ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2
+# Tag retained for human traceability; OCI index digest is the immutable input.
+ARG FLOODMAN_BASE_IMAGE=ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
 FROM ${FLOODMAN_BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="Floodman Operations"
+LABEL org.opencontainers.image.description="Floodman Operations v4.6.7 derivative AIO runtime."
+LABEL org.opencontainers.image.version="4.6.7"
+LABEL org.opencontainers.image.authors="Josh Aldrich"
 
 USER root
 WORKDIR /opt/floodman
 
 COPY server/requirements/ /tmp/floodman-requirements/
-RUN set -eux;     for service in orchestrator messaging-ai competitor-intel office-console local-lab; do       python3 -m pip install --no-cache-dir --break-system-packages         --target "/opt/pydeps/${service}"         -r "/tmp/floodman-requirements/${service}.txt";     done;     rm -rf /tmp/floodman-requirements
+RUN set -eux;     for service in orchestrator messaging-ai competitor-intel office-console local-lab; do       rm -rf "/opt/pydeps/${service}";       python3 -m pip install --no-cache-dir --break-system-packages         --target "/opt/pydeps/${service}"         -r "/tmp/floodman-requirements/${service}.txt"         -c "/tmp/floodman-requirements/constraints/${service}.txt";     done;     rm -rf /tmp/floodman-requirements
 
 COPY --chown=container:container server/ /opt/floodman/
-RUN chmod 0755 /opt/floodman/aio/*.sh     && chown -R container:container /opt/floodman /opt/pydeps
+RUN chmod 0755 /opt/floodman/aio/*.sh
 
-ENV FLOODMAN_RELEASE=pterodactyl-mobile-v4.6.7     TZ=America/Detroit
+# The pinned upstream image declares development credential defaults. Floodman's
+# start-suite generates persistent random values before the ERP starts; clear the
+# inherited placeholders so no known credential remains usable from image config.
+ENV FLOODMAN_RELEASE=pterodactyl-mobile-v4.6.7 \
+    TZ=America/Detroit \
+    EXPRESS_SESSION_SECRET= \
+    JWT_SECRET= \
+    JWT_REFRESH_TOKEN_SECRET=
 
 WORKDIR /home/container
 USER container
