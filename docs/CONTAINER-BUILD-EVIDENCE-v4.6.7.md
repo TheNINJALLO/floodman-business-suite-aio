@@ -1,8 +1,8 @@
 # Floodman Operations v4.6.7 container build evidence
 
-Date: 2026-08-13  
-Task: PKG-001  
-Host tools: Docker 29.6.2; Docker Compose 5.3.1
+- Date: 2026-08-13
+- Task: PKG-001
+- Host tools: Docker 29.6.2; Docker Compose 5.3.1
 
 ## Reviewed inputs
 
