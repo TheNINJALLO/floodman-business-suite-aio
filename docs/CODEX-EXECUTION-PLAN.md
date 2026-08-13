@@ -39,11 +39,13 @@
 
 ## Phase 5 — server and packaging
 
-- **Local gates complete (2026-08-13); external acceptance remains blocked.** All 9 server smoke programs pass with isolated fictional state.
+- **Local gates complete (2026-08-13); external acceptance remains blocked.** All 10 repository server smoke programs pass with isolated fictional state, and all 9 portable programs pass from the extracted deployment ZIP.
+- **v4.6.8 server-only test build complete (2026-08-13).** The user explicitly deferred Android/iOS builds for this distinct Pterodactyl test identity. Two deterministic package builds, all 163 internal hashes, launcher syntax, RoomFlow compatibility, and repository verification with 0 warnings pass. Native versions and compatibility minimums remain unchanged; the exception does not advance signing, device, staging, or production gates.
 - Pinned the derivative base and four complete-AIO upstream images by registry digest, plus all five server-image workflow actions by commit.
 - Added service-specific transitive Python constraints, a deny-by-default Docker context, and an automated immutable-input verifier.
 - Completed a clean `--pull --no-cache` linux/amd64 derivative build and a network-isolated image audit: 174/174 server manifest entries, all five installed Python package sets, non-root ownership, empty inherited development-secret placeholders, and live-state exclusions passed.
 - The publishing workflow now emits the registry digest, input hashes, provenance, and SBOM. Local Docker Scout advisory output is still unavailable under BLK-008; live staging, signing, and deployment remain at their recorded safety boundaries.
+- A v4.6.8 derivative image rebuild remains BLK-009 because the local Docker Desktop service is stopped/manual. It was not started because DEC-016 forbids risking automatic restart of unrelated containers; use an isolated engine or clean CI runner.
 
 ## Continuous evidence
 

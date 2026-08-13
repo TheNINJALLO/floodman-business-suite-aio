@@ -4,21 +4,21 @@
 
 ```text
 Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
-Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.6.7.json
-Launcher: deployment/releases/mobile-start-v4.6.7.sh
-Runtime: deployment/releases/floodman-operations-runtime-v4.6.7.zip
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.6.8.json
+Launcher: deployment/releases/mobile-start-v4.6.8.sh
+Runtime: deployment/releases/floodman-operations-runtime-v4.6.8.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-13 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.7 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
+The 2026-08-13 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.8 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. This is a server-only test package; Android and iOS versions are unchanged and their builds were explicitly deferred. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
 
 Current deployable SHA-256 values:
 
 ```text
-ec014201968765cc579396aed9d26bec1989d03e36dc65aface117655ee82fb0  floodman-operations-runtime-v4.6.7.zip
-cd7da69d1428b7a2a9d0ed7972f2f6b49ac9129e1a167d8103d421319a4317de  mobile-start-v4.6.7.sh
-8d9955c606d60a3163c38f7d8c8acfe2458ed87ae760b462be2bd071e6745b9c  egg-floodman-operations-mobile-v4.6.7.json
+e7cea107baacbb06baa16241a62d4ac989a2a96f0566b297d4a2b2e3331e3dbf  floodman-operations-runtime-v4.6.8.zip
+e89cb496db041b0a31f3a50c9de627ff427ecc94de7aed78aa593d4eaf2f6c9d  mobile-start-v4.6.8.sh
+842c005c9dae637435201ae3b33025d59c0e25600351f7e4201913ead8ff3937  egg-floodman-operations-mobile-v4.6.8.json
 ```
 
 Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.

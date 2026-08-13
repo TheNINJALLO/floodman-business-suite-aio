@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 RELEASES = ROOT / "deployment" / "releases"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.6.7.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.6.8.json"
 BASE_IMAGE = (
     "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@"
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
@@ -128,7 +128,7 @@ def package_runtime(version: str) -> tuple[Path, int]:
 
 
 def build_installer_script(launcher: str, version: str) -> str:
-    sentinel = "FLOODMAN_LAUNCHER_V467"
+    sentinel = "FLOODMAN_LAUNCHER_V468"
     if sentinel in launcher:
         raise RuntimeError(f"Launcher unexpectedly contains reserved heredoc marker {sentinel}")
     return f"""#!/bin/ash
@@ -215,11 +215,11 @@ def write_release_checksums(version: str) -> Path:
 
 def main() -> None:
     version = (SERVER / "VERSION").read_text(encoding="utf-8").strip()
-    if version != "4.6.7":
-        raise SystemExit(f"This reviewed packager is fixed to v4.6.7; found {version!r}")
+    if version != "4.6.8":
+        raise SystemExit(f"This reviewed packager is fixed to v4.6.8; found {version!r}")
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    if "[Floodman Mobile v4.6.7]" not in launcher:
-        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.6.7")
+    if "[Floodman Mobile v4.6.8]" not in launcher:
+        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.6.8")
 
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)

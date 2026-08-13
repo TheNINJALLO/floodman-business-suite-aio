@@ -2,6 +2,14 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.6.8
+
+- Unified the genuine ERP login with Office and integrated RoomFlow browser sessions.
+- Added verified existing-ERP-session exchange and safe return to the originally requested Floodman module.
+- Corrected RoomFlow authentication subrequests to return 401/403 instead of an unusable redirect response.
+- Added a distinct server/Pterodactyl test-release identity so hosts already running v4.6.7 can install the cumulative update.
+- Kept Android `0.3.0-alpha11`, iOS `0.1.0-alpha02`, Mobile API `0.3.0-alpha11`, and the pinned RoomFlow commit unchanged. Native rebuilds were explicitly deferred for this server-only test package and are not claimed as passes.
+
 ## 4.6.7
 
 - Added authentication-aware Full ERP routing.

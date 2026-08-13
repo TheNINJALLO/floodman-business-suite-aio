@@ -120,3 +120,10 @@
 - Decision: Route the same-origin Gauzy `/api/auth/login` request through a narrow Office bridge. The bridge forwards the verified Gauzy response to the ERP browser, maps the verified identity to its existing Office role, and issues the HttpOnly `floodman_session` used by Office and integrated RoomFlow. Existing ERP JWTs may be exchanged only through `/login/erp-session`, after `/user/me`, tenant, and organization validation.
 - Reason: A second Office-branded password form still required users to think about two login surfaces. Intercepting the real ERP request produces one credential entry and preserves Gauzy's native browser session.
 - Safety: Passwords and ERP bearer tokens are held only for the verification request and are not persisted or logged. The local Owner login remains reachable only as an explicit installation-recovery fallback. RoomFlow still requires `estimates.view`, and anonymous/forbidden auth subrequests return 401/403 rather than exposing its static assets.
+
+## DEC-019 — Scope v4.6.8 to a non-native Pterodactyl test release
+
+- Date: 2026-08-13
+- Decision: On the user's explicit instruction, assign server and Pterodactyl artifacts the distinct `4.6.8` identity needed to test an update on a host that already recognizes `4.6.7`. Keep Android `0.3.0-alpha11`, iOS `0.1.0-alpha02`, Mobile API `0.3.0-alpha11`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8` unchanged.
+- Evidence policy: Run and record every available server, browser, package, manifest, and container-input gate. Record Android/iOS builds as user-deferred, not passed. Staging install/upgrade/restart/backup/restore remains blocked until performed on an approved node.
+- Safety: This exception authorizes local test artifacts only. It does not authorize production deployment, signing, store upload, live credentials, live database changes, or public administrative exposure.

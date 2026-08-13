@@ -23,6 +23,7 @@
 | 4.6.3 | RoomFlow organizations/workspaces |
 | 4.6.4 to 4.6.6 | Dedicated desktop/mobile PWA and false-offline repairs |
 | 4.6.7 | Authentication-aware Full ERP routing and HTTPS boot guard |
+| 4.6.8 | Unified ERP/Office/RoomFlow login and distinct server-only Pterodactyl test-update identity |
 
 ## Android milestones
 
@@ -50,4 +51,4 @@
 
 ## Status note
 
-Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The editable source baseline in this handoff is server v4.6.7, Android alpha11, and iOS alpha02.
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.8; Android remains alpha11 and iOS remains alpha02. Native builds are explicitly deferred for the v4.6.8 server-only test package.

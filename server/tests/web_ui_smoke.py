@@ -229,7 +229,7 @@ def static_overlay_contracts() -> None:
         "legacy_css": (ROOT / "roomflow" / "floodman-roomflow.css").read_text(encoding="utf-8"),
         "hub_js": (ROOT / "hub" / "hub.js").read_text(encoding="utf-8"),
         "launcher": (REPO / "launcher" / "mobile-start.sh").read_text(encoding="utf-8"),
-        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.6.7.sh").read_text(encoding="utf-8"),
+        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.6.8.sh").read_text(encoding="utf-8"),
         "nginx": (ROOT / "aio" / "nginx.conf.template").read_text(encoding="utf-8"),
         "office": (ROOT / "office-console" / "app" / "main.py").read_text(encoding="utf-8"),
     }
@@ -297,7 +297,7 @@ def build_browser_app(main: Any) -> Any:
 
     @app.get("/office-health/live")
     def office_health() -> JSONResponse:
-        return JSONResponse({"status": "ok", "version": "4.6.7"})
+        return JSONResponse({"status": "ok", "version": "4.6.8"})
 
     @app.get("/hub-fixture")
     def hub_fixture() -> HTMLResponse:

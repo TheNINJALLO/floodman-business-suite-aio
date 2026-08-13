@@ -1,12 +1,12 @@
-# Project status at handoff
+# Current project status
 
 ## Version status
 
 | Component | Version | Source status | Live validation status |
 |---|---:|---|---|
-| Floodman custom server | 4.6.7 | Included, parsed, packaged and locally smoke-tested | Final v4.6.7 Full ERP route not confirmed on the live node |
-| Pterodactyl launcher | 4.6.7 | Included | Must be tested on Wings with the current image and data |
-| Android app | 0.3.0-alpha11 | Included | Clean new-repository Gradle/device acceptance not recorded |
+| Floodman custom server | 4.6.8 | Server-only test package built and locally verified | Live v4.6.8 upgrade and Full ERP/RoomFlow route validation not yet performed |
+| Pterodactyl launcher | 4.6.8 | Deterministic launcher/egg/runtime artifacts built and checksummed | Must be tested on Wings after backup |
+| Android app | 0.3.0-alpha11 | Included; unchanged | Build explicitly deferred for the v4.6.8 server-only test package; prior local alpha11 evidence remains historical |
 | Apple app | 0.1.0-alpha02 | Included | Xcode simulator/TestFlight acceptance not recorded; parity incomplete |
 | RoomFlow | pinned commit | Fetch metadata and native bridges included | Separate repository source must be fetched |
 | Gauzy | upstream image | Composed, not vendored | Existing live ERP had intermittent browser/server-down routing issues |
@@ -33,7 +33,7 @@
 2. Move all secrets and the RoomFlow Supabase defaults to environment configuration.
 3. Build the derivative server image from a clean CI runner.
 4. Restore a sanitized copy of live data into a staging Pterodactyl server.
-5. Validate v4.6.7 Full ERP login, desktop, mobile, signing, payments, PDFs, RoomFlow import, and restart behavior.
+5. Validate the v4.6.7-to-v4.6.8 test upgrade, Full ERP login, desktop, mobile, signing, payments, PDFs, RoomFlow import, restart, backup, and restore behavior.
 6. Build Android alpha11 from the monorepo and run the complete acceptance checklist.
 7. Build Apple alpha02 in Xcode, then close the feature-parity gap before TestFlight.
 8. Replace JSON Office state with a transactional relational database before multi-user production scale.
@@ -41,7 +41,7 @@
 
 ## Do not assume
 
-- Do not assume the latest v4.6.7 runtime was installed successfully.
+- Do not assume the latest v4.6.8 runtime was installed successfully.
 - Do not assume the Android artifact currently on a phone exactly matches alpha11.
 - Do not assume Full ERP browser routing is fixed until it is tested through the actual Tailscale `:8443` URL.
 - Do not assume Apple signing is ready merely because source and workflows exist.

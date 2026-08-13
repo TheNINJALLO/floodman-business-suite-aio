@@ -28,9 +28,9 @@
   <section id="ios" class="card instructions hidden"><h2>Install on iPhone or iPad</h2><ol><li>Open Floodman in Safari or another current iOS browser.</li><li>Tap the Share button.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Confirm <b>Floodman</b>, then tap Add.</li></ol></section>
   <section id="https" class="card instructions hidden"><h2>HTTPS is the last switch</h2><p>The PWA files are installed and ready, but browsers will not register the service worker or promote installation from a public plain-HTTP IP address. Point your Floodman subdomain to this service and enable HTTPS. No new application build is required afterward.</p></section>
   <section class="card instructions"><h2>Offline behavior</h2><p>The app shell, branding, icons, install page, and offline recovery page are cached. Customer records, signatures, invoices, payments, messages, and APIs are deliberately never cached, preventing private business data from lingering in the browser cache.</p></section>
-  <p class="foot">Floodman Operations · Created by Josh Aldrich · Release 4.6.7</p>
+  <p class="foot">Floodman Operations · Created by Josh Aldrich · Release 4.6.8</p>
 </main>
-<script src="/floodman-pwa.js?release=4.6.7"></script>
+<script src="/floodman-pwa.js?release=4.6.8"></script>
 <script>
 (() => {
   const secure = window.isSecureContext && (location.protocol === 'https:' || ['localhost','127.0.0.1','::1'].includes(location.hostname));
