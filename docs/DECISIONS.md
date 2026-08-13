@@ -113,3 +113,10 @@
 - Decision: Treat `launcher/mobile-start.sh`, current tracked server runtime files, and the reviewed immutable AIO base as the inputs for `deployment/releases/`. Generate the ZIP, its internal manifest, deployment checksum list, synchronized release launcher, and v4.6.7 egg through one deterministic script.
 - Reason: The deployable ZIP preceded later web, RoomFlow, native contract, and test repairs, and the egg still embedded a v3.3.0 launcher even though its filename described v4.6.7. That combination could install stale code on a new server.
 - Consequence: `scripts/verify_pterodactyl_release.py` is a repository gate. `release-artifacts/` remains immutable historical/rollback evidence; it is deliberately not overwritten by current deployment packaging.
+
+## DEC-018 — Use the genuine ERP login as the browser identity entry point
+
+- Date: 2026-08-13
+- Decision: Route the same-origin Gauzy `/api/auth/login` request through a narrow Office bridge. The bridge forwards the verified Gauzy response to the ERP browser, maps the verified identity to its existing Office role, and issues the HttpOnly `floodman_session` used by Office and integrated RoomFlow. Existing ERP JWTs may be exchanged only through `/login/erp-session`, after `/user/me`, tenant, and organization validation.
+- Reason: A second Office-branded password form still required users to think about two login surfaces. Intercepting the real ERP request produces one credential entry and preserves Gauzy's native browser session.
+- Safety: Passwords and ERP bearer tokens are held only for the verification request and are not persisted or logged. The local Owner login remains reachable only as an explicit installation-recovery fallback. RoomFlow still requires `estimates.view`, and anonymous/forbidden auth subrequests return 401/403 rather than exposing its static assets.

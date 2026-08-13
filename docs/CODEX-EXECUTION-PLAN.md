@@ -13,6 +13,7 @@
 - Rendered 37 authenticated route states plus public estimate, invoice, payment, receipt, and PDF routes with fictional temporary data.
 - Added a real Chromium-family browser gate for dialog/drawer close paths, Escape behavior, focus restoration, and horizontal overflow at 1440×900 and 390×844.
 - Repaired PWA, Hub, active/legacy RoomFlow, Full ERP recovery, Windows time-zone, and PDF portability defects while preserving Floodman branding and attribution.
+- **Complete (2026-08-13).** Routed the genuine ERP credential exchange through the Office identity bridge so one successful ERP login establishes ERP, Office, and RoomFlow browser access; retained an explicit local-owner recovery path and return signed-in users to the originally requested module.
 
 ## Phase 2 — RoomFlow and Supabase
 

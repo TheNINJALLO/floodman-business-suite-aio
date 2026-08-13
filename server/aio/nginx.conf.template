@@ -140,7 +140,7 @@ http {
         }
 
         location = /floodman-login {
-            return 302 /full-erp?target=login;
+            return 302 /login?next=/office;
         }
 
         location = /erp-dashboard {
@@ -270,7 +270,7 @@ http {
 
         location ^~ /roomflow/ {
             auth_request /__roomflow_auth;
-            error_page 401 =302 /login?next=/office/roomflow;
+            error_page 401 =302 /login?next=/roomflow/;
             error_page 403 =302 /office;
             alias /home/container/data/roomflow/current/;
             index index.html;
@@ -293,6 +293,23 @@ http {
 
         location = /api {
             return 308 /api/;
+        }
+
+        # One real Floodman login establishes both the Gauzy ERP session and
+        # the narrower Office/RoomFlow session. The Office bridge forwards the
+        # accepted Gauzy payload unchanged and never persists the password or
+        # bearer token.
+        location = /api/auth/login {
+            proxy_pass http://127.0.0.1:8700/office/api/erp/login;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $fm_public_scheme;
+            proxy_set_header X-Forwarded-Host $http_host;
+            proxy_read_timeout 30s;
+            proxy_send_timeout 30s;
+            proxy_buffering off;
         }
 
         # The ERP user/me endpoint loads employee separately. Older browser

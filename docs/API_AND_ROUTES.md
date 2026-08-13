@@ -49,11 +49,15 @@ Required capability:     roomflow.workspaces.v1
 
 Office exposes authenticated browser pages and form actions for setup, desktop/mobile workspaces, imports, customers, properties, estimates, invoices, payments, documents, staff, tasks, calendar, RoomFlow, competitor intelligence, linking/provider configuration and engineering/admin actions.
 
+Browser authentication is unified at the genuine ERP login. Nginx sends `POST /api/auth/login` to the Office identity bridge, which validates the credentials with the internal Gauzy API, returns Gauzy's original login payload to the ERP browser, and issues the HttpOnly Office/RoomFlow session. `GET /login` records the requested local return path and opens the ERP login; `/login/local` is an explicit Owner recovery path. `POST /login/erp-session` accepts an existing same-origin ERP bearer token only long enough to validate `/user/me` and never persists it.
+
 Important stable entry routes:
 
 ```text
 /                         Hub root -> workspace selection
 /workspace                adaptive PWA selector
+/login                    unified ERP login and safe module-return gateway
+/login/local              installation Owner recovery login
 /office/desktop            desktop Floodman workspace
 /office/mobile             mobile Floodman workspace
 /full-erp                  authentication-aware Full ERP launcher

@@ -1,17 +1,17 @@
 # Generated source inventory
 
-- FastAPI route decorators found: **310**
+- FastAPI route decorators found: **314**
 - Environment variable names referenced: **180**
-- Files included in the source inventory: **570**
-- Text lines counted: **76,372**
-- Inventory bytes: **6,394,588**
+- Files included in the source inventory: **571**
+- Text lines counted: **76,805**
+- Inventory bytes: **6,424,263**
 
 ## Routes by service
 
 - `competitor-intel`: 10
 - `local-lab`: 46
 - `messaging-ai`: 2
-- `office-console`: 219
+- `office-console`: 223
 - `orchestrator`: 27
 - `tests`: 6
 

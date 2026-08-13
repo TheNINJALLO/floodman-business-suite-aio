@@ -579,6 +579,38 @@ cat > "$hotfix/floodman-boot-guard.js" <<'BOOT_GUARD'
   'use strict';
   const release = 'pterodactyl-mobile-v4.6.7';
   const started = Date.now();
+  const pendingLoginKey = 'floodmanLoginNext';
+
+  function pendingLoginTarget() {
+    try {
+      const value = String(sessionStorage.getItem(pendingLoginKey) || '');
+      return value.startsWith('/') && !value.startsWith('//') && !value.includes('\\') ? value : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  async function completePendingLogin() {
+    const target = pendingLoginTarget();
+    if (!target) return false;
+    try {
+      const response = await fetch('/login/status', {
+        cache: 'no-store', credentials: 'same-origin', headers: { accept: 'application/json' }
+      });
+      const payload = response.ok ? await response.json() : {};
+      if (payload?.authenticated === true) {
+        try { sessionStorage.removeItem(pendingLoginKey); } catch (_) {}
+        window.location.replace(target);
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  async function watchPendingLogin() {
+    if (await completePendingLogin()) return;
+    if (pendingLoginTarget()) window.setTimeout(watchPendingLogin, 1000);
+  }
 
   function routeName() {
     return String(window.location.hash || '').replace(/^#\/?/, '').split('?')[0].replace(/^\/+|\/+$/g, '');
@@ -694,6 +726,7 @@ cat > "$hotfix/floodman-boot-guard.js" <<'BOOT_GUARD'
   }
 
   window.setTimeout(check, 2500);
+  window.setTimeout(watchPendingLogin, 400);
 })();
 BOOT_GUARD
 
@@ -1302,6 +1335,10 @@ grep -Fq 'location = /erp-home' "$hotfix/nginx.conf.template" || die 'Could not 
 grep -Fq 'http://0.0.0.0:${SERVER_PORT}' "$hotfix/nginx.conf.template" || die 'Could not install the final same-origin ERP browser URL rewrite.'
 grep -Fq '/api/auth/authenticated' "$overlay_root/pwa/erp.html" || die 'Could not install the authentication-aware full ERP launcher.'
 grep -Fq 'window.location.replace(target(isAuthenticated))' "$overlay_root/pwa/erp.html" || die 'The full ERP launcher does not select login or dashboard from the real authentication response.'
+grep -Fq 'location = /api/auth/login' "$hotfix/nginx.conf.template" || die 'The main ERP login is not routed through the unified Floodman session bridge.'
+grep -Fq 'proxy_pass http://127.0.0.1:8700/office/api/erp/login' "$hotfix/nginx.conf.template" || die 'The unified Floodman login does not reach the Office session bridge.'
+grep -Fq "const pendingLoginKey = 'floodmanLoginNext'" "$hotfix/floodman-boot-guard.js" || die 'The ERP browser cannot return to a requested Floodman module after login.'
+grep -Fq "window.location.replace(target)" "$hotfix/floodman-boot-guard.js" || die 'The unified login return target is not activated after ERP authentication.'
 grep -Fq 'location = /office-health/live' "$hotfix/nginx.conf.template" || die 'Could not install the same-origin Floodman Office health probe.'
 grep -Fq 'proxy_pass http://127.0.0.1:8700/health/live' "$hotfix/nginx.conf.template" || die 'The Office health probe does not reach the Floodman Office process.'
 grep -Fq '/office-health/live' "$overlay_root/pwa/floodman-pwa.js" || die 'The PWA does not verify the actual Floodman Office connection.'

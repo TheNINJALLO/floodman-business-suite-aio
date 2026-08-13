@@ -4,8 +4,11 @@
   "release": "pterodactyl-mobile-v4.6.7",
   "created_by": "Josh Aldrich",
   "cumulative_from": "4.6.6",
-  "description": "Cumulative Floodman server release that restores the ERP authentication-aware launcher and browser boot guard so an unsigned-in ERP session opens the login page instead of displaying a false server-down screen.",
+  "description": "Cumulative Floodman server release with one main ERP login for the ERP, Office, and integrated RoomFlow workspaces, plus the authentication-aware launcher and browser boot guard.",
   "features": [
+    "main Floodman ERP login establishes the authenticated Office and RoomFlow session without storing ERP credentials or tokens",
+    "RoomFlow login returns users to their requested estimator workspace after successful ERP authentication",
+    "existing same-origin ERP browser sessions can be connected to Office and RoomFlow through verified token exchange",
     "authentication-aware /full-erp launcher opens ERP login for unsigned-in browsers and dashboard for authenticated browsers",
     "ERP boot guard is served and injected into the genuine browser bundle",
     "HTTP 200 with JSON false from /api/auth/authenticated is treated as login-required rather than server failure",

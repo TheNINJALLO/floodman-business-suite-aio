@@ -15,8 +15,10 @@
 3. Force `/office/desktop?desktop=1` on a touch laptop and confirm desktop sidebar/table layout.
 4. Force `/office/mobile?mobile=1` on desktop and confirm touch shell.
 5. Open `/full-erp?target=login` signed out and confirm ERP login.
-6. Sign in, open `/full-erp`, and confirm dashboard.
-7. Inspect browser console for mixed-content, localhost or wrong-port URLs.
+6. While signed out, open `/roomflow/`; confirm Floodman opens the genuine ERP login once, then returns to `/roomflow/` after successful authentication without a second password prompt.
+7. Open `/office/desktop` and `/full-erp`; confirm the same login grants both workspaces and RoomFlow remains permission-gated.
+8. Sign out and verify the intended ERP/Office session behavior; verify `/login/local` is labeled as installation recovery rather than the normal staff path.
+9. Inspect browser console for mixed-content, localhost or wrong-port URLs, and confirm login responses have `Cache-Control: no-store`.
 
 ## C. Customer and property
 

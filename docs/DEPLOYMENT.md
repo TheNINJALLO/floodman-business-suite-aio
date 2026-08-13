@@ -23,9 +23,12 @@ https://<node>.ts.net:8443/workspace?workspace=auto
 https://<node>.ts.net:8443/office/desktop?desktop=1
 https://<node>.ts.net:8443/office/mobile?mobile=1
 https://<node>.ts.net:8443/full-erp?target=login
+https://<node>.ts.net:8443/roomflow/
 https://<node>.ts.net:8443/office-health/live
 https://<node>.ts.net:8443/floodman-status.html
 ```
+
+`/roomflow/` and `/office/*` use the main ERP login. On first access while signed out, Floodman records the local return target, opens the genuine ERP login, establishes the narrower Office/RoomFlow cookie after Gauzy accepts the credentials, and returns to the requested module. `/login/local` is reserved for installation-owner recovery.
 
 Public test, with Tailscale off on the client:
 

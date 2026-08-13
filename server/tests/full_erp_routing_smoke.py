@@ -30,6 +30,10 @@ def run() -> None:
     assert "location = /erp-home" in nginx
     assert '/floodman-boot-guard.js?release=${HUB_RELEASE}' in nginx
     assert "proxy_pass http://127.0.0.1:3000" in nginx
+    assert "location = /api/auth/login" in nginx
+    assert "proxy_pass http://127.0.0.1:8700/office/api/erp/login" in nginx
+    assert "return 302 /login?next=/office;" in nginx
+    assert "error_page 401 =302 /login?next=/roomflow/;" in nginx
 
     # Private Tailscale HTTPS ports must not be rewritten to HTTP merely because
     # the final loopback hop into Nginx is plain HTTP.

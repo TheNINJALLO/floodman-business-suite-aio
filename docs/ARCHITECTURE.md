@@ -65,6 +65,10 @@ The primary custom business application. It provides:
 
 Office currently persists its custom application state in an atomic JSON file plus uploaded documents/layouts on disk.
 
+### Unified browser authentication
+
+The genuine same-origin ERP login is the browser identity entry point for ERP, Office, and integrated RoomFlow. Nginx routes only the ERP login request through Office; Office forwards it to the internal Gauzy API, returns the original Gauzy response to the Angular client, maps the verified user to an Office role, and issues a separate HttpOnly module session. This keeps the ERP token out of Office storage while allowing RoomFlow's Nginx `auth_request` gate to enforce Office permissions. An existing ERP JWT may be exchanged only after Gauzy `/user/me`, tenant, and organization checks. A safe session-storage return marker sends users back to the module they originally requested.
+
 ### Orchestrator (`server/orchestrator`)
 
 Coordinates durable workflow state in PostgreSQL:
@@ -122,6 +126,8 @@ Supplies local mocks and engineering interfaces for Gauzy, Square, Documenso, Tw
 | Route | Intent |
 |---|---|
 | `/workspace` | automatic desktop/mobile selection |
+| `/login` | unified ERP login and requested-module return gateway |
+| `/login/local` | explicit installation Owner recovery login |
 | `/office/desktop?desktop=1` | dedicated desktop Floodman workspace |
 | `/office/mobile?mobile=1` | phone/tablet Floodman workspace |
 | `/full-erp` | authentication-aware Gauzy ERP launcher |

@@ -525,12 +525,14 @@ class ProviderClient:
     # ------------------------------------------------------------------
     # Floodman ERP identity and synchronization bridge
     # ------------------------------------------------------------------
-    async def authenticate_gauzy_member(self, email: str, password: str) -> dict[str, Any]:
-        """Validate a staff login against the Floodman ERP without storing the password.
+    async def authenticate_gauzy_login(
+        self, email: str, password: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Validate the genuine ERP login and return its unmodified browser payload.
 
-        This provides one credential set for the Floodman ERP and specialized Floodman modules. Office
-        still issues its own short-lived session cookie so the upstream applications
-        remain independently upgradeable.
+        The caller can return ``login`` to the Gauzy browser while using ``identity``
+        to establish the narrower Floodman Office/RoomFlow session. The password and
+        access token are never persisted by this bridge.
         """
         normalized_email = str(email or "").strip().lower()
         if not normalized_email or not password:
@@ -565,6 +567,45 @@ class ProviderClient:
             except Exception:
                 pass
 
+        return self._gauzy_member_identity(login, user, expected_email=normalized_email), login
+
+    async def authenticate_gauzy_member(self, email: str, password: str) -> dict[str, Any]:
+        """Validate a staff login against Floodman ERP without storing credentials."""
+        identity, _login = await self.authenticate_gauzy_login(email, password)
+        return identity
+
+    async def authenticate_gauzy_session(self, access_token: str) -> dict[str, Any]:
+        """Resolve an existing same-origin ERP browser token to a Floodman identity."""
+        token = str(access_token or "").strip()
+        if len(token) < 20 or len(token) > 32_768:
+            raise RuntimeError("The Floodman ERP session token is invalid.")
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            response = await client.get(
+                f"{self.settings.gauzy_base_url}/user/me",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"relations": "role,tenant", "includeEmployee": "true", "includeOrganization": "true"},
+            )
+        if response.is_error:
+            raise RuntimeError("The Floodman ERP session is no longer active.")
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("Floodman ERP returned an invalid account identity.")
+        user_value = payload.get("user") or payload.get("data") or payload
+        if isinstance(user_value, dict) and isinstance(user_value.get("user"), dict):
+            user_value = user_value["user"]
+        if not isinstance(user_value, dict):
+            raise RuntimeError("Floodman ERP returned an invalid account identity.")
+        return self._gauzy_member_identity({}, dict(user_value))
+
+    def _gauzy_member_identity(
+        self,
+        login: dict[str, Any],
+        user: dict[str, Any],
+        *,
+        expected_email: str = "",
+    ) -> dict[str, Any]:
+        """Apply the tenant, organization, and role policy to a verified ERP user."""
+
         employee = user.get("employee") or {}
         role_value = user.get("role") or (employee.get("user") or {}).get("role") or login.get("role") or {}
         if isinstance(role_value, dict):
@@ -587,11 +628,13 @@ class ProviderClient:
         )
         expected_tenant = self._configured_gauzy_id(self.settings.gauzy_tenant_id)
         expected_organization = self._configured_gauzy_id(self.settings.gauzy_organization_id)
-        actual_email = str(user.get("email") or normalized_email).strip().lower()
+        actual_email = str(user.get("email") or expected_email).strip().lower()
+        if not actual_email:
+            raise RuntimeError("Floodman ERP did not return an email address for that account.")
         configured_owner_email = str(self.settings.gauzy_admin_email or "").strip().lower()
         # Some Floodman ERP builds omit the role relation from the login payload even for
         # a verified Super Administrator. The configured installation Owner is a
-        # trusted fallback only after Floodman ERP has accepted that exact email/password.
+        # trusted fallback only after Floodman ERP has verified that exact identity.
         is_admin = gauzy_role in {"SUPER_ADMIN", "ADMIN"} or (
             bool(configured_owner_email) and actual_email == configured_owner_email
         )
@@ -599,7 +642,7 @@ class ProviderClient:
             raise RuntimeError("That Floodman account belongs to another workspace.")
         if expected_organization and organization_id and expected_organization != organization_id and not is_admin:
             raise RuntimeError("That Floodman account is not assigned to the active organization.")
-        if actual_email != normalized_email:
+        if expected_email and actual_email != expected_email:
             raise RuntimeError("Floodman ERP returned a different account identity than the supplied email.")
         first_name = str(user.get("firstName") or user.get("first_name") or "").strip()
         last_name = str(user.get("lastName") or user.get("last_name") or "").strip()

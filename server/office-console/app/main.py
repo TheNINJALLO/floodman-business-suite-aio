@@ -53,7 +53,20 @@ app = FastAPI(title="Floodman Operations", version="4.6.7", docs_url=None, redoc
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
 
-PUBLIC_PATHS = {"/health/live", "/health/ready", "/login", "/login/platform", "/login/gauzy", "/logout", "/setup/owner"}
+PUBLIC_PATHS = {
+    "/health/live",
+    "/health/ready",
+    "/login",
+    "/login/local",
+    "/login/platform",
+    "/login/gauzy",
+    "/login/erp-session",
+    "/login/status",
+    "/logout",
+    "/setup/owner",
+    "/office/api/erp/login",
+    "/office/api/roomflow/auth-check",
+}
 PUBLIC_PREFIXES = ("/invite/", "/customer/", "/mobile-api/")
 
 
@@ -286,22 +299,164 @@ def download_client_file(document_id: str) -> Response:
     )
 
 
+def _safe_login_target(value: str, fallback: str = "/office") -> str:
+    candidate = str(value or "").strip()
+    unsafe = (
+        not candidate.startswith("/")
+        or candidate.startswith("//")
+        or "\\" in candidate
+        or any(ord(character) < 32 for character in candidate)
+    )
+    return fallback if unsafe else candidate
+
+
+def _set_office_session(response: Response, user: dict[str, Any]) -> Response:
+    response.set_cookie(
+        "floodman_session",
+        store.create_session(str(user["id"])),
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        max_age=14 * 86400,
+        path="/",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _local_login_page(next: str) -> HTMLResponse:
+    target = _safe_login_target(next)
+    body = f"""<h1>Emergency local sign in</h1>
+    <div class='callout'>This fallback is for the installation Owner or a module-only recovery account. Staff should use the main Floodman ERP login.</div>
+    <div class='card'><form method='post' action='/login'><input type='hidden' name='next' value='{esc(target)}'>
+    <div class='field'><label>Email</label><input type='email' name='email' required autofocus></div>
+    <div class='field' style='margin-top:12px'><label>Password</label><input type='password' name='password' required></div>
+    <button style='margin-top:16px;width:100%'>Sign in locally</button></form></div>
+    <p><a class='button secondary' href='/login?next={quote(target, safe="")}'>Use the main Floodman ERP login</a></p>"""
+    return HTMLResponse(simple_page("Emergency local sign in", body), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/login/local")
+def local_login_page(next: str = "/office") -> HTMLResponse:
+    return _local_login_page(next)
+
+
 @app.get("/login")
-def login_page(next: str = "/office") -> HTMLResponse:
+def login_page(next: str = "/office", local: bool = False) -> Response:
     if not store.has_users():
         return RedirectResponse("/setup", status_code=303)
-    body = f"""<h1>Sign in</h1>
-    <div class='card'><h2>Use your Floodman account</h2><p class='muted'>Employees and administrators created in Floodman can use the same credentials across the ERP and specialized operations modules. Your password is verified by Floodman and is never stored by this module.</p>
-    <form method='post' action='/login/platform'><input type='hidden' name='next' value='{esc(next)}'>
-    <div class='field'><label>Floodman email</label><input type='email' name='email' required autofocus></div>
-    <div class='field' style='margin-top:12px'><label>Floodman password</label><input type='password' name='password' required></div>
-    <button class='good' style='margin-top:16px;width:100%'>Continue to Floodman</button></form></div>
-    <div class='card'><h2>Floodman-only account</h2><p class='muted'>Use this for a local owner or a member invited only to Floodman modules.</p>
-    <form method='post' action='/login'><input type='hidden' name='next' value='{esc(next)}'>
-    <div class='field'><label>Email</label><input type='email' name='email' required></div>
-    <div class='field' style='margin-top:12px'><label>Password</label><input type='password' name='password' required></div>
-    <button style='margin-top:16px;width:100%'>Sign in locally</button></form></div>"""
-    return HTMLResponse(simple_page("Sign in", body))
+    target = _safe_login_target(next)
+    if _user():
+        return RedirectResponse(target, status_code=303)
+    if local:
+        return _local_login_page(target)
+    javascript_target = json.dumps(target).replace("<", "\\u003c")
+    local_href = f"/login/local?next={quote(target, safe='')}"
+    body = f"""<h1>Floodman sign in</h1>
+    <div class='card'><h2>One login for ERP, Office, and RoomFlow</h2>
+    <p class='muted'>Floodman is opening the main ERP login. After it verifies your account, this browser will return to the requested Floodman workspace automatically.</p>
+    <div id='floodman-login-status' class='callout' role='status' aria-live='polite'>Checking for an existing Floodman ERP session…</div>
+    <p><a id='floodman-open-erp' class='button good' href='/full-erp?target=login'>Open Floodman ERP login</a></p></div>
+    <p class='muted' style='font-size:12px'>Installation recovery only: <a href='{local_href}'>use an emergency local account</a>.</p>
+<script>
+(() => {{
+  'use strict';
+  const target = {javascript_target};
+  const pendingKey = 'floodmanLoginNext';
+  const status = document.getElementById('floodman-login-status');
+  const open = document.getElementById('floodman-open-erp');
+  const candidates = new Set();
+  const tokenPattern = /eyJ[A-Za-z0-9_-]{{8,}}\\.[A-Za-z0-9_-]{{8,}}\\.[A-Za-z0-9_-]{{8,}}/g;
+
+  function collect(value, depth = 0) {{
+    if (depth > 4 || value === null || value === undefined) return;
+    if (typeof value === 'string') {{
+      for (const match of value.matchAll(tokenPattern)) candidates.add(match[0]);
+      if ((value.startsWith('{{') || value.startsWith('[') || value.startsWith('"')) && value.length < 100000) {{
+        try {{ collect(JSON.parse(value), depth + 1); }} catch (_) {{}}
+      }}
+      return;
+    }}
+    if (Array.isArray(value)) {{ value.forEach(item => collect(item, depth + 1)); return; }}
+    if (typeof value === 'object') Object.values(value).forEach(item => collect(item, depth + 1));
+  }}
+
+  function rememberReturn() {{
+    try {{ sessionStorage.setItem(pendingKey, target); }} catch (_) {{}}
+  }}
+
+  async function exchangeExistingSession() {{
+    for (const storage of [window.localStorage, window.sessionStorage]) {{
+      try {{ for (let index = 0; index < storage.length; index += 1) collect(storage.getItem(storage.key(index))); }} catch (_) {{}}
+    }}
+    for (const token of candidates) {{
+      try {{
+        const response = await fetch('/login/erp-session', {{
+          method: 'POST', cache: 'no-store', credentials: 'same-origin',
+          headers: {{ accept: 'application/json', authorization: `Bearer ${{token}}` }}
+        }});
+        if (response.ok) {{
+          try {{ sessionStorage.removeItem(pendingKey); }} catch (_) {{}}
+          window.location.replace(target);
+          return true;
+        }}
+      }} catch (_) {{}}
+    }}
+    return false;
+  }}
+
+  async function begin() {{
+    rememberReturn();
+    if (await exchangeExistingSession()) return;
+    status.textContent = 'Opening the main Floodman ERP login…';
+    window.setTimeout(() => window.location.replace('/full-erp?target=login'), 900);
+  }}
+
+  open.addEventListener('click', rememberReturn);
+  begin();
+}})();
+</script>"""
+    return HTMLResponse(simple_page("Floodman sign in", body), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/login/status")
+def login_status() -> JSONResponse:
+    return JSONResponse({"authenticated": bool(_user())}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/login/erp-session")
+async def login_from_erp_session(request: Request, next: str = "/office") -> Response:
+    authorization = str(request.headers.get("authorization") or "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return JSONResponse({"authenticated": False, "message": "An active Floodman ERP session is required."}, status_code=401)
+    try:
+        identity = await providers.authenticate_gauzy_session(token)
+        user = store.upsert_gauzy_user(identity)
+    except (RuntimeError, ValueError):
+        return JSONResponse({"authenticated": False, "message": "The Floodman ERP session could not be connected."}, status_code=401)
+    target = _safe_login_target(next)
+    return _set_office_session(JSONResponse({"authenticated": True, "next": target}), user)
+
+
+@app.post("/office/api/erp/login")
+async def unified_erp_login(request: Request) -> Response:
+    """Proxy the genuine ERP login and establish its Office/RoomFlow session."""
+    try:
+        supplied = await request.json()
+        if not isinstance(supplied, dict):
+            raise ValueError
+        email = str(supplied.get("email") or "").strip()[:320]
+        password = str(supplied.get("password") or "")[:4096]
+        identity, login_payload = await providers.authenticate_gauzy_login(email, password)
+        user = store.upsert_gauzy_user(identity)
+    except (RuntimeError, ValueError):
+        return JSONResponse(
+            {"statusCode": 401, "message": "Floodman ERP did not accept that email and password."},
+            status_code=401,
+            headers={"Cache-Control": "no-store"},
+        )
+    return _set_office_session(JSONResponse(login_payload), user)
 
 
 @app.post("/login")
@@ -310,18 +465,8 @@ def login(email: str = Form(...), password: str = Form(...), next: str = Form(de
     if not user:
         body = "<h1>Sign in</h1><div class='callout danger'>The email or password was not accepted.</div><a class='button' href='/login'>Try again</a>"
         return HTMLResponse(simple_page("Sign in", body), status_code=401)
-    target = next if next.startswith("/") and not next.startswith("//") else "/office"
-    response = RedirectResponse(target, status_code=303)
-    response.set_cookie(
-        "floodman_session",
-        store.create_session(user["id"]),
-        httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite="lax",
-        max_age=14 * 86400,
-        path="/",
-    )
-    return response
+    response = RedirectResponse(_safe_login_target(next), status_code=303)
+    return _set_office_session(response, user)
 
 
 @app.post("/login/platform")
@@ -339,18 +484,8 @@ async def login_with_gauzy(
         if not store.has_users():
             body += " <a class='button secondary' href='/setup'>Return to owner setup</a>"
         return HTMLResponse(simple_page("Floodman sign in", body), status_code=401)
-    target = next if next.startswith("/") and not next.startswith("//") else "/office"
-    response = RedirectResponse(target, status_code=303)
-    response.set_cookie(
-        "floodman_session",
-        store.create_session(user["id"]),
-        httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite="lax",
-        max_age=14 * 86400,
-        path="/",
-    )
-    return response
+    response = RedirectResponse(_safe_login_target(next), status_code=303)
+    return _set_office_session(response, user)
 
 
 @app.post("/logout")
@@ -4531,7 +4666,11 @@ def roomflow_jobs_api(limit: int = 50) -> dict[str, Any]:
 
 @app.get("/office/api/roomflow/auth-check", response_class=Response)
 def roomflow_auth_check() -> Response:
-    _require("estimates.view")
+    user = _user()
+    if not user:
+        return Response(status_code=401, headers={"Cache-Control": "no-store"})
+    if not has_permission(user, "estimates.view"):
+        return Response(status_code=403, headers={"Cache-Control": "no-store"})
     return Response(status_code=204)
 
 

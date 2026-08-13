@@ -230,6 +230,8 @@ def static_overlay_contracts() -> None:
         "hub_js": (ROOT / "hub" / "hub.js").read_text(encoding="utf-8"),
         "launcher": (REPO / "launcher" / "mobile-start.sh").read_text(encoding="utf-8"),
         "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.6.7.sh").read_text(encoding="utf-8"),
+        "nginx": (ROOT / "aio" / "nginx.conf.template").read_text(encoding="utf-8"),
+        "office": (ROOT / "office-console" / "app" / "main.py").read_text(encoding="utf-8"),
     }
     assert "fm-pwa-toast-dismiss" in sources["pwa_js"] and "Dismiss notification" in sources["pwa_js"]
     assert ".fm-pwa-toast-dismiss" in sources["pwa_css"]
@@ -239,10 +241,16 @@ def static_overlay_contracts() -> None:
     assert "fmrf-close-icon" in sources["legacy_js"] and "aria-label','Close save dialog" in sources["legacy_js"]
     assert "e.key === 'Escape'" in sources["legacy_js"] and "fmrf-modal-open" in sources["legacy_css"]
     assert "aria-modal" in sources["hub_js"] and "Back to Floodman" in sources["hub_js"]
+    assert "location = /api/auth/login" in sources["nginx"]
+    assert "proxy_pass http://127.0.0.1:8700/office/api/erp/login" in sources["nginx"]
+    assert "error_page 401 =302 /login?next=/roomflow/" in sources["nginx"]
+    assert "floodmanLoginNext" in sources["office"] and "/login/erp-session" in sources["office"]
     for key in ("launcher", "deployment"):
         assert "floodman-dismiss-recovery" in sources[key]
         assert "event.key === 'Escape'" in sources[key]
         assert "Created by Josh Aldrich" in sources[key]
+        assert "const pendingLoginKey = 'floodmanLoginNext'" in sources[key]
+        assert "proxy_pass http://127.0.0.1:8700/office/api/erp/login" in sources[key]
 
 
 def browser_executable() -> str | None:
@@ -336,7 +344,7 @@ def browser_smoke(main: Any) -> None:
             browser = playwright.chromium.launch(executable_path=executable, headless=True)
             desktop = browser.new_context(viewport={"width": 1440, "height": 900})
             page = desktop.new_page()
-            page.goto(base + "/login?next=/office/desktop")
+            page.goto(base + "/login/local?next=/office/desktop")
             form = page.locator("form[action='/login']")
             form.locator("input[name='email']").fill("owner@example.test")
             form.locator("input[name='password']").fill("Floodman-Test-2026!")
