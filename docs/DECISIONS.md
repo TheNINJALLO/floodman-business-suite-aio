@@ -135,3 +135,10 @@
 - Reason: The upstream create-company button still checked `state.sessionUser` and displayed “Please Sign In or Create an Account,” even though the user had already authenticated through the unified Floodman ERP login. That made the integrated RoomFlow UI appear unusable and contradicted the single-login contract.
 - Safety: Browser workspace creation requires `estimates.manage`; selection requires `estimates.view`; jobs and synchronized estimates are scoped to the selected workspace. No Supabase password, ERP password, access token, or second browser session is persisted.
 - Release consequence: Produce server/Pterodactyl v4.6.9 so a host already identifying as v4.6.8 installs the repair. Android/iOS identities and the pinned RoomFlow commit remain unchanged and their builds are deferred.
+
+## DEC-021 — Advance native candidates without changing the Mobile API floor
+
+- Date: 2026-08-14
+- Decision: On the user's explicit instruction to update Android/iOS and send Android to be built, advance Android to `0.3.0-alpha12`/build 12 and iOS to `0.1.0-alpha03`/build 3. Keep the server Mobile API at `0.3.0-alpha11`, its minimum Android version at `0.3.0-alpha11`, its minimum iOS version at `0.1.0-alpha02`, and RoomFlow pinned at `1f97817a52b916875e50cc6380c0d284072b8ce8` because the native changes are additive and older validated clients remain compatible.
+- Scope: Add the selected Floodman workspace to native RoomFlow customer/property lookup and enforce that workspace boundary on the server. Produce local debug and unsigned release Android artifacts and prepare the unsigned iOS simulator source/workflow. Do not access signing credentials, upload to a store, dispatch TestFlight, deploy to production, or change a live database.
+- Dispatch consequence: The checkout has no Git remote and no GitHub CLI, so the Android workflow cannot be sent to an external runner from this environment. The authoritative local Android build remains in scope; workflow dispatch remains BLK-010 until a repository target is configured.

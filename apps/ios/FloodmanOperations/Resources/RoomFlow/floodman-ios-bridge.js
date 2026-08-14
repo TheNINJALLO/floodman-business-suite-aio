@@ -217,7 +217,7 @@
 
     chooseCustomer() {
       const query = prompt('Search Floodman customers:', '');
-      if (query !== null) send('searchCustomers', { query });
+      if (query !== null) send('searchCustomers', { query, workspaceId: this.activeWorkspace?.id || '' });
     },
 
     receiveCustomers(encoded) {
@@ -228,7 +228,7 @@
         this.customer = rows[choice - 1];
         this.property = null;
         this.applyIdentity();
-        send('searchProperties', { contactId: this.customer.id, query: '' });
+        send('searchProperties', { contactId: this.customer.id, query: '', workspaceId: this.activeWorkspace?.id || '' });
       }
     },
 

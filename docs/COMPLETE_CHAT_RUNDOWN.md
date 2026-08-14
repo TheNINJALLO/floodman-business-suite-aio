@@ -389,7 +389,7 @@ Upstream Gauzy and Documenso repositories are not silently copied into the archi
 4. Build the derivative image first, because it stays closest to the proven Pterodactyl base.
 5. Restore a sanitized backup in staging.
 6. validate every route and lifecycle on staging, especially Full ERP and RoomFlow import.
-7. Build Android alpha11 and Apple alpha02 from the same commit.
+7. Preserve the successful local Android alpha12 evidence, dispatch its CI workflow after a remote is configured, and run Apple alpha03 on the unsigned Xcode simulator workflow from the same commit.
 8. Move the production deployment to a dedicated server only after backup, restore and rollback drills pass.
 9. Decompose the one-container test system into separate services and migrate Office state to PostgreSQL.
 

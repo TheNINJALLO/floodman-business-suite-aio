@@ -34,6 +34,7 @@ class RoomFlowActivity : FragmentActivity() {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
     private lateinit var webView: WebView
     private var jobId: String? = null
+    private var activeWorkspaceId: String = ""
     private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private val filePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -118,6 +119,7 @@ class RoomFlowActivity : FragmentActivity() {
             lifecycleScope.launch {
                 runCatching {
                     val bootstrap = repository.roomFlowBootstrap()
+                    activeWorkspaceId = bootstrap.activeWorkspace?.id ?: bootstrap.selectedWorkspaceId
                     evaluate("receiveBootstrap", json.encodeToString(bootstrap))
                     val detail = jobId?.let { repository.roomFlowJob(it) }
                     evaluate("receiveContext", json.encodeToString(detail))
@@ -130,7 +132,10 @@ class RoomFlowActivity : FragmentActivity() {
         @JavascriptInterface fun refreshBootstrap() {
             lifecycleScope.launch {
                 runCatching { repository.roomFlowBootstrap() }
-                    .onSuccess { evaluate("receiveBootstrap", json.encodeToString(it)) }
+                    .onSuccess {
+                        activeWorkspaceId = it.activeWorkspace?.id ?: it.selectedWorkspaceId
+                        evaluate("receiveBootstrap", json.encodeToString(it))
+                    }
                     .onFailure { evaluate("bootstrapFailed", it.message ?: "RoomFlow refresh failed.") }
             }
         }
@@ -145,6 +150,7 @@ class RoomFlowActivity : FragmentActivity() {
                 runCatching { repository.selectRoomFlowWorkspace(selected) }
                     .onSuccess { response ->
                         jobId = null
+                        activeWorkspaceId = response.bootstrap.activeWorkspace?.id ?: response.bootstrap.selectedWorkspaceId
                         evaluate("workspaceSelected", json.encodeToString(response))
                     }
                     .onFailure { error -> evaluate("workspaceFailed", error.message ?: "Workspace selection failed.") }
@@ -161,6 +167,7 @@ class RoomFlowActivity : FragmentActivity() {
                 runCatching { repository.createRoomFlowWorkspace(input) }
                     .onSuccess { response ->
                         jobId = null
+                        activeWorkspaceId = response.bootstrap.activeWorkspace?.id ?: response.bootstrap.selectedWorkspaceId
                         evaluate("workspaceCreated", json.encodeToString(response))
                     }
                     .onFailure { error -> evaluate("workspaceFailed", error.message ?: "Workspace creation failed.") }
@@ -188,8 +195,8 @@ class RoomFlowActivity : FragmentActivity() {
             jobId = id.trim().takeIf { it.isNotEmpty() }
         }
 
-        @JavascriptInterface fun searchCustomers(query: String): String = runBlocking(Dispatchers.IO) { json.encodeToString(repository.customers(query, 1).items) }
-        @JavascriptInterface fun searchProperties(contactId: String, query: String): String = runBlocking(Dispatchers.IO) { json.encodeToString(repository.properties(contactId, query, 1).items) }
+        @JavascriptInterface fun searchCustomers(query: String): String = runBlocking(Dispatchers.IO) { json.encodeToString(repository.customers(query, 1, activeWorkspaceId).items) }
+        @JavascriptInterface fun searchProperties(contactId: String, query: String): String = runBlocking(Dispatchers.IO) { json.encodeToString(repository.properties(contactId, query, 1, activeWorkspaceId).items) }
         @JavascriptInterface fun saveJob(payload: String) {
             lifecycleScope.launch {
                 runCatching { repository.saveRoomFlowJob(jobId, json.decodeFromString<RoomFlowSaveInput>(payload)) }

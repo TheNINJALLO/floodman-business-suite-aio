@@ -206,7 +206,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Floodman-Operations-iOS-0.1.0-alpha02-TestFlight
+          name: Floodman-Operations-iOS-0.1.0-alpha03-TestFlight
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 30

@@ -731,10 +731,20 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         }
 
     @router.get("/customers")
-    def customers(q: str = "", page: int = 1, page_size: int = 50, user: dict[str, Any] = permission("contacts.view")) -> dict[str, Any]:
+    def customers(q: str = "", workspace_id: str = "", page: int = 1, page_size: int = 50, user: dict[str, Any] = permission("contacts.view")) -> dict[str, Any]:
         query = q.strip().casefold()
+        selected_workspace = workspace_id.strip()
+        if selected_workspace:
+            valid_ids = {
+                str(record.get("id") or "")
+                for record in ensure_roomflow_workspaces(store, actor_id=str(user.get("id") or ""))
+            }
+            if selected_workspace not in valid_ids:
+                raise HTTPException(422, "Select a valid RoomFlow workspace.")
         values = []
         for record in store.records("contacts"):
+            if selected_workspace and str(record.get("workspace_id") or "") not in {"", selected_workspace}:
+                continue
             haystack = " ".join(str(record.get(key) or "") for key in ("name", "first_name", "last_name", "company", "email", "email_2", "phone", "mobile_phone", "address", "mailing_street", "mailing_city", "tags")).casefold()
             if query and query not in haystack:
                 continue
@@ -843,10 +853,20 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         return contact_public(store.update_record("contacts", contact_id, {"tags": tags}, actor_id=str(user.get("id") or "")))
 
     @router.get("/properties")
-    def properties(contact_id: str = "", q: str = "", page: int = 1, page_size: int = 50, user: dict[str, Any] = permission("properties.view")) -> dict[str, Any]:
+    def properties(contact_id: str = "", q: str = "", workspace_id: str = "", page: int = 1, page_size: int = 50, user: dict[str, Any] = permission("properties.view")) -> dict[str, Any]:
         query = q.strip().casefold()
+        selected_workspace = workspace_id.strip()
+        if selected_workspace:
+            valid_ids = {
+                str(record.get("id") or "")
+                for record in ensure_roomflow_workspaces(store, actor_id=str(user.get("id") or ""))
+            }
+            if selected_workspace not in valid_ids:
+                raise HTTPException(422, "Select a valid RoomFlow workspace.")
         values = []
         for record in store.records("properties"):
+            if selected_workspace and str(record.get("workspace_id") or "") not in {"", selected_workspace}:
+                continue
             if contact_id and str(record.get("contact_id") or "") != contact_id:
                 continue
             haystack = " ".join(str(record.get(key) or "") for key in ("name", "property_name", "property_type", "service_street", "service_city", "service_state", "service_postal_code", "claim_number")).casefold()
@@ -1510,8 +1530,10 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         customer_phone = _clean_text(payload.customer_phone or costing.get("customerPhone") or snapshot.get("customerPhone"), 80)
         property_address = _clean_text(payload.property_address or costing.get("customerAddress") or snapshot.get("customerAddress"), 500)
 
-        if contact_id and not store.record("contacts", contact_id):
-            contact_id = ""
+        if contact_id:
+            requested_contact = store.record("contacts", contact_id)
+            if not requested_contact or str(requested_contact.get("workspace_id") or "") not in {"", workspace_id}:
+                contact_id = ""
         if not contact_id:
             incoming_digits = re.sub(r"\D", "", customer_phone)[-10:]
             candidates = sorted(
@@ -1553,7 +1575,11 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
 
         if property_id:
             existing_property = store.record("properties", property_id)
-            if not existing_property or str(existing_property.get("contact_id") or "") != contact_id:
+            if (
+                not existing_property
+                or str(existing_property.get("contact_id") or "") != contact_id
+                or str(existing_property.get("workspace_id") or "") not in {"", workspace_id}
+            ):
                 property_id = ""
         if not property_id and property_address:
             incoming_address = property_address.strip().casefold()
@@ -1607,6 +1633,10 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         preferred_estimate_id: str = "",
     ) -> dict[str, Any] | None:
         estimate_id = preferred_estimate_id or str(payload.estimate_id or "").strip()
+        if estimate_id:
+            requested_estimate = store.record("estimates", estimate_id)
+            if requested_estimate and str(requested_estimate.get("workspace_id") or "") not in {"", workspace_id}:
+                estimate_id = ""
         if not payload.sync_estimate or not payload.sections:
             return store.record("estimates", estimate_id) if estimate_id else None
 
@@ -1617,8 +1647,11 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
 
         def ensure_catalog_item(line: CatalogLine, unit_price_cents: int) -> str | None:
             existing_id = str(line.catalog_item_id or "").strip()
-            if existing_id and store.record("catalog_items", existing_id):
-                return existing_id
+            if existing_id:
+                existing_catalog = store.record("catalog_items", existing_id)
+                if existing_catalog and str(existing_catalog.get("workspace_id") or "") in {"", workspace_id}:
+                    return existing_id
+                existing_id = ""
             if not line.save_to_catalog:
                 return existing_id or None
             wanted_name = line.name.strip().casefold()
@@ -1732,7 +1765,8 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
     @router.get("/roomflow/jobs/{job_id}")
     def roomflow_job(job_id: str, user: dict[str, Any] = permission("estimates.view")) -> dict[str, Any]:
         record = store.record("roomflow_jobs", job_id)
-        if not record:
+        _, selected_workspace_id, _ = _roomflow_workspace_context(user)
+        if not record or str(record.get("workspace_id") or "") != selected_workspace_id:
             raise HTTPException(404, "RoomFlow job not found")
         return _roomflow_detail_payload(record)
 
@@ -1745,6 +1779,14 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         existing = store.record("roomflow_jobs", existing_id) if existing_id else None
         if existing_id and not existing:
             raise HTTPException(404, "RoomFlow job not found")
+        requested_workspace_id = str(payload.workspace_id or "").strip()
+        existing_workspace_id = str((existing or {}).get("workspace_id") or "")
+        if existing and requested_workspace_id and existing_workspace_id and requested_workspace_id != existing_workspace_id:
+            raise HTTPException(409, "A RoomFlow job cannot be moved between company workspaces. Start a new job in the selected company.")
+        if existing and existing_workspace_id:
+            _, selected_workspace_id, _ = _roomflow_workspace_context(user)
+            if existing_workspace_id != selected_workspace_id:
+                raise HTTPException(404, "RoomFlow job not found")
         workspace_id, workspace = _resolve_roomflow_workspace(payload, user, existing)
         contact_id, property_id = _roomflow_identity(payload, workspace_id, user)
         job_id = existing_id or str(uuid.uuid4())
@@ -1829,7 +1871,8 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
     @router.get("/roomflow/jobs/{job_id}/layout")
     def roomflow_layout(job_id: str, user: dict[str, Any] = permission("estimates.view")) -> FileResponse:
         record = store.record("roomflow_jobs", job_id)
-        if not record:
+        _, selected_workspace_id, _ = _roomflow_workspace_context(user)
+        if not record or str(record.get("workspace_id") or "") != selected_workspace_id:
             raise HTTPException(404, "RoomFlow job not found")
         path = layout_path(store, record)
         if not path:

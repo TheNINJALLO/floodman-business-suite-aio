@@ -4,11 +4,13 @@ This changelog summarizes the major cumulative milestones reconstructed from the
 
 ## 4.6.9
 
+- Advanced the unsigned native candidates to Android `0.3.0-alpha12` and iOS `0.1.0-alpha03` after explicit authorization; Mobile API and minimum-client versions remain backward compatible.
+- Scoped native RoomFlow customer/property lookup and saves to the selected company workspace and prevented cross-company job/estimate reuse.
 - Replaced the remaining RoomFlow Supabase account/company prompt with company workspace controls authorized by the existing Floodman ERP session.
 - Added browser APIs to list, create, and select RoomFlow company workspaces without storing another password or token.
 - Scoped browser RoomFlow customer/property lookup, job lists, saved snapshots, and synchronized estimates to the selected Floodman company workspace, including collision-safe IDs when two companies use the same upstream identifiers.
 - Added a browser regression proving the legacy create-company handler is removed and the separate account overlay cannot cover the integrated RoomFlow workspace.
-- Kept Android `0.3.0-alpha11`, iOS `0.1.0-alpha02`, Mobile API `0.3.0-alpha11`, and the pinned RoomFlow commit unchanged under the authorized server-only test scope.
+- The initial server-only v4.6.9 repair kept Android alpha11/iOS alpha02 unchanged; the later explicit native authorization produced the alpha12/alpha03 candidates above without advancing Mobile API compatibility or the RoomFlow pin.
 
 ## 4.6.8
 

@@ -3,7 +3,7 @@
 ## Current release
 
 ```text
-Version: 0.3.0-alpha11
+Version: 0.3.0-alpha12
 Package: com.floodman.operations
 Minimum Android: API 28 / Android 9
 Compile and target SDK: 36
@@ -40,7 +40,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug
 gradle --no-daemon :app:assembleDebug :app:assembleRelease :app:bundleRelease
 ```
 
-The authoritative workflow is `deployment/github-actions/build-android-alpha11.yml`.
+The authoritative workflow is `.github/workflows/build-android.yml`. Local alpha12 evidence is recorded in `apps/android/docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md`.
 
 ## Required acceptance test
 
@@ -57,4 +57,4 @@ The authoritative workflow is `deployment/github-actions/build-android-alpha11.y
 
 ## Known status
 
-No final green alpha11 GitHub Actions log is included in this conversation handoff. Treat the current source as a release candidate until the complete workflow passes and a physical-device test is recorded.
+The 2026-08-14 local alpha12 JDK 17/Gradle 8.13 gate passes compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK, and unsigned release AAB. Artifact identity, embedded RoomFlow pin, signature state, and SHA-256 values were inspected. No GitHub run was dispatched because this checkout has no remote (BLK-010), and no physical-device/signing/store pass is claimed.

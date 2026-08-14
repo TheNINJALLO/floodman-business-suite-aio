@@ -29,6 +29,7 @@
 - Prepared and validated RoomFlow assets from the exact pin with package-visible release/pin provenance.
 - Passed `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`, `assembleRelease`, and `bundleRelease` without weakening lint; the only 17 lint notices concern newer dependency versions.
 - Recorded local artifact SHA-256 values and added CI checksum generation. Physical-device/public-HTTPS and release signing remain separate external gates.
+- **Alpha12 complete locally (2026-08-14).** The selected Floodman workspace now scopes RoomFlow customer/property lookups; exact-pin assets identify server 4.6.9. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. CI dispatch requires a repository remote under BLK-010; device/signing gates remain external.
 
 ## Phase 4 — iOS
 
@@ -36,12 +37,13 @@
 - Prepared and validated the complete native RoomFlow bundle from the same exact pin; hardened loopback HTTP framing, WebView origin permissions, and all native close/cancel paths.
 - Rebuilt the simulator workflow to select Xcode 26, validate sources/assets, generate the project, build unsigned, package the `.app`, and record checksums. The guarded TestFlight path now repeats the unsigned simulator compile for the same commit before signing.
 - Actual `xcodebuild` remains `BLOCKED`, not passed, until the macOS workflow runs. Signing, archive, TestFlight, and device acceptance remain blocked until explicitly authorized and configured.
+- **Alpha03 local preparation complete (2026-08-14).** Source/build identity and native workspace-aware queries are updated. All Windows-available source, bridge, project, asset, pin, readiness, and workflow checks pass; BLK-004 remains the honest boundary for the real unsigned Xcode compile.
 
 ## Phase 5 — server and packaging
 
 - **Local gates complete (2026-08-13); external acceptance remains blocked.** All 10 repository server smoke programs pass with isolated fictional state, and all 9 portable programs pass from the extracted deployment ZIP.
 - **v4.6.8 server-only test build complete (2026-08-13).** The user explicitly deferred Android/iOS builds for this distinct Pterodactyl test identity. Two deterministic package builds, all 163 internal hashes, launcher syntax, RoomFlow compatibility, and repository verification with 0 warnings pass. Native versions and compatibility minimums remain unchanged; the exception does not advance signing, device, staging, or production gates.
-- **v4.6.9 RoomFlow unlock complete locally (2026-08-14).** The remaining upstream Supabase account/company gate is replaced by ERP-session Floodman workspace controls; browser jobs and saves are company-scoped. Local Edge, 10 source smokes, 163 packaged hashes, 9 portable package smokes, deterministic packaging, launcher syntax, and RoomFlow compatibility pass. Staging installation remains BLK-005.
+- **v4.6.9 RoomFlow unlock complete locally (2026-08-14).** The remaining upstream Supabase account/company gate is replaced by ERP-session Floodman workspace controls; browser and native jobs, identity lookup, and saves are company-scoped. Local Edge, 10 source smokes, 163 packaged hashes, 9 portable package smokes, deterministic packaging, launcher syntax, and RoomFlow compatibility pass. Staging installation remains BLK-005.
 - Pinned the derivative base and four complete-AIO upstream images by registry digest, plus all five server-image workflow actions by commit.
 - Added service-specific transitive Python constraints, a deny-by-default Docker context, and an automated immutable-input verifier.
 - Completed a clean `--pull --no-cache` linux/amd64 derivative build and a network-isolated image audit: 174/174 server manifest entries, all five installed Python package sets, non-root ownership, empty inherited development-secret placeholders, and live-state exclusions passed.

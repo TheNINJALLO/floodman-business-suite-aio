@@ -24,7 +24,7 @@
 | 4.6.4 to 4.6.6 | Dedicated desktop/mobile PWA and false-offline repairs |
 | 4.6.7 | Authentication-aware Full ERP routing and HTTPS boot guard |
 | 4.6.8 | Unified ERP/Office/RoomFlow login and distinct server-only Pterodactyl test-update identity |
-| 4.6.9 | ERP-session RoomFlow company creation/selection and removal of the separate Supabase account blocker |
+| 4.6.9 | ERP-session RoomFlow companies, native workspace isolation, Android alpha12, and iOS alpha03 |
 
 ## Android milestones
 
@@ -42,6 +42,7 @@
 | alpha09 | Predictive back navigation fix |
 | alpha10 | Supabase migration, snapshot preservation, PDF validation, and version contract |
 | alpha11 | Persistent RoomFlow workspaces and organization selection |
+| alpha12 | v4.6.9 company-scoped native lookup/save isolation and refreshed build |
 
 ## iOS milestones
 
@@ -49,7 +50,8 @@
 |---|---|
 | 0.1.0-alpha01 | Initial SwiftUI iPhone/iPad shell and RoomFlow bundle |
 | 0.1.0-alpha02 | First Xcode compiler repairs and guarded TestFlight workflow |
+| 0.1.0-alpha03 | v4.6.9 company-scoped native lookup and refreshed simulator workflow |
 
 ## Status note
 
-Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.9; Android remains alpha11 and iOS remains alpha02. Native builds are explicitly deferred for the v4.6.9 server-only test package.
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.9; Android alpha12 and iOS alpha03 are unsigned test candidates. Android build evidence and the external iOS compiler status are recorded separately.

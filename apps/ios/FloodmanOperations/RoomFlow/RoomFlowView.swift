@@ -383,9 +383,11 @@ struct RoomFlowWebView: UIViewRepresentable {
                 }
             case "searchCustomers":
                 let query = body["query"] as? String ?? ""
+                let workspaceID = body["workspaceId"] as? String ?? ""
                 Task {
                     let path = queryPath("v1/customers", items: [
                         URLQueryItem(name: "q", value: query),
+                        URLQueryItem(name: "workspace_id", value: workspaceID),
                         URLQueryItem(name: "page_size", value: "20")
                     ])
                     let result = (try? await parent.session.api.data(path: path)) ?? Data("{\"items\":[]}".utf8)
@@ -394,10 +396,12 @@ struct RoomFlowWebView: UIViewRepresentable {
             case "searchProperties":
                 let contactID = body["contactId"] as? String ?? ""
                 let query = body["query"] as? String ?? ""
+                let workspaceID = body["workspaceId"] as? String ?? ""
                 Task {
                     let path = queryPath("v1/properties", items: [
                         URLQueryItem(name: "contact_id", value: contactID),
                         URLQueryItem(name: "q", value: query),
+                        URLQueryItem(name: "workspace_id", value: workspaceID),
                         URLQueryItem(name: "page_size", value: "20")
                     ])
                     let result = (try? await parent.session.api.data(path: path)) ?? Data("{\"items\":[]}".utf8)

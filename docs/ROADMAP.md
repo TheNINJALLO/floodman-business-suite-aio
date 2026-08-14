@@ -15,7 +15,7 @@
 - Add structured startup summary and suppress repetitive expected logs.
 - Add end-to-end tests for public gateway routing and content types.
 - Add database/file backup automation and restore verification.
-- Finish Android alpha11 acceptance.
+- Finish Android alpha12 physical-device and staging acceptance.
 - Get Apple simulator green and close parity gaps.
 
 ## Stage 2: data-platform migration

@@ -23,8 +23,8 @@
 - [ ] Build the derivative server image from a clean runner.
 - [ ] Build the complete AIO image for comparison.
 - [ ] Generate SBOMs and vulnerability reports.
-- [ ] Build Android alpha11.
-- [ ] Build Apple alpha02 simulator.
+- [x] Build Android alpha12 locally without release signing.
+- [ ] Build Apple alpha03 simulator on macOS/Xcode.
 - [ ] Record checksums and runner/tool versions.
 
 ## Data inventory

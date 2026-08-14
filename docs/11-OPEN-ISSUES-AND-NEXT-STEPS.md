@@ -2,9 +2,9 @@
 
 ## Release-critical
 
-1. Run the complete Android alpha11 GitHub workflow.
+1. Configure the private repository remote and dispatch the complete Android alpha12 workflow; preserve the successful local evidence.
 2. Run a physical Android device compatibility test against a staging v4.6.9 server.
-3. Run the iOS alpha02 simulator workflow.
+3. Run the iOS alpha03 unsigned simulator workflow.
 4. Verify a clean v4.6.9 install and a v4.6.7-to-v4.6.9 upgrade on a staging Pterodactyl node.
 5. Verify Full ERP login, desktop, mobile, PWA cache updates, and Tailscale HTTPS behavior.
 6. Test estimate and invoice PDF generation with and without RoomFlow layout images.
@@ -27,7 +27,7 @@
 
 ## Native apps
 
-- Confirm complete Android feature parity after alpha11.
+- Confirm Android alpha12 behavior on a physical device against staging HTTPS.
 - Finish iOS parity for estimate/invoice/payment lifecycle and scheduling.
 - Implement FCM and APNs push delivery.
 - Add background upload queues and encrypted offline assigned-job cache.

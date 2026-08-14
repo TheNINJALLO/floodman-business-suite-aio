@@ -55,7 +55,7 @@ jobs:
           done < <(find app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0 | sort -z) > app/build/outputs/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: Floodman-Operations-Android-0.3.0-alpha11
+          name: Floodman-Operations-Android-0.3.0-alpha12
           path: |
             apps/android/app/build/outputs/apk/**/*.apk
             apps/android/app/build/outputs/bundle/**/*.aab

@@ -102,12 +102,12 @@ class SessionRepository(context: Context) {
 
     suspend fun config(): MobileConfig = api.config()
     suspend fun dashboard(): Dashboard = authorized(api::dashboard)
-    suspend fun customers(search: String = "", page: Int = 1): CustomerPage = authorized { api.customers(it, search, page) }
+    suspend fun customers(search: String = "", page: Int = 1, workspaceId: String = ""): CustomerPage = authorized { api.customers(it, search, page, workspaceId) }
     suspend fun customer(id: String): CustomerDetail = authorized { api.customer(it, id) }
     suspend fun createCustomer(input: CustomerCreateInput): Customer = authorized { api.createCustomer(it, input) }
     suspend fun addNote(id: String, text: String, category: String, pinned: Boolean): NoteRecord = authorized { api.addCustomerNote(it, id, text, category, pinned) }
     suspend fun updateTags(id: String, tags: List<String>): Customer = authorized { api.updateCustomerTags(it, id, tags) }
-    suspend fun properties(contactId: String = "", search: String = "", page: Int = 1): PropertyPage = authorized { api.properties(it, contactId, search, page) }
+    suspend fun properties(contactId: String = "", search: String = "", page: Int = 1, workspaceId: String = ""): PropertyPage = authorized { api.properties(it, contactId, search, page, workspaceId) }
     suspend fun createProperty(input: PropertyCreateInput): PropertyRecord = authorized { api.createProperty(it, input) }
     suspend fun estimates(search: String = "", status: String = "", page: Int = 1): EstimatePage = authorized { api.estimates(it, search, status, page) }
     suspend fun estimate(id: String): EstimateDetail = authorized { api.estimate(it, id) }

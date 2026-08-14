@@ -29,7 +29,7 @@ def require_tokens(text: str, label: str, tokens: list[str]) -> None:
         require(token in text, f"{label} is missing {token!r}")
 
 
-require((IOS / "VERSION").read_text(encoding="utf-8").strip() == "0.1.0-alpha02", "iOS VERSION is not 0.1.0-alpha02")
+require((IOS / "VERSION").read_text(encoding="utf-8").strip() == "0.1.0-alpha03", "iOS VERSION is not 0.1.0-alpha03")
 
 project = read("apps/ios/project.yml")
 require_tokens(
@@ -39,7 +39,7 @@ require_tokens(
         'iOS: "17.0"',
         'SWIFT_VERSION: "5.0"',
         'MARKETING_VERSION: "0.1.0"',
-        'CURRENT_PROJECT_VERSION: "2"',
+        'CURRENT_PROJECT_VERSION: "3"',
         "PRODUCT_BUNDLE_IDENTIFIER: com.floodman.operations",
         'TARGETED_DEVICE_FAMILY: "1,2"',
         "GENERATE_INFOPLIST_FILE: NO",
@@ -100,6 +100,7 @@ require_tokens(
     api,
     "APIClient",
     [
+        'private static let appVersion = "0.1.0-alpha03"',
         'candidate.scheme?.lowercased() == "https"',
         'candidate.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == "mobile-api"',
         "validateCompatibility()",
@@ -109,6 +110,7 @@ require_tokens(
         "refreshTask",
         'contentType == "application/pdf"',
         'data.starts(with: Data("%PDF-".utf8))',
+        '"app_version":Self.appVersion',
     ],
 )
 keychain = read("apps/ios/FloodmanOperations/Security/KeychainStore.swift")
@@ -131,9 +133,21 @@ require_tokens(
         'url.host == "127.0.0.1"',
         "javaScriptCanOpenWindowsAutomatically = false",
         "URLQueryItem(name: \"contact_id\"",
+        "URLQueryItem(name: \"workspace_id\"",
     ],
 )
 require("interactiveDismissDisabled" not in roomflow_view, "RoomFlow sheets can become non-dismissible")
+
+roomflow_bridge = read("apps/ios/FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js")
+require_tokens(
+    roomflow_bridge,
+    "iOS RoomFlow bridge",
+    [
+        "workspaceId: this.activeWorkspace?.id || ''",
+        "send('searchCustomers'",
+        "send('searchProperties'",
+    ],
+)
 
 prepare = read("apps/ios/scripts/prepare-roomflow-assets.sh")
 require_tokens(prepare, "iOS RoomFlow preparer", ["cost-tests.js", "patch_roomflow_bundle.py", "validate_roomflow_web.py", "floodman-roomflow.json", "-delete"])
@@ -152,6 +166,7 @@ require_tokens(
         "validate_roomflow_web.py",
         "SHA256SUMS.txt",
         "if-no-files-found: error",
+        "Floodman-Operations-iOS-0.1.0-alpha03-simulator",
     ],
 )
 testflight = read(".github/workflows/build-ios-testflight.yml")
@@ -166,6 +181,7 @@ require_tokens(
         "PROVISIONING_PROFILE_SPECIFIER",
         "--validate-app",
         "--upload-app",
+        "Floodman-Operations-iOS-0.1.0-alpha03-TestFlight",
     ],
 )
 
@@ -173,7 +189,7 @@ metadata = APP / "Resources" / "RoomFlow" / "floodman-roomflow.json"
 if metadata.is_file():
     prepared = json.loads(metadata.read_text(encoding="utf-8"))
     require(prepared.get("base_commit") == PIN, "prepared iOS RoomFlow metadata has the wrong pin")
-    require(prepared.get("release") == "4.6.7", "prepared iOS RoomFlow metadata has the wrong Floodman release")
+    require(prepared.get("release") == "4.6.9", "prepared iOS RoomFlow metadata has the wrong Floodman release")
     require(prepared.get("created_by") == "Josh Aldrich", "prepared iOS RoomFlow metadata lost attribution")
 
 if PROBLEMS:

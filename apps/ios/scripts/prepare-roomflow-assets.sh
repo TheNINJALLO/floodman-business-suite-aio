@@ -37,10 +37,10 @@ s=s.replace('<script src="https://unpkg.com/lucide@latest"></script>','<script s
 s=re.sub(r'\s*<script src="config\.js[^>]*></script>','',s).replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>','<script src="vendor/three.min.js"></script>').replace('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>','<script src="vendor/OrbitControls.js"></script>')
 for name in ('supabase-service.js','roomflow-integrations.js','townsquare-integration.js'):s=re.sub(rf'\s*<script src="{name}[^>]*></script>','',s)
 s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanRoomFlow.close()"')
-if 'floodman-ios-bridge.js' not in s:s=s.replace('</body>','<script src="floodman-ios-bridge.js?v=1"></script>\n</body>')
+if 'floodman-ios-bridge.js' not in s:s=s.replace('</body>','<script src="floodman-ios-bridge.js?v=3"></script>\n</body>')
 p.write_text(s, encoding='utf-8')
 (p.parent / 'floodman-roomflow.json').write_text(json.dumps({
-    'release': '4.6.7',
+    'release': '4.6.9',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'prepared_by': 'Floodman Operations iOS',
     'created_by': 'Josh Aldrich',

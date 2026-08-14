@@ -17,11 +17,11 @@ Local Nginx and application smoke tests passed, but a successful live v4.6.7 res
 
 ### Android build/install identity
 
-Several Android alphas were built during the conversation. The exact installed APK on any current handset may not match the latest alpha11 source. Use app version/build metadata and server compatibility response rather than appearance alone.
+Several Android alphas were built during the conversation. The exact installed APK on any current handset may not match the locally verified alpha12 source/artifact. Use app version/build metadata, the recorded SHA-256, and server compatibility response rather than appearance alone.
 
 ### Apple parity
 
-Apple alpha02 is a development shell and RoomFlow bridge, not a fully accepted counterpart to Android. Estimate/invoice/payment/calendar editing parity and full device testing remain.
+Apple alpha03 is a development shell and RoomFlow bridge with passing Windows source readiness, not a compiled or fully accepted counterpart to Android. Xcode simulator compilation, estimate/invoice/payment/calendar editing parity, and full device testing remain.
 
 ## Architectural debt
 
@@ -68,6 +68,6 @@ They do not prove:
 9. Send/sign a test authorization.
 10. Collect a Square sandbox payment and manual payment.
 11. Convert to invoice and generate paid receipt.
-12. Build/install Android alpha11 and repeat the lifecycle.
+12. Install the locally verified Android alpha12 debug APK and repeat the lifecycle.
 13. Build Apple simulator and record parity gaps.
 14. Restore the staging backup again to prove recovery.

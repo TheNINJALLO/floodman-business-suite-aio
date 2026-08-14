@@ -1,10 +1,10 @@
-# Floodman Android 0.3.0-alpha11 acceptance checklist
+# Floodman Android 0.3.0-alpha12 acceptance checklist
 
 ## Matched deployment
 
-1. Install the current Floodman Operations runtime v4.6.7 and wait for `FLOODMAN_SUITE_READY` (v4.6.3 is the minimum alpha11 capability baseline, not the current release).
+1. Install the current Floodman Operations runtime v4.6.9 and wait for `FLOODMAN_SUITE_READY` (v4.6.3 remains the minimum capability baseline, not the current release).
 2. With Tailscale disabled on the phone, open `/mobile-api/v1/health` and confirm API version `0.3.0-alpha11`.
-3. Install the alpha11 debug APK and sign in.
+3. Install the alpha12 debug APK and sign in.
 4. Confirm an older server is rejected with the matched-server message rather than opening JSON as a document.
 
 
@@ -14,8 +14,9 @@
 2. Run **Cloud → Import original RoomFlow** once after installing the matched server.
 3. Confirm the original Supabase company name becomes selected automatically.
 4. Switch between companies and confirm only that workspace’s jobs and imported catalog records appear.
-5. Tap the plus button, create a temporary workspace, and confirm it becomes active immediately.
-6. Switch back to the imported company before continuing production work.
+5. Search for a customer/property that belongs only to another company and confirm it is not offered in the active company.
+6. Tap the plus button, create a temporary workspace, and confirm it becomes active immediately.
+7. Switch back to the imported company before continuing production work.
 
 ## Original RoomFlow import
 

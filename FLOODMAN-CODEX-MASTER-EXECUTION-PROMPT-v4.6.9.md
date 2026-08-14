@@ -7,8 +7,9 @@ Continue the checked-in Floodman Operations handoff without restarting completed
 The active release identities are:
 
 - server `4.6.9`
-- Mobile API and Android `0.3.0-alpha11`
-- iOS `0.1.0-alpha02`
+- Mobile API `0.3.0-alpha11`
+- Android `0.3.0-alpha12`
+- iOS `0.1.0-alpha03`
 - RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`
 - business time zone `America/Detroit`, with persisted timestamps in UTC
 
@@ -16,7 +17,7 @@ The active release identities are:
 
 ### Scoped v4.6.9 test-release authorization
 
-On 2026-08-13 the user explicitly authorized server/Pterodactyl test builds while deferring Android and iOS builds. On 2026-08-14 the reported RoomFlow account/company blocker required a distinct v4.6.9 server artifact so a host already recognizing v4.6.8 can install the repair. This authorization permits the local non-native test artifacts only. Android remains `0.3.0-alpha11`, iOS remains `0.1.0-alpha02`, and their deferred compiler/device gates must remain recorded as `BLOCKED` or `NOT RUN`. It does not authorize production deployment, signing, store upload, live-data access, or a claim that the full release gates passed.
+On 2026-08-13 the user explicitly authorized server/Pterodactyl test builds while deferring Android and iOS builds. On 2026-08-14 the reported RoomFlow account/company blocker required a distinct v4.6.9 server artifact so a host already recognizing v4.6.8 can install the repair. The user subsequently authorized updating both native candidates and sending Android through its build gate. Android advances to `0.3.0-alpha12` and iOS advances to `0.1.0-alpha03`; Mobile API compatibility remains additive at `0.3.0-alpha11`, with minimum Android `0.3.0-alpha11` and minimum iOS `0.1.0-alpha02`. This authorization covers local unsigned builds and the unsigned CI build workflow only. It does not authorize production deployment, signing, Play/TestFlight upload, live-data access, or a claim that device/macOS gates passed.
 
 ## Task selection and evidence
 

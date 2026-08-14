@@ -5,15 +5,15 @@ Native Android staff application for Floodman Operations.
 ## Release
 
 ```text
-App version: 0.3.0-alpha11
-Current verified server runtime: Floodman Operations v4.6.7
+App version: 0.3.0-alpha12
+Current server runtime: Floodman Operations v4.6.9
 Minimum capability-compatible server: Floodman Operations v4.6.3
 Android package: com.floodman.operations
 Minimum Android: Android 9 (API 28)
 Time zone: America/Detroit
 ```
 
-Android alpha11 was introduced with the v4.6.3 Mobile API capability baseline and is verified here against the current additive v4.6.7 server contract. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
+Android alpha12 retains the additive v4.6.3 Mobile API capability baseline while matching the current v4.6.9 server and company-workspace repair. RoomFlow customer/property searches and saves are scoped to the selected company. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
 
 ## Original RoomFlow migration
 
@@ -76,4 +76,4 @@ gradle --no-daemon :app:assembleDebug :app:assembleRelease :app:bundleRelease
 
 Use the included GitHub Actions workflow for the authoritative Android SDK build and artifact packaging.
 
-Local pre-signing gate evidence and package hashes are recorded in `docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha11.md`. Release APK/AAB outputs remain unsigned until approved production signing credentials are supplied.
+Local pre-signing gate evidence and package hashes are recorded in `docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md`. Release APK/AAB outputs remain unsigned until approved production signing credentials are supplied.

@@ -103,7 +103,7 @@ jobs:
           mkdir -p artifacts
           app_path="$(find apps/ios/DerivedData/Build/Products -maxdepth 2 -type d -name 'FloodmanOperations.app' | head -n1)"
           test -n "$app_path" || { echo 'The simulator application was not produced.'; exit 1; }
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" artifacts/FloodmanOperations-iOS-Simulator-v0.1.0-alpha02.zip
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" artifacts/FloodmanOperations-iOS-Simulator-v0.1.0-alpha03.zip
           cp apps/ios/VERSION artifacts/VERSION
           cp apps/ios/ROOMFLOW-ASSET-SHA256SUMS.txt artifacts/
           cp xcodebuild-simulator.log xcode-build-settings.txt artifacts/
@@ -112,7 +112,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: Floodman-Operations-iOS-0.1.0-alpha02-simulator
+          name: Floodman-Operations-iOS-0.1.0-alpha03-simulator
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: Floodman-Operations-iOS-0.1.0-alpha02-diagnostics
+          name: Floodman-Operations-iOS-0.1.0-alpha03-diagnostics
           path: |
             xcodebuild-simulator.log
             xcode-build-settings.txt

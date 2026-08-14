@@ -68,8 +68,8 @@ def run(command: list[str], cwd: Path | None = None, required: bool = True) -> N
 # Identity and source boundaries.
 expected = {
     ROOT / "server" / "VERSION": "4.6.9",
-    ROOT / "apps" / "android" / "VERSION": "0.3.0-alpha11",
-    ROOT / "apps" / "ios" / "VERSION": "0.1.0-alpha02",
+    ROOT / "apps" / "android" / "VERSION": "0.3.0-alpha12",
+    ROOT / "apps" / "ios" / "VERSION": "0.1.0-alpha03",
     ROOT / "vendor" / "roomflow" / "PINNED_COMMIT": "1f97817a52b916875e50cc6380c0d284072b8ce8",
 }
 for path, value in expected.items():
@@ -191,9 +191,15 @@ overlay = json.loads((ROOT / "server" / "overlay.json").read_text(encoding="utf-
 if overlay.get("version") != "4.6.9":
     error("server/overlay.json is not v4.6.9")
 mobile_api = (ROOT / "server" / "office-console" / "app" / "mobile_api.py").read_text(encoding="utf-8")
-for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "/mobile-api/v1"]:
+for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "/mobile-api/v1", 'workspace_id: str = ""', 'raise HTTPException(422, "Select a valid RoomFlow workspace.")']:
     if token not in mobile_api:
         error(f"Mobile API contract is missing {token}")
+
+android_api = (ROOT / "apps" / "android" / "app" / "src" / "main" / "java" / "com" / "floodman" / "operations" / "data" / "FloodmanApi.kt").read_text(encoding="utf-8")
+android_roomflow = (ROOT / "apps" / "android" / "app" / "src" / "main" / "java" / "com" / "floodman" / "operations" / "roomflow" / "RoomFlowActivity.kt").read_text(encoding="utf-8")
+for token in ["workspace_id=${query(workspaceId)}", "activeWorkspaceId", "repository.customers(query, 1, activeWorkspaceId)", "repository.properties(contactId, query, 1, activeWorkspaceId)"]:
+    if token not in android_api + android_roomflow:
+        error(f"Android RoomFlow workspace contract is missing {token}")
 
 if ERRORS:
     print(f"\nVerification failed with {len(ERRORS)} error(s) and {len(WARNINGS)} warning(s).")

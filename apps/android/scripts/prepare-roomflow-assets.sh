@@ -49,10 +49,10 @@ for name in ('supabase-service.js','roomflow-integrations.js','townsquare-integr
     s=re.sub(rf'\s*<script src="{re.escape(name)}[^>]*></script>','',s)
 s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanNative.close()"')
 if 'floodman-native-bridge.js' not in s:
-    s=s.replace('</body>','<script src="floodman-native-bridge.js?v=11"></script>\n</body>')
+    s=s.replace('</body>','<script src="floodman-native-bridge.js?v=12"></script>\n</body>')
 p.write_text(s,encoding='utf-8')
 (p.parent / 'floodman-roomflow.json').write_text(json.dumps({
-    'release': '4.6.7',
+    'release': '4.6.9',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'prepared_by': 'Floodman Operations Android',
     'created_by': 'Josh Aldrich',

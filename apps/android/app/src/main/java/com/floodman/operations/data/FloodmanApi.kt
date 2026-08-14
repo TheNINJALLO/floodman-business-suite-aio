@@ -155,8 +155,8 @@ class FloodmanApi(
     suspend fun me(accessToken: String): UserSummary = decode(rawRequest("/auth/me", accessToken = accessToken))
     suspend fun dashboard(accessToken: String): Dashboard = decode(rawRequest("/dashboard", accessToken = accessToken))
 
-    suspend fun customers(accessToken: String, search: String = "", page: Int = 1): CustomerPage =
-        decode(rawRequest("/customers?q=${query(search)}&page=$page&page_size=50", accessToken = accessToken))
+    suspend fun customers(accessToken: String, search: String = "", page: Int = 1, workspaceId: String = ""): CustomerPage =
+        decode(rawRequest("/customers?q=${query(search)}&workspace_id=${query(workspaceId)}&page=$page&page_size=50", accessToken = accessToken))
 
     suspend fun customer(accessToken: String, id: String): CustomerDetail =
         decode(rawRequest("/customers/${query(id)}", accessToken = accessToken))
@@ -174,8 +174,8 @@ class FloodmanApi(
         return decode(rawRequest("/customers/${query(id)}/tags", "PUT", accessToken, payload))
     }
 
-    suspend fun properties(accessToken: String, contactId: String = "", search: String = "", page: Int = 1): PropertyPage =
-        decode(rawRequest("/properties?contact_id=${query(contactId)}&q=${query(search)}&page=$page&page_size=50", accessToken = accessToken))
+    suspend fun properties(accessToken: String, contactId: String = "", search: String = "", page: Int = 1, workspaceId: String = ""): PropertyPage =
+        decode(rawRequest("/properties?contact_id=${query(contactId)}&q=${query(search)}&workspace_id=${query(workspaceId)}&page=$page&page_size=50", accessToken = accessToken))
 
     suspend fun createProperty(accessToken: String, input: PropertyCreateInput): PropertyRecord =
         decode(rawRequest("/properties", "POST", accessToken, encode(input)))

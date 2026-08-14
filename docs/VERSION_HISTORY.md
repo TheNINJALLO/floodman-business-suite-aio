@@ -38,7 +38,7 @@ The releases below are the major cumulative milestones represented by the conver
 - **v4.6.6**: same-origin health-based online status and service-worker startup behavior.
 - **v4.6.7**: Full ERP authentication-aware launcher, browser boot guard and HTTPS-origin repair.
 - **v4.6.8**: Unified ERP/Office/RoomFlow login plus a distinct server-only Pterodactyl test-update identity.
-- **v4.6.9**: RoomFlow company workspaces use the existing Floodman ERP session; legacy Supabase account prompts are neutralized in the integrated browser.
+- **v4.6.9**: RoomFlow company workspaces use the existing Floodman ERP session; legacy Supabase account prompts are neutralized, native lookups are company-scoped, and Android alpha12/iOS alpha03 are prepared.
 
 ## Android alpha compiler history
 
@@ -49,8 +49,10 @@ The releases below are the major cumulative milestones represented by the conver
 - **alpha07-alpha09**: Compose imports, JVM setter collision and predictive-back repairs.
 - **alpha10**: Supabase import/bootstrap and document-content validation.
 - **alpha11**: RoomFlow workspaces/company selection.
+- **alpha12**: v4.6.9 company-scoped RoomFlow lookup/save isolation and refreshed unsigned packages.
 
 ## Apple alpha history
 
 - **0.1.0-alpha01**: initial SwiftUI shell and simulator workflow.
 - **0.1.0-alpha02**: Swift compile repairs, local RoomFlow asset server hardening, app icons and guarded TestFlight workflow.
+- **0.1.0-alpha03**: v4.6.9 company-scoped RoomFlow lookup and refreshed simulator/TestFlight workflow identities.

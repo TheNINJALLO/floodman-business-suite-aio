@@ -3,7 +3,7 @@ import CryptoKit
 import UIKit
 
 actor APIClient {
-    private static let appVersion = "0.1.0-alpha02"
+    private static let appVersion = "0.1.0-alpha03"
     private static let fallbackBaseURL = URL(string: "https://floodman-operations.tail274417.ts.net/mobile-api/")!
     private static let requiredCapabilities: Set<String> = [
         "mobile.compatibility.v1",
@@ -75,7 +75,7 @@ actor APIClient {
             keychain.set(deviceID, for: "deviceID")
         }
         let deviceName = await MainActor.run { UIDevice.current.name }
-        let body: [String: Any] = ["email":email,"password":password,"auth_source":local ? "local" : "platform","device_id":deviceID,"device_name":deviceName,"platform":"ios","app_version":"0.1.0-alpha02"]
+        let body: [String: Any] = ["email":email,"password":password,"auth_source":local ? "local" : "platform","device_id":deviceID,"device_name":deviceName,"platform":"ios","app_version":Self.appVersion]
         let data = try await raw(path: "v1/auth/login", method: "POST", body: body, authorized: false, retry: false)
         let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         guard let access = value["access_token"] as? String, let refresh = value["refresh_token"] as? String, let secret = value["device_secret"] as? String else { throw APIError.message("Floodman login response was incomplete.") }

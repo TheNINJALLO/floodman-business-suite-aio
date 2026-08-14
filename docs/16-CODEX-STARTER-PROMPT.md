@@ -15,11 +15,11 @@ Before editing anything:
 7. Preserve the existing Floodman brand, America/Detroit business time zone, payment tokenization boundary, Tailscale private surfaces, public customer/mobile route boundary, and actual RoomFlow layout requirement.
 
 First task:
-Create a clean staging test plan for server v4.6.9, Android 0.3.0-alpha11, and iOS 0.1.0-alpha02. Treat v4.6.9 as a server-only test build with native builds deferred. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
+Create a clean staging test plan for server v4.6.9, Android 0.3.0-alpha12, and iOS 0.1.0-alpha03. Treat the native artifacts as unsigned test candidates. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
 ```
 
 Suggested second task after the baseline is committed:
 
 ```text
-Make the Android alpha11 workflow reproducible and green. Do not weaken lint. Preserve the API capability contract and RoomFlow pinned commit. Produce exact build artifacts and checksums, then write an acceptance checklist for a physical Android device.
+Configure the intended private Git remote, dispatch the Android alpha12 workflow, and compare its artifact checksums and reports with the recorded local gate. Do not weaken lint or access signing credentials. Then run the existing physical-device acceptance checklist against approved staging HTTPS.
 ```

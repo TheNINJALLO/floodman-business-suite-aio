@@ -1,4 +1,11 @@
-# Floodman Operations Android 0.3.0-alpha11
+# Floodman Operations Android 0.3.0-alpha12
+
+## Alpha12 v4.6.9 native synchronization
+
+- Matches the current Floodman v4.6.9 server candidate while retaining Mobile API `0.3.0-alpha11` compatibility.
+- Sends the active RoomFlow company workspace with customer and property searches.
+- Prevents a selected customer, property, catalog item, estimate, or job from being moved or reused across company workspaces.
+- Refreshes package-visible RoomFlow provenance to Floodman v4.6.9 without advancing the pinned upstream commit.
 
 ## Alpha10 RoomFlow migration and document correction
 

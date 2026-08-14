@@ -49,6 +49,9 @@ def build_client() -> tuple[OfficeStore, TestClient, dict[str, str], str]:
 
 def run() -> None:
     store, client, headers, owner_id = build_client()
+    tiny_jpeg = "data:image/jpeg;base64," + base64.b64encode(
+        bytes.fromhex("ffd8ffc0000b080001000101011100ffd9")
+    ).decode()
 
     first = client.get("/mobile-api/v1/roomflow/bootstrap", headers=headers)
     assert first.status_code == 200, first.text
@@ -76,9 +79,13 @@ def run() -> None:
         "summary": {"rooms": 0},
         "sections": [],
         "sync_estimate": False,
+        "layout_data_url": tiny_jpeg,
     })
     assert saved.status_code == 200, saved.text
     assert saved.json()["job"]["workspace_id"] == second_workspace["id"]
+    second_job = saved.json()["job"]
+    second_customer = saved.json()["customer"]
+    second_property = saved.json()["property"]
 
     selected_default = client.post(
         f"/mobile-api/v1/roomflow/workspaces/{default_workspace['id']}/select",
@@ -87,6 +94,61 @@ def run() -> None:
     )
     assert selected_default.status_code == 200, selected_default.text
     assert selected_default.json()["bootstrap"]["jobs"] == []
+    assert client.get(
+        f"/mobile-api/v1/roomflow/jobs/{second_job['id']}", headers=headers
+    ).status_code == 404
+    assert client.get(
+        f"/mobile-api/v1/roomflow/jobs/{second_job['id']}/layout", headers=headers
+    ).status_code == 404
+    hidden_update = client.put(
+        f"/mobile-api/v1/roomflow/jobs/{second_job['id']}",
+        headers=headers,
+        json={"job_name": "Hidden update", "snapshot": {}, "summary": {}, "sections": [], "sync_estimate": False},
+    )
+    assert hidden_update.status_code == 404, hidden_update.text
+    default_customer_search = client.get(
+        "/mobile-api/v1/customers",
+        headers=headers,
+        params={"q": "Morgan Carter", "workspace_id": default_workspace["id"]},
+    )
+    assert default_customer_search.status_code == 200, default_customer_search.text
+    assert default_customer_search.json()["items"] == []
+    assert client.get(
+        "/mobile-api/v1/customers", headers=headers, params={"workspace_id": "missing-workspace"}
+    ).status_code == 422
+
+    default_saved = client.post("/mobile-api/v1/roomflow/jobs", headers=headers, json={
+        "workspace_id": default_workspace["id"],
+        "job_name": "Default Workspace Inspection",
+        "contact_id": second_customer["id"],
+        "property_id": second_property["id"],
+        "customer_name": "Morgan Carter",
+        "property_address": "55 North Street, Traverse City, MI 49684",
+        "project_category": "inspection-and-testing",
+        "title": "Inspection",
+        "snapshot": {"rooms": [], "costing": {"customerName": "Morgan Carter"}},
+        "summary": {"rooms": 0},
+        "sections": [],
+        "sync_estimate": False,
+    })
+    assert default_saved.status_code == 200, default_saved.text
+    assert default_saved.json()["customer"]["id"] != second_customer["id"]
+    assert default_saved.json()["property"]["id"] != second_property["id"]
+    assert default_saved.json()["job"]["workspace_id"] == default_workspace["id"]
+
+    attempted_move = client.put(
+        f"/mobile-api/v1/roomflow/jobs/{second_job['id']}",
+        headers=headers,
+        json={
+            "workspace_id": default_workspace["id"],
+            "job_name": "Do not move",
+            "snapshot": {},
+            "summary": {},
+            "sections": [],
+            "sync_estimate": False,
+        },
+    )
+    assert attempted_move.status_code == 409, attempted_move.text
 
     selected_second = client.post(
         f"/mobile-api/v1/roomflow/workspaces/{second_workspace['id']}/select",
@@ -96,6 +158,12 @@ def run() -> None:
     assert selected_second.status_code == 200, selected_second.text
     assert len(selected_second.json()["bootstrap"]["jobs"]) == 1
     assert selected_second.json()["bootstrap"]["jobs"][0]["job"]["job_name"] == "North Workspace Inspection"
+    assert client.get(
+        f"/mobile-api/v1/roomflow/jobs/{second_job['id']}", headers=headers
+    ).status_code == 200
+    layout = client.get(f"/mobile-api/v1/roomflow/jobs/{second_job['id']}/layout", headers=headers)
+    assert layout.status_code == 200, layout.text
+    assert layout.headers["content-type"].startswith("image/jpeg")
 
     # Simulate records left by v4.6.2: imported organization metadata exists,
     # but no explicit workspace row or workspace_id exists yet.

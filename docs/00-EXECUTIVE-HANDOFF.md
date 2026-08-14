@@ -4,7 +4,7 @@
 
 Floodman Operations is a single-company field-service and business-operations suite for waterproofing, foundation repair, restoration, mold work, demolition, inspections, and related projects. The system started as a clean all-in-one Gauzy test environment and grew into a Floodman-branded platform with its own Office workspace, customer records, estimating, invoicing, payments, document signing, RoomFlow field measurement, scheduling, receivables, messaging, competitor intelligence, PWA, Android app, and early iPhone/iPad app.
 
-The current custom server baseline is v4.6.7. Android is v0.3.0-alpha11. iOS is v0.1.0-alpha02. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
+The current custom server baseline is v4.6.9. Android is v0.3.0-alpha12. iOS is v0.1.0-alpha03. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
 
 ## Business outcomes
 
@@ -31,7 +31,7 @@ The testing deployment is one Pterodactyl server using ports 9000 through 9004. 
 
 ## Important status boundary
 
-This handoff contains the complete Floodman custom source and current build files, not the live database. It does not establish that Android alpha11, iOS alpha02, or server v4.6.7 have passed a fresh end-to-end release on a clean node. Those are the first release gates to repeat in VS Code and Codex.
+This handoff contains the complete Floodman custom source and current build files, not the live database. Android alpha12 passes its local unsigned compiler/package gate and iOS alpha03 passes Windows source readiness, but no native device, iOS Xcode, signing/store, or live v4.6.9 staging pass is claimed.
 
 ## Recommended migration strategy
 

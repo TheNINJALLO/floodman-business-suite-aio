@@ -37,8 +37,8 @@ android {
         applicationId = "com.floodman.operations"
         minSdk = 28
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.3.0-alpha11"
+        versionCode = 12
+        versionName = "0.3.0-alpha12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "FLOODMAN_API_BASE_URL", "\"$apiBaseUrl\"")

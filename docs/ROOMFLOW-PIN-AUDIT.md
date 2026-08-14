@@ -7,7 +7,7 @@ Audit date: 2026-08-12
 - Repository: `https://github.com/TheNINJALLO/roomflow.git`
 - Required and verified commit: `1f97817a52b916875e50cc6380c0d284072b8ce8`
 - Verified checkout: 1,032 tracked files, no deleted tracked files, clean worktree
-- Release identities are Floodman server `4.6.9`, Android `0.3.0-alpha11`, and iOS `0.1.0-alpha02`; native builds were deferred for the server-only test package.
+- Release identities are Floodman server `4.6.9`, Android `0.3.0-alpha12`, and iOS `0.1.0-alpha03`. The native candidates retain the exact RoomFlow pin; Android build verification is authorized while iOS compilation remains a macOS gate.
 - The pin was not advanced. The checkout remains ignored and is not copied into source control.
 
 `scripts/fetch-roomflow.ps1` now enables Git long-path handling, checks every Git exit code, refuses to overwrite an unknown directory or a dirty checkout, and verifies the resulting commit and file set. This corrects the previous Windows behavior where a failed checkout could still print a success message.
@@ -63,5 +63,6 @@ Imported geometry is not represented as an actual field-layout image. Historical
 - Upstream local Edge suite — 9/9 passed: core browser, estimate builder, header/mobile layout, leads, More layout, shared jobs/download/upload, Tracker deletion, and user guide.
 - Prepared compatibility overlay — Node syntax passed and local Edge rendered/closed both job-list surfaces without a JavaScript error.
 - `server/tests/roomflow_supabase_import_smoke.py` — passed repeat update, workspace linkage, current and legacy snapshots, actual-layout policy, query scoping, and credential non-persistence.
+- 2026-08-14 native candidate refresh — Android alpha12 and iOS alpha03 bundles were regenerated from the same clean pin with Floodman 4.6.9 metadata. Native customer/property lookup now sends the selected Floodman workspace, the server isolation regression passed, and Android APK/AAB inspection verified the embedded pin.
 
 Live Supabase acceptance remains an operator action because no user credential was supplied or stored. The deterministic import and HTTP contract are locally verified; a production login is not claimed.
