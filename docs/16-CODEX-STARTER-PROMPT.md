@@ -15,7 +15,7 @@ Before editing anything:
 7. Preserve the existing Floodman brand, America/Detroit business time zone, payment tokenization boundary, Tailscale private surfaces, public customer/mobile route boundary, and actual RoomFlow layout requirement.
 
 First task:
-Create a clean staging test plan for server v4.6.8, Android 0.3.0-alpha11, and iOS 0.1.0-alpha02. Treat v4.6.8 as a server-only test build with native builds deferred. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
+Create a clean staging test plan for server v4.6.9, Android 0.3.0-alpha11, and iOS 0.1.0-alpha02. Treat v4.6.9 as a server-only test build with native builds deferred. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
 ```
 
 Suggested second task after the baseline is committed:

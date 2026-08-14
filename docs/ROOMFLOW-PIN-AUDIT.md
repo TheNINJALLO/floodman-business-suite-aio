@@ -7,7 +7,7 @@ Audit date: 2026-08-12
 - Repository: `https://github.com/TheNINJALLO/roomflow.git`
 - Required and verified commit: `1f97817a52b916875e50cc6380c0d284072b8ce8`
 - Verified checkout: 1,032 tracked files, no deleted tracked files, clean worktree
-- Release identities are Floodman server `4.6.8`, Android `0.3.0-alpha11`, and iOS `0.1.0-alpha02`; native builds were deferred for the server-only test package.
+- Release identities are Floodman server `4.6.9`, Android `0.3.0-alpha11`, and iOS `0.1.0-alpha02`; native builds were deferred for the server-only test package.
 - The pin was not advanced. The checkout remains ignored and is not copied into source control.
 
 `scripts/fetch-roomflow.ps1` now enables Git long-path handling, checks every Git exit code, refuses to overwrite an unknown directory or a dirty checkout, and verifies the resulting commit and file set. This corrects the previous Windows behavior where a failed checkout could still print a success message.

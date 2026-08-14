@@ -2,6 +2,14 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.6.9
+
+- Replaced the remaining RoomFlow Supabase account/company prompt with company workspace controls authorized by the existing Floodman ERP session.
+- Added browser APIs to list, create, and select RoomFlow company workspaces without storing another password or token.
+- Scoped browser RoomFlow customer/property lookup, job lists, saved snapshots, and synchronized estimates to the selected Floodman company workspace, including collision-safe IDs when two companies use the same upstream identifiers.
+- Added a browser regression proving the legacy create-company handler is removed and the separate account overlay cannot cover the integrated RoomFlow workspace.
+- Kept Android `0.3.0-alpha11`, iOS `0.1.0-alpha02`, Mobile API `0.3.0-alpha11`, and the pinned RoomFlow commit unchanged under the authorized server-only test scope.
+
 ## 4.6.8
 
 - Unified the genuine ERP login with Office and integrated RoomFlow browser sessions.

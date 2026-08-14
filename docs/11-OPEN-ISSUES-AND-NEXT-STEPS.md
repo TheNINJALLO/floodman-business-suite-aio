@@ -3,9 +3,9 @@
 ## Release-critical
 
 1. Run the complete Android alpha11 GitHub workflow.
-2. Run a physical Android device compatibility test against a staging v4.6.8 server.
+2. Run a physical Android device compatibility test against a staging v4.6.9 server.
 3. Run the iOS alpha02 simulator workflow.
-4. Verify a clean v4.6.8 install and a v4.6.7-to-v4.6.8 upgrade on a staging Pterodactyl node.
+4. Verify a clean v4.6.9 install and a v4.6.7-to-v4.6.9 upgrade on a staging Pterodactyl node.
 5. Verify Full ERP login, desktop, mobile, PWA cache updates, and Tailscale HTTPS behavior.
 6. Test estimate and invoice PDF generation with and without RoomFlow layout images.
 7. Test backup, restore, and rollback.

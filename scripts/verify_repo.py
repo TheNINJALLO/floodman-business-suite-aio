@@ -67,7 +67,7 @@ def run(command: list[str], cwd: Path | None = None, required: bool = True) -> N
 
 # Identity and source boundaries.
 expected = {
-    ROOT / "server" / "VERSION": "4.6.8",
+    ROOT / "server" / "VERSION": "4.6.9",
     ROOT / "apps" / "android" / "VERSION": "0.3.0-alpha11",
     ROOT / "apps" / "ios" / "VERSION": "0.1.0-alpha02",
     ROOT / "vendor" / "roomflow" / "PINNED_COMMIT": "1f97817a52b916875e50cc6380c0d284072b8ce8",
@@ -188,8 +188,8 @@ run([sys.executable, str(ROOT / "scripts" / "verify_pterodactyl_release.py")])
 
 # Static contract checks.
 overlay = json.loads((ROOT / "server" / "overlay.json").read_text(encoding="utf-8"))
-if overlay.get("version") != "4.6.8":
-    error("server/overlay.json is not v4.6.8")
+if overlay.get("version") != "4.6.9":
+    error("server/overlay.json is not v4.6.9")
 mobile_api = (ROOT / "server" / "office-console" / "app" / "mobile_api.py").read_text(encoding="utf-8")
 for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "/mobile-api/v1"]:
     if token not in mobile_api:

@@ -127,3 +127,11 @@
 - Decision: On the user's explicit instruction, assign server and Pterodactyl artifacts the distinct `4.6.8` identity needed to test an update on a host that already recognizes `4.6.7`. Keep Android `0.3.0-alpha11`, iOS `0.1.0-alpha02`, Mobile API `0.3.0-alpha11`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8` unchanged.
 - Evidence policy: Run and record every available server, browser, package, manifest, and container-input gate. Record Android/iOS builds as user-deferred, not passed. Staging install/upgrade/restart/backup/restore remains blocked until performed on an approved node.
 - Safety: This exception authorizes local test artifacts only. It does not authorize production deployment, signing, store upload, live credentials, live database changes, or public administrative exposure.
+
+## DEC-020 — Use Floodman workspaces instead of a second RoomFlow account
+
+- Date: 2026-08-14
+- Decision: In the integrated browser, replace RoomFlow's upstream Supabase account, company creation, company switcher, shared-job refresh, and logout handlers with Floodman Office-session workspace actions. Keep the original Supabase importer as an explicit authenticated migration tool, not an interactive staff login.
+- Reason: The upstream create-company button still checked `state.sessionUser` and displayed “Please Sign In or Create an Account,” even though the user had already authenticated through the unified Floodman ERP login. That made the integrated RoomFlow UI appear unusable and contradicted the single-login contract.
+- Safety: Browser workspace creation requires `estimates.manage`; selection requires `estimates.view`; jobs and synchronized estimates are scoped to the selected workspace. No Supabase password, ERP password, access token, or second browser session is persisted.
+- Release consequence: Produce server/Pterodactyl v4.6.9 so a host already identifying as v4.6.8 installs the repair. Android/iOS identities and the pinned RoomFlow commit remain unchanged and their builds are deferred.

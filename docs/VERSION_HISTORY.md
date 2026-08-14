@@ -38,6 +38,7 @@ The releases below are the major cumulative milestones represented by the conver
 - **v4.6.6**: same-origin health-based online status and service-worker startup behavior.
 - **v4.6.7**: Full ERP authentication-aware launcher, browser boot guard and HTTPS-origin repair.
 - **v4.6.8**: Unified ERP/Office/RoomFlow login plus a distinct server-only Pterodactyl test-update identity.
+- **v4.6.9**: RoomFlow company workspaces use the existing Floodman ERP session; legacy Supabase account prompts are neutralized in the integrated browser.
 
 ## Android alpha compiler history
 

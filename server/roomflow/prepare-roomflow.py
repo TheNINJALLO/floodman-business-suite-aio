@@ -14,7 +14,7 @@ from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-RELEASE = "4.6.8"
+RELEASE = "4.6.9"
 ROOMFLOW_COMMIT = "1f97817a52b916875e50cc6380c0d284072b8ce8"
 ARCHIVE_URL = f"https://github.com/TheNINJALLO/roomflow/archive/{ROOMFLOW_COMMIT}.tar.gz"
 CORE_RUNTIME = (
@@ -81,7 +81,7 @@ def validate_web_runtime(root: Path) -> None:
 
 
 def download(url: str, destination: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "Floodman-RoomFlow/4.6.8"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Floodman-RoomFlow/4.6.9"})
     with urllib.request.urlopen(request, timeout=180) as response, destination.open("wb") as output:
         shutil.copyfileobj(response, output)
 

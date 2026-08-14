@@ -39,6 +39,13 @@ from .providers import ProviderClient
 from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_deposit
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
+from .roomflow_supabase import (
+    create_roomflow_workspace,
+    ensure_roomflow_workspaces,
+    select_roomflow_workspace,
+    selected_roomflow_workspace_id,
+    workspace_public,
+)
 from .customer_portal import page as customer_page, grouped_lines as customer_grouped_lines, payment_page as customer_payment_page
 from .security import SignedRequestError, verify_signed_body
 from .store import OfficeStore
@@ -49,7 +56,7 @@ from .ui import badge, esc, json_pre, layout, money_cents, money_units, progress
 settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
 providers = ProviderClient(settings)
-app = FastAPI(title="Floodman Operations", version="4.6.8", docs_url=None, redoc_url=None)
+app = FastAPI(title="Floodman Operations", version="4.6.9", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
 
@@ -114,7 +121,7 @@ def _require(permission: str) -> dict[str, Any]:
 
 @app.get("/health/live")
 def live() -> dict[str, str]:
-    return {"status": "ok", "service": "floodman-office-console", "version": "4.6.8"}
+    return {"status": "ok", "service": "floodman-office-console", "version": "4.6.9"}
 
 
 @app.get("/health/ready")
@@ -2461,11 +2468,16 @@ async def _sync_financial_to_real_gauzy(
 
 
 @app.get("/office/api/search/contacts")
-async def contact_search_api(q: str = "", limit: int = 25) -> dict[str, Any]:
-    _require("contacts.view")
+async def contact_search_api(q: str = "", workspace_id: str = "", limit: int = 25) -> dict[str, Any]:
+    user = _require("contacts.view")
     state = await _state_page_data()
     query = str(q or "").strip().lower()
     values = _all_contact_rows(state)
+    if workspace_id:
+        workspaces, _, _ = _browser_roomflow_workspace_context(user)
+        if not any(str(record.get("id") or "") == workspace_id for record in workspaces):
+            raise HTTPException(status_code=422, detail="Select a valid Floodman RoomFlow company workspace.")
+        values = [item for item in values if str(item.get("workspace_id") or "") in {"", workspace_id}]
     if query:
         values = [item for item in values if query in _contact_search_text(item)]
     values.sort(key=lambda item: _contact_label(item).lower())
@@ -2484,11 +2496,16 @@ async def contact_search_api(q: str = "", limit: int = 25) -> dict[str, Any]:
 
 
 @app.get("/office/api/search/properties")
-async def property_search_api(q: str = "", contact_id: str = "", limit: int = 25) -> dict[str, Any]:
-    _require("properties.view")
+async def property_search_api(q: str = "", contact_id: str = "", workspace_id: str = "", limit: int = 25) -> dict[str, Any]:
+    user = _require("properties.view")
     state = await _state_page_data()
     query = str(q or "").strip().lower()
     values = _all_property_rows(state)
+    if workspace_id:
+        workspaces, _, _ = _browser_roomflow_workspace_context(user)
+        if not any(str(record.get("id") or "") == workspace_id for record in workspaces):
+            raise HTTPException(status_code=422, detail="Select a valid Floodman RoomFlow company workspace.")
+        values = [item for item in values if str(item.get("workspace_id") or "") in {"", workspace_id}]
     if contact_id:
         values = [item for item in values if str(item.get("contact_id") or "") == contact_id]
     if query:
@@ -4593,11 +4610,15 @@ def _roomflow_property_label(record: dict[str, Any]) -> str:
     return _roomflow_clean(record.get("name") or record.get("property_name") or location or "Service property", 220)
 
 
-def _roomflow_find_property(contact_id: str, property_data: dict[str, Any]) -> dict[str, Any] | None:
+def _roomflow_find_property(contact_id: str, property_data: dict[str, Any], workspace_id: str = "") -> dict[str, Any] | None:
     requested = _roomflow_clean(property_data.get("property_id") or property_data.get("id"), 100)
     if requested:
         item = store.record("properties", requested)
-        if item and str(item.get("contact_id") or "") == contact_id:
+        if (
+            item
+            and str(item.get("contact_id") or "") == contact_id
+            and str(item.get("workspace_id") or "") in {"", workspace_id}
+        ):
             return item
     address = _roomflow_address(property_data)
     key = "|".join((address["street"], address["city"], address["state"], address["postal_code"])).lower()
@@ -4605,6 +4626,8 @@ def _roomflow_find_property(contact_id: str, property_data: dict[str, Any]) -> d
         return None
     for item in store.records("properties"):
         if str(item.get("contact_id") or "") != contact_id:
+            continue
+        if str(item.get("workspace_id") or "") not in {"", workspace_id}:
             continue
         current = _roomflow_address(item)
         current_key = "|".join((current["street"], current["city"], current["state"], current["postal_code"])).lower()
@@ -4615,8 +4638,13 @@ def _roomflow_find_property(contact_id: str, property_data: dict[str, Any]) -> d
 
 @app.get("/office/roomflow")
 def roomflow_workspace() -> HTMLResponse:
-    _require("estimates.view")
-    jobs = store.records("roomflow_jobs")
+    user = _require("estimates.view")
+    _, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
+    jobs = [
+        item
+        for item in store.records("roomflow_jobs")
+        if str(item.get("workspace_id") or "") == selected_workspace_id
+    ]
     cards = []
     for item in jobs[:12]:
         customer_id = str(item.get("contact_id") or "")
@@ -4641,7 +4669,7 @@ def roomflow_workspace() -> HTMLResponse:
         )
     history = "".join(cards) or "<p class='muted'>No RoomFlow estimates have been saved into Floodman yet.</p>"
     body = f"""
-<div class='callout'><b>RoomFlow is now part of Floodman.</b> Draw the property, build the scope, and press <b>Save to Floodman</b>. The customer, service property, and estimate are matched without giant dropdowns.</div>
+<div class='callout'><b>RoomFlow is part of Floodman.</b> You are using the <b>{esc(active_workspace.get('name') or 'Floodman')}</b> company workspace through your existing ERP sign-in. Draw the property, build the scope, and press <b>Save to Floodman</b>.</div>
 <div class='card roomflow-workspace-card'>
   <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'><a class='button secondary' href='/roomflow/' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
   <iframe class='roomflow-frame' src='/roomflow/?embedded=1' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
@@ -4653,15 +4681,25 @@ def roomflow_workspace() -> HTMLResponse:
 
 @app.get("/office/api/roomflow/jobs")
 def roomflow_jobs_api(limit: int = 50) -> dict[str, Any]:
-    _require("estimates.view")
+    user = _require("estimates.view")
+    _, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     safe_limit = max(1, min(int(limit or 50), 200))
-    all_jobs = store.records("roomflow_jobs")
+    all_jobs = [
+        item
+        for item in store.records("roomflow_jobs")
+        if str(item.get("workspace_id") or "") == selected_workspace_id
+    ]
     items = []
     for job in all_jobs[:safe_limit]:
         row = dict(job)
         row.pop("snapshot", None)
         items.append(row)
-    return {"items": items, "count": len(all_jobs)}
+    return {
+        "items": items,
+        "count": len(all_jobs),
+        "selected_workspace_id": selected_workspace_id,
+        "active_workspace": workspace_public(active_workspace),
+    }
 
 
 @app.get("/office/api/roomflow/auth-check", response_class=Response)
@@ -4677,16 +4715,96 @@ def roomflow_auth_check() -> Response:
 @app.get("/office/api/roomflow/context")
 def roomflow_context_api() -> dict[str, Any]:
     user = _require("estimates.view")
+    workspaces, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     return {
-        "release": "4.6.8",
+        "release": "4.6.9",
         "timezone": store.profile().get("timezone") or "America/Detroit",
         "user": {"id": user.get("id"), "name": user.get("name"), "email": user.get("email")},
+        "workspaces": [workspace_public(record) for record in workspaces],
+        "selected_workspace_id": selected_workspace_id,
+        "active_workspace": workspace_public(active_workspace),
         "counts": {
             "contacts": len(store.records("contacts")),
             "properties": len(store.records("properties")),
             "estimates": len(store.records("estimates")),
             "roomflow_jobs": len(store.records("roomflow_jobs")),
         },
+    }
+
+
+def _browser_roomflow_workspace_context(
+    user: dict[str, Any],
+    preferred_workspace_id: str = "",
+) -> tuple[list[dict[str, Any]], str, dict[str, Any]]:
+    actor_id = str(user.get("id") or "")
+    workspaces = ensure_roomflow_workspaces(store, actor_id=actor_id)
+    selected_id = selected_roomflow_workspace_id(
+        store,
+        actor_id,
+        preferred_workspace_id=preferred_workspace_id,
+        actor_id=actor_id,
+    )
+    active = next(
+        (record for record in workspaces if str(record.get("id") or "") == selected_id),
+        workspaces[0],
+    )
+    return workspaces, selected_id, active
+
+
+@app.get("/office/api/roomflow/workspaces")
+def browser_roomflow_workspaces_api() -> dict[str, Any]:
+    user = _require("estimates.view")
+    workspaces, selected_id, active = _browser_roomflow_workspace_context(user)
+    return {
+        "items": [workspace_public(record) for record in workspaces],
+        "selected_workspace_id": selected_id,
+        "active_workspace": workspace_public(active),
+    }
+
+
+@app.post("/office/api/roomflow/workspaces")
+async def browser_create_roomflow_workspace_api(request: Request) -> dict[str, Any]:
+    user = _require("estimates.manage")
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="RoomFlow sent invalid JSON.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="RoomFlow workspace payload must be an object.")
+    actor_id = str(user.get("id") or "")
+    try:
+        workspace = create_roomflow_workspace(
+            store,
+            name=str(payload.get("name") or ""),
+            timezone=str(payload.get("timezone") or store.profile().get("timezone") or "America/Detroit"),
+            user_id=actor_id,
+            actor_id=actor_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    workspaces, selected_id, active = _browser_roomflow_workspace_context(user, str(workspace["id"]))
+    return {
+        "workspace": workspace_public(workspace),
+        "workspaces": [workspace_public(record) for record in workspaces],
+        "selected_workspace_id": selected_id,
+        "active_workspace": workspace_public(active),
+    }
+
+
+@app.post("/office/api/roomflow/workspaces/{workspace_id}/select")
+def browser_select_roomflow_workspace_api(workspace_id: str) -> dict[str, Any]:
+    user = _require("estimates.view")
+    actor_id = str(user.get("id") or "")
+    try:
+        workspace = select_roomflow_workspace(store, actor_id, workspace_id, actor_id=actor_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="RoomFlow workspace not found") from exc
+    workspaces, selected_id, active = _browser_roomflow_workspace_context(user, workspace_id)
+    return {
+        "workspace": workspace_public(workspace),
+        "workspaces": [workspace_public(record) for record in workspaces],
+        "selected_workspace_id": selected_id,
+        "active_workspace": workspace_public(active),
     }
 
 
@@ -4752,12 +4870,15 @@ def _roomflow_open_balance(contact_id: str, state: dict[str, Any]) -> int:
 
 @app.get("/office/api/roomflow/customers/{contact_id}")
 async def roomflow_customer_api(contact_id: str) -> dict[str, Any]:
-    _require("contacts.view")
+    user = _require("contacts.view")
     state = await _state_page_data()
     contact = next((item for item in _all_contact_rows(state) if str(item.get("id") or "") == contact_id), None)
     if not contact:
         raise HTTPException(status_code=404, detail="Customer not found")
     local = store.record("contacts", contact_id) or contact
+    _, workspace_id, _ = _browser_roomflow_workspace_context(user)
+    if str(local.get("workspace_id") or "") not in {"", workspace_id}:
+        raise HTTPException(status_code=404, detail="Customer not found")
     mailing = {
         "street": str(local.get("mailing_street") or local.get("street") or ""),
         "street2": str(local.get("mailing_street2") or local.get("street2") or ""),
@@ -4770,6 +4891,7 @@ async def roomflow_customer_api(contact_id: str) -> dict[str, Any]:
         _roomflow_property_payload(item)
         for item in _all_property_rows(state)
         if str(item.get("contact_id") or "") == contact_id
+        and str(item.get("workspace_id") or "") in {"", workspace_id}
     ]
     notes = sorted(_contact_notes(contact_id), key=lambda item: str(item.get("created_at") or ""), reverse=True)
     customer = {
@@ -4789,10 +4911,11 @@ async def roomflow_customer_api(contact_id: str) -> dict[str, Any]:
 
 @app.get("/office/api/roomflow/properties/{property_id}")
 async def roomflow_property_api(property_id: str) -> dict[str, Any]:
-    _require("properties.view")
+    user = _require("properties.view")
     state = await _state_page_data()
     record = next((item for item in _all_property_rows(state) if str(item.get("id") or "") == property_id), None)
-    if not record:
+    _, workspace_id, _ = _browser_roomflow_workspace_context(user)
+    if not record or str(record.get("workspace_id") or "") not in {"", workspace_id}:
         raise HTTPException(status_code=404, detail="Property not found")
     return {"property": _roomflow_property_payload(record)}
 
@@ -4800,7 +4923,10 @@ async def roomflow_property_api(property_id: str) -> dict[str, Any]:
 @app.post("/office/api/roomflow/customers/{contact_id}/notes")
 async def roomflow_customer_note_api(contact_id: str, request: Request) -> dict[str, Any]:
     actor = _require("notes.manage")
-    _ensure_local_contact(contact_id, await _state_page_data())
+    contact = _ensure_local_contact(contact_id, await _state_page_data())
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    if str(contact.get("workspace_id") or "") not in {"", workspace_id}:
+        raise HTTPException(status_code=404, detail="Customer not found")
     try:
         payload = await request.json()
     except Exception as exc:
@@ -4826,6 +4952,9 @@ async def roomflow_customer_note_api(contact_id: str, request: Request) -> dict[
 async def roomflow_customer_tags_api(contact_id: str, request: Request) -> dict[str, Any]:
     actor = _require("contacts.manage")
     contact = _ensure_local_contact(contact_id, await _state_page_data())
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    if str(contact.get("workspace_id") or "") not in {"", workspace_id}:
+        raise HTTPException(status_code=404, detail="Customer not found")
     try:
         payload = await request.json()
     except Exception as exc:
@@ -4877,9 +5006,10 @@ def _roomflow_snapshot(value: Any) -> tuple[dict[str, Any], str, int]:
 
 @app.get("/office/api/roomflow/jobs/{job_id}")
 def roomflow_job_detail_api(job_id: str) -> dict[str, Any]:
-    _require("estimates.view")
+    user = _require("estimates.view")
+    _, selected_workspace_id, _ = _browser_roomflow_workspace_context(user)
     job = store.record("roomflow_jobs", job_id)
-    if not job:
+    if not job or str(job.get("workspace_id") or "") != selected_workspace_id:
         raise HTTPException(status_code=404, detail="RoomFlow job not found")
     return {"job": job}
 
@@ -4895,6 +5025,11 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="RoomFlow payload must be an object.")
 
+    preferred_workspace_id = _roomflow_clean(payload.get("workspace_id"), 160)
+    workspaces, workspace_id, active_workspace = _browser_roomflow_workspace_context(actor, preferred_workspace_id)
+    if preferred_workspace_id and not any(str(record.get("id") or "") == preferred_workspace_id for record in workspaces):
+        raise HTTPException(status_code=422, detail="Select a valid Floodman RoomFlow company workspace before saving.")
+
     customer = payload.get("customer") if isinstance(payload.get("customer"), dict) else {}
     property_data = payload.get("property") if isinstance(payload.get("property"), dict) else {}
     estimate_data = payload.get("estimate") if isinstance(payload.get("estimate"), dict) else {}
@@ -4903,6 +5038,8 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
     phone = _roomflow_clean(customer.get("phone"), 40)
     contact_id = _roomflow_clean(customer.get("contact_id") or payload.get("contact_id"), 100)
     contact = store.find_contact(contact_id=contact_id or None, email=email or None, phone=phone or None)
+    if contact and str(contact.get("workspace_id") or "") not in {"", workspace_id}:
+        contact = None
     contact_values = {
         "first_name": first,
         "last_name": last,
@@ -4913,12 +5050,15 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         "lead_source": _roomflow_clean(customer.get("lead_source") or "ROOMFLOW", 160),
         "notes": _roomflow_clean(customer.get("notes"), 5000),
         "status": _roomflow_clean(customer.get("status") or "ACTIVE", 80).upper(),
+        "workspace_id": workspace_id,
     }
     if contact:
+        if contact.get("workspace_id"):
+            contact_values.pop("workspace_id", None)
         contact = store.update_record("contacts", str(contact["id"]), {key: value for key, value in contact_values.items() if value}, actor_id=str(actor.get("id")))
     else:
         identity = email or "".join(character for character in phone if character.isdigit()) or f"{customer_name}:{uuid.uuid4()}"
-        contact_values["id"] = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-contact:{identity}"))
+        contact_values["id"] = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-contact:{workspace_id}:{identity}"))
         contact = store.create_record("contacts", contact_values, actor_id=str(actor.get("id")))
 
     address = _roomflow_address(property_data)
@@ -4931,7 +5071,7 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
     if len(address["postal_code"]) < 3:
         raise HTTPException(status_code=422, detail="Service ZIP/postal code is required.")
 
-    property_record = _roomflow_find_property(str(contact["id"]), property_data)
+    property_record = _roomflow_find_property(str(contact["id"]), property_data, workspace_id)
     property_values = {
         "contact_id": str(contact["id"]),
         "name": _roomflow_property_label(property_data),
@@ -4947,8 +5087,11 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         "insurance_company": _roomflow_clean(property_data.get("insurance_company") or property_data.get("insurer"), 150),
         "notes": _roomflow_clean(property_data.get("notes"), 5000),
         "source": "ROOMFLOW",
+        "workspace_id": workspace_id,
     }
     if property_record:
+        if property_record.get("workspace_id"):
+            property_values.pop("workspace_id", None)
         property_record = store.update_record("properties", str(property_record["id"]), {key: value for key, value in property_values.items() if value not in (None, "")}, actor_id=str(actor.get("id")))
     else:
         property_key = f"{contact['id']}:{address['street']}:{address['city']}:{address['state']}:{address['postal_code']}".lower()
@@ -5031,7 +5174,15 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
     roomflow_estimate_id = _roomflow_clean(payload.get("roomflow_estimate_id") or estimate_data.get("roomflow_estimate_id") or estimate_data.get("id"), 150)
     if not roomflow_estimate_id:
         roomflow_estimate_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"roomflow-estimate:{roomflow_job_id}"))
-    estimate_id = store.external_mapping("roomflow", f"estimate:{roomflow_estimate_id}") or str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-estimate:{roomflow_estimate_id}"))
+    estimate_mapping_key = f"workspace:{workspace_id}:estimate:{roomflow_estimate_id}"
+    estimate_id = store.external_mapping("roomflow", estimate_mapping_key)
+    if not estimate_id:
+        legacy_estimate_id = store.external_mapping("roomflow", f"estimate:{roomflow_estimate_id}")
+        legacy_estimate = store.record("estimates", legacy_estimate_id) if legacy_estimate_id else None
+        if legacy_estimate and str(legacy_estimate.get("workspace_id") or "") in {"", workspace_id}:
+            estimate_id = legacy_estimate_id
+    if not estimate_id:
+        estimate_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-estimate:{workspace_id}:{roomflow_estimate_id}"))
     estimate_number = _roomflow_clean(estimate_data.get("estimate_number"), 80) or f"RF-{len(store.records('estimates')) + 1001}"
     estimate_values = {
         "id": estimate_id,
@@ -5055,6 +5206,7 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         "internal_note": _roomflow_clean(estimate_data.get("internal_note"), 5000),
         "roomflow_job_id": roomflow_job_id,
         "roomflow_estimate_id": roomflow_estimate_id,
+        "workspace_id": workspace_id,
         "revision": max(1, _roomflow_int(payload.get("revision") or estimate_data.get("revision"), 1)),
         "issued_at": datetime.now(UTC).isoformat(),
         "source": "ROOMFLOW",
@@ -5075,10 +5227,14 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         estimate = store.update_record("estimates", estimate_id, estimate_values, actor_id=str(actor.get("id")))
     else:
         estimate = store.create_record("estimates", estimate_values, actor_id=str(actor.get("id")))
-    store.set_external_mapping("roomflow", f"estimate:{roomflow_estimate_id}", str(estimate["id"]))
-    store.set_external_mapping("roomflow", f"job:{roomflow_job_id}", str(property_record["id"]))
+    store.set_external_mapping("roomflow", estimate_mapping_key, str(estimate["id"]))
+    store.set_external_mapping("roomflow", f"workspace:{workspace_id}:job:{roomflow_job_id}", str(property_record["id"]))
 
     snapshot, snapshot_sha256, snapshot_bytes = _roomflow_snapshot(payload.get("roomflow_snapshot") or estimate_data.get("roomflow_snapshot") or {})
+    snapshot["workspaceId"] = workspace_id
+    snapshot_encoded = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    snapshot_sha256 = hashlib.sha256(snapshot_encoded).hexdigest()
+    snapshot_bytes = len(snapshot_encoded)
     snapshot_summary = {
         "rooms": len(snapshot.get("rooms") or []),
         "levels": len(snapshot.get("levels") or []),
@@ -5093,7 +5249,16 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    job_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-job:{roomflow_job_id}"))
+    existing_roomflow_job = next(
+        (
+            record
+            for record in store.records("roomflow_jobs")
+            if str(record.get("roomflow_job_id") or "") == roomflow_job_id
+            and str(record.get("workspace_id") or "") in {"", workspace_id}
+        ),
+        None,
+    )
+    job_id = str((existing_roomflow_job or {}).get("id") or uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-roomflow-job:{workspace_id}:{roomflow_job_id}"))
     job_values = {
         "id": job_id,
         "roomflow_job_id": roomflow_job_id,
@@ -5103,6 +5268,7 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         "property_id": str(property_record["id"]),
         "estimate_id": str(estimate["id"]),
         "estimate_number": estimate_number,
+        "workspace_id": workspace_id,
         "revision": estimate_values["revision"],
         "total_cents": total_cents,
         "status": "SYNCED",
@@ -5118,7 +5284,7 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
     else:
         roomflow_job = store.create_record("roomflow_jobs", job_values, actor_id=str(actor.get("id")))
 
-    note_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"roomflow-sync-note:{roomflow_estimate_id}:{estimate_values['revision']}"))
+    note_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"roomflow-sync-note:{workspace_id}:{roomflow_estimate_id}:{estimate_values['revision']}"))
     note_values = {
         "id": note_id,
         "entity_type": "CONTACT",
@@ -5154,6 +5320,8 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
         "created": created_estimate,
         "status": "SYNCED",
         "roomflow_job": roomflow_job,
+        "workspace": workspace_public(active_workspace),
+        "workspace_id": workspace_id,
         "contact_id": str(contact["id"]),
         "property_id": str(property_record["id"]),
         "estimate_id": str(estimate["id"]),

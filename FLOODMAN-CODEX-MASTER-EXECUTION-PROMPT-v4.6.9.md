@@ -1,4 +1,4 @@
-# Floodman Codex master execution prompt v4.6.8
+# Floodman Codex master execution prompt v4.6.9
 
 ## Mission
 
@@ -6,7 +6,7 @@ Continue the checked-in Floodman Operations handoff without restarting completed
 
 The active release identities are:
 
-- server `4.6.8`
+- server `4.6.9`
 - Mobile API and Android `0.3.0-alpha11`
 - iOS `0.1.0-alpha02`
 - RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`
@@ -14,9 +14,9 @@ The active release identities are:
 
 `AGENTS.md` is authoritative. This file narrows execution behavior but does not relax any repository instruction.
 
-### Scoped v4.6.8 test-release authorization
+### Scoped v4.6.9 test-release authorization
 
-On 2026-08-13 the user explicitly authorized the server/Pterodactyl v4.6.8 test build while deferring Android and iOS builds. This authorization permits the distinct server identity and local non-native artifacts only. Android remains `0.3.0-alpha11`, iOS remains `0.1.0-alpha02`, and their deferred compiler/device gates must remain recorded as `BLOCKED` or `NOT RUN`. It does not authorize production deployment, signing, store upload, live-data access, or a claim that the full release gates passed.
+On 2026-08-13 the user explicitly authorized server/Pterodactyl test builds while deferring Android and iOS builds. On 2026-08-14 the reported RoomFlow account/company blocker required a distinct v4.6.9 server artifact so a host already recognizing v4.6.8 can install the repair. This authorization permits the local non-native test artifacts only. Android remains `0.3.0-alpha11`, iOS remains `0.1.0-alpha02`, and their deferred compiler/device gates must remain recorded as `BLOCKED` or `NOT RUN`. It does not authorize production deployment, signing, store upload, live-data access, or a claim that the full release gates passed.
 
 ## Task selection and evidence
 

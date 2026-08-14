@@ -5,7 +5,7 @@
   if (!window.location.pathname.startsWith('/roomflow/') && params.get('floodmanPanel') !== '1') return;
   window.__FLOODMAN_ROOMFLOW_PANEL__ = true;
 
-  const RELEASE = '4.4.0';
+  const RELEASE = '4.6.9';
   const LINK_KEY = 'floodman_roomflow_links_v2';
   const ESTIMATE_KEY = 'floodman_roomflow_estimate_ids_v1';
   const API = '/office/api/roomflow';
@@ -14,7 +14,7 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const sleep = (ms) => new Promise(resolve => window.setTimeout(resolve, ms));
-  const model = { contact: null, property: null, notes: [], jobs: [], searchTimer: null, propertyTimer: null, catalogTimer: null, lastJobKey: '', lastEstimateSignature: '', syncing: false, activeEstimateSection: '' };
+  const model = { contact: null, property: null, notes: [], jobs: [], workspaces: [], activeWorkspace: null, searchTimer: null, propertyTimer: null, catalogTimer: null, lastJobKey: '', lastEstimateSignature: '', syncing: false, workspaceBusy: false, activeEstimateSection: '' };
 
 
   const SNAPSHOT_KEYS = [
@@ -65,13 +65,19 @@
     if (crypto.randomUUID) return crypto.randomUUID();
     return `rf-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
   }
-  function currentJobKey() {
+  function roomflowJobId() {
     const state = appState();
     return asText(integration()?.currentJobId?.() || state.jobId || state.currentJobName || 'untitled-job');
   }
+  function currentJobKey() {
+    return `${asText(model.activeWorkspace?.id || 'default')}:${roomflowJobId()}`;
+  }
   function loadMap(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) { return {}; } }
   function saveMap(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (_) {} }
-  function linkedRecord() { return loadMap(LINK_KEY)[currentJobKey()] || null; }
+  function linkedRecord() {
+    const map = loadMap(LINK_KEY);
+    return map[currentJobKey()] || ((model.workspaces.length === 1 || model.activeWorkspace?.is_default) ? map[roomflowJobId()] : null) || null;
+  }
   function saveLink() {
     const map = loadMap(LINK_KEY);
     map[currentJobKey()] = { contact_id: model.contact?.id || null, property_id: model.property?.id || null, updated_at: new Date().toISOString() };
@@ -82,6 +88,9 @@
   }
   function estimateIdentity() {
     const map = loadMap(ESTIMATE_KEY); const key = currentJobKey();
+    if (!map[key] && (model.workspaces.length === 1 || model.activeWorkspace?.is_default) && map[roomflowJobId()]) {
+      map[key] = map[roomflowJobId()]; saveMap(ESTIMATE_KEY, map);
+    }
     if (!map[key]) { map[key] = uuid(); saveMap(ESTIMATE_KEY, map); }
     return map[key];
   }
@@ -103,6 +112,63 @@
   function setStatus(message, kind = 'info') {
     const node = $('#fm-rf-status'); if (!node) return;
     node.textContent = message || ''; node.className = `fm-rf-status ${kind} ${message ? 'is-open' : ''}`;
+  }
+  function workspaceOptions() {
+    if (!model.workspaces.length) return '<option value="">No Floodman companies available</option>';
+    return model.workspaces.map(workspace => `<option value="${escapeHtml(workspace.id)}" ${workspace.id === model.activeWorkspace?.id ? 'selected' : ''}>${escapeHtml(workspace.name || 'Floodman')}</option>`).join('');
+  }
+  function renderWorkspaceControls() {
+    for (const select of [$('#fm-rf-workspace-select'), document.getElementById('more-company-switcher')].filter(Boolean)) {
+      const focused = document.activeElement === select;
+      select.innerHTML = workspaceOptions();
+      select.value = model.activeWorkspace?.id || '';
+      select.disabled = model.workspaceBusy;
+      if (focused) select.focus();
+    }
+    const label = $('#fm-rf-workspace-label');
+    if (label) label.textContent = model.activeWorkspace?.name || 'Loading company…';
+  }
+  function applyWorkspaceContext(payload = {}) {
+    model.workspaces = Array.isArray(payload.workspaces) ? payload.workspaces : (Array.isArray(payload.items) ? payload.items : model.workspaces);
+    const selectedId = asText(payload.selected_workspace_id || payload.active_workspace?.id);
+    model.activeWorkspace = payload.active_workspace || model.workspaces.find(item => String(item.id) === selectedId) || model.workspaces[0] || null;
+    const state = appState();
+    if (model.activeWorkspace) {
+      state.currentOrganization = { ...model.activeWorkspace, role: 'FLOODMAN' };
+      state.userOrganizations = model.workspaces.map(item => ({ ...item, role: 'FLOODMAN' }));
+    }
+    renderWorkspaceControls();
+  }
+  async function refreshWorkspaceContext() {
+    const data = await fetchJson(`${API}/context`);
+    applyWorkspaceContext(data);
+    return data;
+  }
+  async function changeWorkspace(workspaceId) {
+    const selected = asText(workspaceId);
+    if (!selected || selected === model.activeWorkspace?.id || model.workspaceBusy) return;
+    model.workspaceBusy = true; renderWorkspaceControls(); setStatus('Switching Floodman company…', 'info');
+    try {
+      const data = await fetchJson(`${API}/workspaces/${encodeURIComponent(selected)}/select`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      applyWorkspaceContext(data); model.contact = null; model.property = null; model.notes = []; model.lastJobKey = ''; renderCustomer(); renderProperty(); await restoreLink(); await refreshJobs();
+      setStatus(`Using ${model.activeWorkspace?.name || 'the selected Floodman company'}.`, 'good');
+    } catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
+    finally { model.workspaceBusy = false; renderWorkspaceControls(); }
+  }
+  async function createWorkspace(input) {
+    const name = asText(input?.value);
+    if (name.length < 2) return setStatus('Enter a company name with at least two characters.', 'warn');
+    if (model.workspaceBusy) return;
+    model.workspaceBusy = true; renderWorkspaceControls(); setStatus('Creating Floodman company…', 'info');
+    try {
+      const data = await fetchJson(`${API}/workspaces`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, timezone: 'America/Detroit' }),
+      });
+      applyWorkspaceContext(data); model.contact = null; model.property = null; model.notes = []; model.lastJobKey = ''; if (input) input.value = ''; renderCustomer(); renderProperty(); await restoreLink(); await refreshJobs();
+      setStatus(`Company “${model.activeWorkspace?.name || name}” is ready. No separate RoomFlow account is required.`, 'good');
+    } catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
+    finally { model.workspaceBusy = false; renderWorkspaceControls(); }
   }
   function panelOpen(open = true) {
     const root = document.documentElement;
@@ -204,12 +270,12 @@
   }
   async function searchCustomers(query) {
     const host = $('#fm-rf-customer-results'); if (query.trim().length < 2) { host?.classList.remove('is-open'); return; }
-    try { const data = await fetchJson(`/office/api/search/contacts?q=${encodeURIComponent(query)}&limit=25`); showResults(host, data.items || [], item => selectCustomer(item.id)); }
+    try { const data = await fetchJson(`/office/api/search/contacts?q=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectCustomer(item.id)); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
   }
   async function searchProperties(query) {
     const host = $('#fm-rf-property-results'); if (!model.contact) return;
-    try { const data = await fetchJson(`/office/api/search/properties?q=${encodeURIComponent(query)}&contact_id=${encodeURIComponent(model.contact.id)}&limit=25`); showResults(host, data.items || [], item => selectProperty(item.id), 'No properties found for this customer'); }
+    try { const data = await fetchJson(`/office/api/search/properties?q=${encodeURIComponent(query)}&contact_id=${encodeURIComponent(model.contact.id)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectProperty(item.id), 'No properties found for this customer'); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
   }
   async function selectCustomer(contactId, { silent = false } = {}) {
@@ -493,7 +559,8 @@
       const address = model.property.address || {};
       const payload = {
         contact_id: model.contact.id,
-        roomflow_job_id: currentJobKey(),
+        workspace_id: model.activeWorkspace?.id || null,
+        roomflow_job_id: roomflowJobId(),
         roomflow_estimate_id: estimateIdentity(),
         job_name: asText(state.currentJobName || model.property.name || 'RoomFlow job'),
         revision: Math.max(1, Number(state.revisionNumber || 1)),
@@ -535,6 +602,11 @@
   }
 
   function neutralizeLegacyCloudControls() {
+    const authOverlay = document.getElementById('auth-overlay');
+    if (authOverlay) {
+      authOverlay.classList.add('hidden'); authOverlay.style.display = 'none'; authOverlay.setAttribute('aria-hidden', 'true');
+      if ('inert' in HTMLElement.prototype) authOverlay.inert = true;
+    }
     const syncBadge = document.getElementById('sync-status-badge');
     if (syncBadge) {
       syncBadge.textContent = 'Floodman linked';
@@ -546,8 +618,29 @@
     if (legacyCard) legacyCard.style.display = 'none';
     const companySwitcher = document.getElementById('header-company-switcher');
     if (companySwitcher?.parentElement) companySwitcher.parentElement.style.display = 'none';
-    const nativeLogout = document.querySelector('button[onclick*="RoomFlowAuth.signOut"]');
-    if (nativeLogout) nativeLogout.style.display = 'none';
+    document.querySelectorAll('button[onclick*="RoomFlowAuth.signOut"]').forEach(button => { button.style.display = 'none'; button.setAttribute('aria-hidden', 'true'); });
+    let moreSwitcher = document.getElementById('more-company-switcher');
+    if (moreSwitcher && moreSwitcher.dataset.floodmanWorkspace !== '1') {
+      const replacement = moreSwitcher.cloneNode(true); replacement.dataset.floodmanWorkspace = '1'; moreSwitcher.replaceWith(replacement); moreSwitcher = replacement;
+      replacement.addEventListener('change', event => changeWorkspace(event.target.value));
+      const card = replacement.closest('.checklist-room-card');
+      const title = card?.querySelector('h3'); const description = card?.querySelector('p');
+      if (title) title.textContent = 'Floodman Company Workspaces';
+      if (description) description.textContent = 'Uses your current Floodman ERP sign-in. No separate RoomFlow account is needed.';
+    }
+    let legacyCreate = document.getElementById('btn-more-create-company');
+    if (legacyCreate && legacyCreate.dataset.floodmanWorkspace !== '1') {
+      const replacement = legacyCreate.cloneNode(true); replacement.dataset.floodmanWorkspace = '1'; legacyCreate.replaceWith(replacement); legacyCreate = replacement;
+      replacement.addEventListener('click', () => createWorkspace(document.getElementById('more-new-company-name')));
+    }
+    let sharedRefresh = document.getElementById('btn-refresh-shared-jobs');
+    if (sharedRefresh && sharedRefresh.dataset.floodmanWorkspace !== '1') {
+      const replacement = sharedRefresh.cloneNode(true); replacement.dataset.floodmanWorkspace = '1'; sharedRefresh.replaceWith(replacement); sharedRefresh = replacement;
+      replacement.title = 'Refresh jobs from the active Floodman company'; replacement.textContent = 'Refresh Floodman jobs';
+      replacement.addEventListener('click', () => refreshJobs().then(() => setStatus('Floodman RoomFlow jobs refreshed.', 'good')));
+    }
+    window.populateCompanySwitcher = renderWorkspaceControls;
+    renderWorkspaceControls();
     const duplicateInvoice = document.getElementById('btn-create-invoice');
     if (duplicateInvoice) duplicateInvoice.style.display = 'none';
     document.querySelectorAll('[id*="townsquare" i],[class*="townsquare" i]').forEach(node => { node.style.display = 'none'; });
@@ -560,6 +653,7 @@
     const backdrop = document.createElement('div'); backdrop.id = 'fm-roomflow-backdrop';
     const panel = document.createElement('aside'); panel.id = 'fm-roomflow-panel'; panel.setAttribute('aria-hidden', 'true'); panel.setAttribute('aria-label', 'Customer and job file');
     panel.innerHTML = `<header class="fm-rf-panel-header"><div><h2>Customer & job file</h2><p>Link this sketch to one Floodman customer and property, then sync the estimate directly into Floodman ERP.</p></div><button type="button" class="fm-rf-icon-button" id="fm-rf-close-panel" aria-label="Close">×</button></header><div class="fm-rf-panel-body">
+      <section class="fm-rf-card"><h3>Floodman company workspace</h3><p class="fm-rf-card-intro">Your ERP login already authorizes RoomFlow. Choose the company that owns this job, or create another company without making a separate RoomFlow account.</p><div class="fm-rf-field"><label for="fm-rf-workspace-select">Active company</label><select class="fm-rf-select" id="fm-rf-workspace-select"><option value="">Loading company…</option></select></div><div class="fm-rf-inline"><input class="fm-rf-input" id="fm-rf-new-workspace-name" placeholder="New company name"><button class="fm-rf-button secondary" type="button" id="fm-rf-create-workspace">Create company</button></div><p class="fm-rf-card-intro" style="margin-top:8px">Active: <strong id="fm-rf-workspace-label">Loading company…</strong></p></section>
       <section class="fm-rf-card"><h3>1. Customer</h3><p class="fm-rf-card-intro">Search by name, company, email, phone, address, or tag. No thousand-item dropdown.</p><div class="fm-rf-field"><label>Find customer</label><input class="fm-rf-input" id="fm-rf-customer-search" autocomplete="off" placeholder="Start typing a customer…"><div class="fm-rf-results" id="fm-rf-customer-results"></div></div><div id="fm-rf-customer-summary"></div></section>
       <section class="fm-rf-card"><h3>2. Service property</h3><p class="fm-rf-card-intro">Results are filtered to the selected customer.</p><div class="fm-rf-field"><label>Find property</label><input class="fm-rf-input" id="fm-rf-property-search" autocomplete="off" disabled placeholder="Choose a customer first"><div class="fm-rf-results" id="fm-rf-property-results"></div></div><div id="fm-rf-property-summary"></div></section>
       <section class="fm-rf-card"><h3>Customer notes & tags</h3><div class="fm-rf-field"><label>Tags</label><input class="fm-rf-input" id="fm-rf-tags-input" placeholder="Foundation, Repeat Customer, Insurance"><div class="fm-rf-button-row"><button class="fm-rf-button secondary" type="button" id="fm-rf-save-tags">Save tags</button></div></div><div class="fm-rf-field"><label>New note</label><textarea class="fm-rf-textarea" id="fm-rf-note-body" placeholder="Job-site access, customer request, call note…"></textarea></div><div class="fm-rf-field"><label>Note category</label><select class="fm-rf-select" id="fm-rf-note-category"><option>JOB</option><option>CALL</option><option>SERVICE</option><option>BILLING</option><option>GENERAL</option></select></div><label style="display:flex;align-items:center;gap:8px;font-size:12px"><input type="checkbox" id="fm-rf-note-pinned"> Pin this note</label><div class="fm-rf-button-row"><button class="fm-rf-button" type="button" id="fm-rf-add-note">Add note to customer file</button></div><div class="fm-rf-note-list" id="fm-rf-note-list"></div></section>
@@ -570,6 +664,8 @@
     mobileNav.innerHTML = `<button type="button" data-rf-tab="jobs"><b>⌂</b>Jobs</button><button type="button" data-rf-tab="project"><b>▱</b>Sketch</button><button type="button" data-rf-tab="add"><b>＋</b>Add</button><button type="button" data-rf-tab="review"><b>✓</b>Review</button><button type="button" data-rf-panel><b>◎</b>Customer</button>`;
     document.body.append(topbar, backdrop, panel, mobileNav);
     neutralizeLegacyCloudControls();
+    $('#fm-rf-workspace-select')?.addEventListener('change', event => changeWorkspace(event.target.value));
+    $('#fm-rf-create-workspace')?.addEventListener('click', () => createWorkspace($('#fm-rf-new-workspace-name')));
     $('#fm-rf-open-panel')?.addEventListener('click', () => { panelOpen(true); $('#fm-rf-close-panel')?.focus(); }); $('#fm-rf-close-panel')?.addEventListener('click', () => { panelOpen(false); $('#fm-rf-open-panel')?.focus(); }); backdrop.addEventListener('click', () => panelOpen(false));
     $('#fm-rf-customer-search')?.addEventListener('input', event => { clearTimeout(model.searchTimer); model.searchTimer = setTimeout(() => searchCustomers(event.target.value), 220); });
     $('#fm-rf-property-search')?.addEventListener('input', event => { clearTimeout(model.propertyTimer); model.propertyTimer = setTimeout(() => searchProperties(event.target.value), 220); });
@@ -596,6 +692,8 @@
   async function initialize() {
     buildUi();
     for (let i = 0; i < 40 && !window.state; i += 1) await sleep(150);
+    try { await refreshWorkspaceContext(); }
+    catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
     await restoreLink(); await refreshJobs();
     window.setTimeout(() => syncRoomFlowCatalog({ silent: true }).finally(() => renderEstimateScope()), 1800);
     setInterval(() => {

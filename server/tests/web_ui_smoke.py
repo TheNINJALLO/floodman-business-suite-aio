@@ -229,7 +229,7 @@ def static_overlay_contracts() -> None:
         "legacy_css": (ROOT / "roomflow" / "floodman-roomflow.css").read_text(encoding="utf-8"),
         "hub_js": (ROOT / "hub" / "hub.js").read_text(encoding="utf-8"),
         "launcher": (REPO / "launcher" / "mobile-start.sh").read_text(encoding="utf-8"),
-        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.6.8.sh").read_text(encoding="utf-8"),
+        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.6.9.sh").read_text(encoding="utf-8"),
         "nginx": (ROOT / "aio" / "nginx.conf.template").read_text(encoding="utf-8"),
         "office": (ROOT / "office-console" / "app" / "main.py").read_text(encoding="utf-8"),
     }
@@ -237,6 +237,10 @@ def static_overlay_contracts() -> None:
     assert ".fm-pwa-toast-dismiss" in sources["pwa_css"]
     assert "fm-rf-panel-dismissed" in sources["panel_js"]
     assert "event.key === 'Escape'" in sources["panel_js"]
+    assert "No separate RoomFlow account is required" in sources["panel_js"]
+    assert "authOverlay.style.display = 'none'" in sources["panel_js"]
+    assert "btn-more-create-company" in sources["panel_js"] and "changeWorkspace" in sources["panel_js"]
+    assert "/office/api/roomflow/workspaces" in sources["office"]
     assert ":not(.fm-rf-panel-dismissed)" in sources["panel_css"]
     assert "fmrf-close-icon" in sources["legacy_js"] and "aria-label','Close save dialog" in sources["legacy_js"]
     assert "e.key === 'Escape'" in sources["legacy_js"] and "fmrf-modal-open" in sources["legacy_css"]
@@ -297,7 +301,7 @@ def build_browser_app(main: Any) -> Any:
 
     @app.get("/office-health/live")
     def office_health() -> JSONResponse:
-        return JSONResponse({"status": "ok", "version": "4.6.8"})
+        return JSONResponse({"status": "ok", "version": "4.6.9"})
 
     @app.get("/hub-fixture")
     def hub_fixture() -> HTMLResponse:
@@ -305,7 +309,7 @@ def build_browser_app(main: Any) -> Any:
 
     @app.get("/roomflow/")
     def roomflow_fixture() -> HTMLResponse:
-        return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link rel='stylesheet' href='/roomflow/floodman-panel.css'></head><body><main><h1>RoomFlow fixture</h1><canvas id='sketch-canvas' width='320' height='240'></canvas></main><script>window.state={currentJobName:'UI Fixture',costing:{customItems:[]}};window.switchTab=function(){};</script><script src='/roomflow/floodman-panel.js'></script></body></html>""")
+        return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link rel='stylesheet' href='/roomflow/floodman-panel.css'></head><body><main><h1>RoomFlow fixture</h1><canvas id='sketch-canvas' width='320' height='240'></canvas><div class='checklist-room-card'><h3>Active Workspaces</h3><p>Legacy account controls</p><select id='more-company-switcher'><option value=''>Select...</option></select><input id='more-new-company-name'><button id='btn-more-create-company'>Create</button><button onclick='RoomFlowAuth.signOut()'>Log Out from Account</button></div><button id='btn-refresh-shared-jobs'>Refresh Shared Jobs</button></main><div id='auth-overlay' class='hidden' style='display:none'>Separate RoomFlow account required</div><script>window.state={currentJobName:'UI Fixture',costing:{customItems:[]}};window.switchTab=function(){};window.RoomFlowAuth={signOut:function(){}};window.__legacyAccountPrompted=false;document.addEventListener('DOMContentLoaded',function(){document.getElementById('btn-more-create-company').addEventListener('click',function(){window.__legacyAccountPrompted=true;document.getElementById('auth-overlay').style.display='flex';});});</script><script src='/roomflow/floodman-panel.js'></script></body></html>""")
 
     @app.get("/legacy-roomflow")
     def legacy_roomflow_fixture() -> HTMLResponse:
@@ -390,6 +394,12 @@ def browser_smoke(main: Any) -> None:
             page.goto(base + "/roomflow/", wait_until="domcontentloaded")
             panel = page.locator("#fm-roomflow-panel")
             panel.wait_for(state="visible")
+            page.locator("#more-new-company-name").fill("Browser RoomFlow Company")
+            page.locator("#btn-more-create-company").click()
+            page.wait_for_function("document.querySelector('#more-company-switcher')?.value && document.querySelector('#more-company-switcher')?.selectedOptions[0]?.textContent === 'Browser RoomFlow Company'")
+            assert page.evaluate("window.__legacyAccountPrompted") is False
+            assert page.locator("#auth-overlay").evaluate("node => getComputedStyle(node).display") == "none"
+            assert "No separate RoomFlow account is needed" in page.locator("#more-company-switcher").locator("xpath=ancestor::*[contains(@class,'checklist-room-card')][1]").inner_text()
             page.locator("#fm-rf-close-panel").click()
             assert page.locator("html").evaluate("node => node.classList.contains('fm-rf-panel-dismissed')")
             assert panel.get_attribute("aria-hidden") == "true"

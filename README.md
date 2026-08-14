@@ -6,8 +6,8 @@ This repository is the source handoff for the Floodman Operations system develop
 
 | Component | Version | Status |
 |---|---:|---|
-| Floodman server overlay | 4.6.8 | Current cumulative custom source |
-| Pterodactyl launcher | 4.6.8 | Current cumulative launcher |
+| Floodman server overlay | 4.6.9 | Current cumulative custom source |
+| Pterodactyl launcher | 4.6.9 | Current cumulative launcher |
 | Android app | 0.3.0-alpha11 | Source included; rerun the authoritative Gradle workflow |
 | iPhone/iPad app | 0.1.0-alpha02 | Source included; rerun the Xcode simulator workflow before TestFlight |
 | RoomFlow | pinned commit `1f97817a52b916875e50cc6380c0d284072b8ce8` | Fetched separately by script |
@@ -26,7 +26,7 @@ This repository is the source handoff for the Floodman Operations system develop
 
 ## What is included
 
-- Complete Floodman custom server source for v4.6.8
+- Complete Floodman custom server source for v4.6.9
 - Native Android source for alpha11
 - Native iOS source for alpha02
 - Original v3.1.1 AIO build source and current AIO Docker scaffolding

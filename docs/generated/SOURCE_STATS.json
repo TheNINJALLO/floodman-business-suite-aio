@@ -1,18 +1,18 @@
 {
   "generated_at_note": "Generated from the checked-in handoff source; no live customer data was inspected.",
-  "route_count": 314,
+  "route_count": 317,
   "route_counts_by_service": {
     "competitor-intel": 10,
     "local-lab": 46,
     "messaging-ai": 2,
-    "office-console": 223,
+    "office-console": 226,
     "orchestrator": 27,
     "tests": 6
   },
   "environment_variable_count": 180,
   "source_file_count": 571,
-  "source_bytes": 6430689,
-  "text_line_count": 76834,
+  "source_bytes": 6464828,
+  "text_line_count": 77204,
   "file_counts_by_extension": {
     ".1": 1,
     ".code-workspace": 1,
