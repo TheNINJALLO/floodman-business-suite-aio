@@ -215,6 +215,18 @@ struct MoreView: View {
                         GenericListView(title: "Notifications", path: "v1/notifications", primary: ["title"], secondary: ["message", "created_at"])
                     }
                 }
+                Section("App settings") {
+                    LabeledContent("Connection", value: "Secure mobile gateway")
+                    LabeledContent("Business time", value: "Eastern Time (Detroit)")
+                    DisclosureGroup("Installer connection details") {
+                        Text(session.api.apiURL())
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                        Text("Do not change the server address during normal use. The iOS build accepts only a reviewed HTTPS address ending in /mobile-api/.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("Appearance") {
                     Picker("Theme", selection: $session.appearanceMode) {
                         Text("System").tag("SYSTEM")

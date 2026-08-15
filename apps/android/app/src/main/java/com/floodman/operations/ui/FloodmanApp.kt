@@ -1076,6 +1076,12 @@ private fun RoomFlowJobsScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.loadRoomFlowJobs() }
     ScreenContainer("Floodman RoomFlow") {
+        Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Four-step field workflow", fontWeight = FontWeight.Bold)
+            Text("1. Choose the customer  •  2. Choose the service property")
+            Text("3. Sketch and add priced services  •  4. Save the draft")
+            Text("Your Floodman sign-in and company workspace are already connected. No separate RoomFlow account is needed.", style = MaterialTheme.typography.bodySmall)
+        } }
         Button(onClick = { context.startActivity(RoomFlowActivity.intent(context)) }, Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Start a new RoomFlow job")
         }
@@ -1432,7 +1438,7 @@ private fun MoreScreen(viewModel: MainViewModel, nav: NavHostController) {
             Triple("Notifications", "Appointments, assignments, and workflow alerts", "notifications"),
             Triple("RoomFlow jobs", "Shared field-estimating jobs and mappings", "roomflow"),
             Triple("Time clock", "Clock into and out of assigned work", "time"),
-            Triple("App and security", "Connection, appearance, session, and device information", "settings"),
+            Triple("App settings", "Appearance, calendar, connection, and device security", "settings"),
         )
         entries.forEach { (title, description, route) ->
             Card(onClick = { nav.navigate(route) }, Modifier.fillMaxWidth()) {
@@ -1456,23 +1462,15 @@ private fun SettingsScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     val config = viewModel.config
     var apiUrl by remember(viewModel.apiBaseUrl) { mutableStateOf(viewModel.apiBaseUrl) }
-    ScreenContainer("App and security") {
+    var showAdvancedConnection by remember { mutableStateOf(false) }
+    ScreenContainer("App settings") {
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Floodman Operations", fontWeight = FontWeight.Bold)
-                Text("Android ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                Text("API: ${viewModel.apiBaseUrl}")
+                Text("Your Floodman connection", fontWeight = FontWeight.Bold)
                 Text("Company: ${config?.company ?: "Floodman"}")
-                Text("Time zone: ${config?.timeZone ?: "America/Detroit"}")
-                Text("Connection: public HTTPS mobile gateway")
-            }
-        }
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Mobile API address", fontWeight = FontWeight.Bold)
-                OutlinedTextField(apiUrl, { apiUrl = it }, Modifier.fillMaxWidth(), label = { Text("HTTPS endpoint ending in /mobile-api") })
-                OutlinedButton(onClick = { viewModel.updateApiBaseUrl(apiUrl) }, Modifier.fillMaxWidth(), enabled = apiUrl.trim() != viewModel.apiBaseUrl) { Text("Save API address and sign out") }
-                Text("Use this when Floodman moves from the temporary Tailscale Funnel hostname to api.floodman.com.", style = MaterialTheme.typography.bodySmall)
+                Text("Business time: Eastern Time (Detroit)")
+                Text("Status: Secure mobile connection")
+                Text("Android ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall)
             }
         }
         Card {
@@ -1483,6 +1481,19 @@ private fun SettingsScreen(viewModel: MainViewModel) {
                     onClick = { viewModel.createCalendarSubscription { url -> openUrl(context, url) } },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Create and open calendar feed") }
+            }
+        }
+        OutlinedButton(onClick = { showAdvancedConnection = !showAdvancedConnection }, Modifier.fillMaxWidth()) {
+            Text(if (showAdvancedConnection) "Hide installer connection setting" else "Installer: change server connection")
+        }
+        if (showAdvancedConnection) {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Mobile API address", fontWeight = FontWeight.Bold)
+                    Text("Do not change this during normal use. A new address signs this device out so it can verify the new server.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(apiUrl, { apiUrl = it }, Modifier.fillMaxWidth(), label = { Text("Secure HTTPS address ending in /mobile-api") }, singleLine = true)
+                    OutlinedButton(onClick = { viewModel.updateApiBaseUrl(apiUrl) }, Modifier.fillMaxWidth(), enabled = apiUrl.trim() != viewModel.apiBaseUrl) { Text("Save new address and sign out") }
+                }
             }
         }
         Card {

@@ -40,8 +40,12 @@ from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_depo
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
 from .roomflow_supabase import (
+    DEFAULT_ROOMFLOW_SUPABASE_ANON_KEY,
+    DEFAULT_ROOMFLOW_SUPABASE_URL,
+    RoomFlowSupabaseError,
     create_roomflow_workspace,
     ensure_roomflow_workspaces,
+    import_roomflow_supabase,
     select_roomflow_workspace,
     selected_roomflow_workspace_id,
     workspace_public,
@@ -796,6 +800,92 @@ def _merge_archive_state(value: dict[str, Any]) -> dict[str, Any]:
     )
     return state
 
+@app.get("/office/settings")
+def settings_workspace() -> HTMLResponse:
+    """Give owners one plain-language home for every staff-visible setting."""
+    _require("connections.manage")
+    snapshot = store.snapshot()
+    profile = snapshot.get("profile") or {}
+    checklist = snapshot.get("checklist") or {}
+    connections = snapshot.get("connections") or {}
+    active_members = [item for item in store.list_users() if item.get("status") == "ACTIVE"]
+    catalog_count = len(store.records("catalog_items"))
+    workspace_count = len(store.records("roomflow_workspaces"))
+    import_count = len(store.list_imports())
+    payment_config = providers.square_payment_configuration()
+
+    business_ready = len(str(profile.get("company_name") or "").strip()) >= 2 and bool(profile.get("office_email"))
+    catalog_ready = catalog_count > 0
+    payment_ready = bool(payment_config.get("local_mock") or payment_config.get("live"))
+    roomflow_ready = True  # The default workspace is created safely on first RoomFlow open.
+    review_ready = bool(checklist.get("setup_complete"))
+    core_checks = (business_ready, bool(active_members), catalog_ready, roomflow_ready, payment_ready, review_ready)
+    ready_count = sum(1 for value in core_checks if value)
+    ready_percent = round(ready_count / len(core_checks) * 100)
+
+    def card(
+        number: str,
+        title: str,
+        description: str,
+        summary: str,
+        href: str,
+        action: str,
+        *,
+        ready: bool | None = None,
+    ) -> str:
+        state = badge("READY", "good") if ready is True else badge("NEEDS ATTENTION", "warn") if ready is False else badge("OPTIONAL", "neutral")
+        return (
+            "<article class='card settings-card'>"
+            f"<div class='settings-card-head'><span class='settings-card-number'>{esc(number)}</span>{state}</div>"
+            f"<h3>{esc(title)}</h3><p>{esc(description)}</p>"
+            f"<div class='settings-summary'>{esc(summary)}</div>"
+            f"<div class='actions'><a class='button {'good' if ready is False else 'secondary'}' href='{esc(href)}'>{esc(action)}</a></div>"
+            "</article>"
+        )
+
+    connection_failures = sum(1 for item in connections.values() if str(item.get("status") or "").upper() == "FAILED")
+    connection_summary = (
+        "Not tested yet"
+        if not connections
+        else f"{len(connections) - connection_failures} passing · {connection_failures} need attention"
+    )
+    roomflow_summary = (
+        f"{workspace_count} company workspace{'s' if workspace_count != 1 else ''} · {len(store.records('roomflow_jobs'))} saved jobs"
+        if workspace_count
+        else "Your company workspace will be created automatically on first open"
+    )
+    payment_summary = (
+        "Safe local test mode is ready"
+        if payment_config.get("local_mock")
+        else "Production processor is connected"
+        if payment_config.get("live")
+        else "Processor setup is incomplete"
+    )
+    daily_cards = "".join(
+        (
+            card("1", "Business details", "Set the name and contact details customers see. Eastern Time (Detroit) remains the safe business default.", f"Company: {profile.get('company_name') or 'Not set'} · Office email: {profile.get('office_email') or 'Not set'}", "/setup#company-profile", "Review business details", ready=business_ready),
+            card("2", "Team and access", "Add staff through the main ERP, then give each person only the access needed for their job.", f"{len(active_members)} active team member{'s' if len(active_members) != 1 else ''}", "/office/members", "Review team access", ready=bool(active_members)),
+            card("3", "Services and prices", "Keep one reusable service list for office estimates, invoices, and RoomFlow field estimates.", f"{catalog_count} reusable service{'s' if catalog_count != 1 else ''}", "/office/catalog", "Review services and prices", ready=catalog_ready),
+            card("4", "RoomFlow", "Use the same ERP sign-in, choose a customer and property, build the scope, and save it back to Floodman.", roomflow_summary, "/office/roomflow", "Open RoomFlow", ready=roomflow_ready),
+        )
+    )
+    owner_cards = "".join(
+        (
+            card("5", "Card payments", "Confirm whether payments are in safe test mode or connected to the production processor. Card details are never entered here.", payment_summary, "/office/payment-settings", "Check payment readiness", ready=payment_ready),
+            card("6", "Documents and signing", "Review customer PDFs, signing templates, and the local test workflow before sending production agreements.", "Signing review complete" if checklist.get("legal_reviewed") else "Production documents still need review", "/office/signing", "Review documents and signing", ready=bool(checklist.get("legal_reviewed"))),
+            card("7", "Bring in existing customers", "Preview a customer CSV or business archive before Floodman writes any records. Skip this when starting fresh.", f"{import_count} import preview{'s' if import_count != 1 else ''}", "/office/imports", "Open safe import", ready=None),
+            card("8", "Advanced connections", "For the server owner or installer: test provider health and download configuration values. Daily staff do not need this page.", connection_summary, "/office/linking", "Open advanced connections", ready=(bool(connections) and connection_failures == 0)),
+        )
+    )
+    body = f"""
+<section class='card settings-hero'><div class='settings-hero-copy'><span class='settings-eyebrow'>OWNER START HERE</span><h2>Set up Floodman in the order people actually use it</h2><p>Complete the four everyday choices first. Technical provider addresses and server secrets stay in a separate advanced area, so office and field staff never have to guess what an infrastructure setting means.</p></div><div class='settings-progress'><strong>{ready_count}/{len(core_checks)}</strong><small>recommended areas ready</small><div class='progress' style='margin-top:10px'><span style='width:{ready_percent}%'></span></div></div></section>
+<div class='settings-section-head'><div><h2>Everyday setup</h2><p>Most businesses only need these four areas to begin working.</p></div><a class='button good' href='/setup'>Open go-live checklist</a></div><div class='settings-grid'>{daily_cards}</div>
+<div class='settings-section-head'><div><h2>Owner-only setup</h2><p>Review these when you are preparing imports, payments, documents, or external providers.</p></div></div><div class='settings-grid'>{owner_cards}</div>
+<div class='callout success'><b>Nothing here changes a live database or turns on customer communication by itself.</b> Imports always preview first, production payments require server credentials, and the final go-live checklist only records your review.</div>
+"""
+    return _page("Settings & Setup", body, "settings")
+
+
 @app.get("/setup")
 async def setup_page() -> HTMLResponse:
     if not store.has_users():
@@ -836,35 +926,32 @@ async def setup_page() -> HTMLResponse:
     ) or "<div class='callout'>Run the connection test after the containers are up.</div>"
 
     body = f"""
-<div class='callout success'><b>The Floodman server is installed and running.</b> This page is an operating and go-live review checklist, not a container-installation progress screen. You can use the dashboard while the review remains pending.</div>
-<div class='card'><h2>Configuration review</h2><div class='progress'><span style='width:{percentage}%'></span></div>
-<div class='steps'>{step_html}</div><p class='muted'>{done} of {total} review areas acknowledged. Company identity and the America/Detroit time zone are synchronized from the Pterodactyl Startup settings.</p></div>
-<div class='card'><h2>1. Company profile</h2>
+<div class='callout success'><b>Floodman is installed and ready to use.</b> This checklist helps the owner confirm business details and test workflows. It never blocks the dashboard and does not turn on live payments, texts, or contracts.</div>
+<div class='card'><div class='actions spread'><div><h2>Go-live progress</h2><p class='muted'>{done} of {total} areas reviewed. Work from top to bottom; you can leave and return at any time.</p></div><a class='button secondary' href='/office/settings'>Back to Settings &amp; Setup</a></div><div class='progress'><span style='width:{percentage}%'></span></div><div class='steps'>{step_html}</div></div>
+<div class='card' id='company-profile'><div class='settings-eyebrow'>STEP 1 · REQUIRED</div><h2>Business details customers will recognize</h2><p class='muted'>Use the everyday company name on estimates and messages. Legal, billing, and address fields can be filled in now or later.</p>
 <form method='post' action='/setup/profile'><div class='form-grid'>
-<div class='field'><label>Display name</label><input name='company_name' value='{esc(profile.get('company_name'))}' required></div>
-<div class='field'><label>Legal company name</label><input name='legal_name' value='{esc(profile.get('legal_name'))}'></div>
-<div class='field'><label>Office email</label><input type='email' name='office_email' value='{esc(profile.get('office_email'))}' placeholder='office@floodman.com'></div>
-<div class='field'><label>Billing email</label><input type='email' name='billing_email' value='{esc(profile.get('billing_email'))}' placeholder='billing@floodman.com'></div>
-<div class='field'><label>Office phone</label><input name='office_phone' value='{esc(profile.get('office_phone'))}' placeholder='+1 313 555 0100'></div>
-<div class='field'><label>Timezone</label><input name='timezone' value='{esc(profile.get('timezone'))}'></div>
-<div class='field full'><label>Street</label><input name='street' value='{esc(profile.get('street'))}'></div>
-<div class='field'><label>City</label><input name='city' value='{esc(profile.get('city'))}'></div>
-<div class='field'><label>State</label><input name='state' value='{esc(profile.get('state'))}'></div>
-<div class='field'><label>Postal code</label><input name='postal_code' value='{esc(profile.get('postal_code'))}'></div>
-</div><div class='actions' style='margin-top:14px'><button>Save company profile</button></div></form></div>
-<div class='card'><h2>2. Linked services</h2><p>The full local system includes local provider sandboxes plus the genuine clean Floodman ERP, Documenso signing application, Mailpit inbox, AI messaging, and competitor intelligence. Test every connection here before moving to external sandbox accounts.</p>
-<div class='grid'>{connection_cards}</div><div class='actions'><form method='post' action='/setup/test-connections'><button>Test all connections</button></form><a class='button secondary' href='/office/linking'>Open connection guide</a></div></div>
-<div class='card'><h2>3. Migration and imports</h2><p>Upload normalized contacts, properties, estimates, estimate lines, invoices, payments, documents, notes, and referenced files. Validation runs before any record is written.</p>
-<div class='actions'><a class='button' href='/office/imports'>Open Import Center</a><a class='button secondary' href='/office/imports/sample.zip'>Download sample import</a><a class='button secondary' href='/office/imports/templates.zip'>Download blank templates</a></div></div>
-<div class='card'><h2>4. Documents and messaging review</h2><form method='post' action='/setup/checklist' class='checks'>
-<label><input type='checkbox' name='legal_reviewed' value='true' {'checked' if checklist.get('legal_reviewed') else ''}> I reviewed the Work Authorization, Change Order, and Completion of Service test workflow. Local templates are not approved production contracts.</label>
-<label><input type='checkbox' name='messaging_reviewed' value='true' {'checked' if checklist.get('messaging_reviewed') else ''}> I reviewed SMS consent, STOP/START, AI escalation, immediate-due invoicing, and past-due reminders.</label>
-<label><input type='checkbox' name='import_reviewed' value='true' {'checked' if checklist.get('import_reviewed') else ''}> I reviewed the migration format, even if I am not importing records yet.</label>
-<button>Save review checklist</button></form></div>
-<div class='card'><h2>5. Finish configuration review</h2><p>Finishing changes the status badge from <b>Setup review pending</b> to <b>Setup review complete</b>. It does not activate production payments, texts, or contracts.</p>
-<form method='post' action='/setup/finish'><button class='good'>Finish local setup</button></form></div>
+<div class='field'><label>Company display name <span class='required-mark'>Required</span></label><input name='company_name' value='{esc(profile.get('company_name'))}' minlength='2' maxlength='160' autocomplete='organization' required><small class='field-help'>The short name staff and customers normally use.</small></div>
+<div class='field'><label>Legal company name <span class='muted'>Optional</span></label><input name='legal_name' value='{esc(profile.get('legal_name'))}' maxlength='200' autocomplete='organization'><small class='field-help'>Only needed when it differs from the display name.</small></div>
+<div class='field'><label>Main office email <span class='muted'>Optional</span></label><input type='email' name='office_email' value='{esc(profile.get('office_email'))}' placeholder='office@example.com' autocomplete='email'><small class='field-help'>General replies and office contact.</small></div>
+<div class='field'><label>Billing email <span class='muted'>Optional</span></label><input type='email' name='billing_email' value='{esc(profile.get('billing_email'))}' placeholder='billing@example.com' autocomplete='email'><small class='field-help'>Use the office email when there is no separate billing inbox.</small></div>
+<div class='field'><label>Main phone <span class='muted'>Optional</span></label><input type='tel' name='office_phone' value='{esc(profile.get('office_phone'))}' placeholder='(313) 555-0100' autocomplete='tel' maxlength='40'></div>
+<div class='field'><label>Business time zone</label><select name='timezone'><option value='America/Detroit' selected>Eastern Time (Detroit)</option></select><small class='field-help'>Recommended and required for Floodman scheduling; timestamps are stored safely in UTC.</small></div>
+<div class='field full'><label>Office street address <span class='muted'>Optional</span></label><input name='street' value='{esc(profile.get('street'))}' maxlength='240' autocomplete='street-address'></div>
+<div class='field'><label>City <span class='muted'>Optional</span></label><input name='city' value='{esc(profile.get('city'))}' maxlength='120' autocomplete='address-level2'></div>
+<div class='field'><label>State</label><input name='state' value='{esc(profile.get('state') or 'MI')}' maxlength='2' pattern='[A-Za-z]{{2}}' autocomplete='address-level1' inputmode='text'><small class='field-help'>Two-letter abbreviation, such as MI.</small></div>
+<div class='field'><label>ZIP code <span class='muted'>Optional</span></label><input name='postal_code' value='{esc(profile.get('postal_code'))}' maxlength='10' pattern='[0-9]{{5}}(-[0-9]{{4}})?' autocomplete='postal-code' inputmode='numeric'></div>
+</div><div class='actions' style='margin-top:14px'><button class='good'>Save business details</button></div></form></div>
+<div class='card'><div class='settings-eyebrow'>STEP 2 · OWNER OR INSTALLER</div><h2>Check connected services</h2><p>One button checks whether the local ERP, RoomFlow bridge, signing, payments, email, messaging, and research services can answer. It does not send anything to a customer.</p>
+<details class='plain-details'><summary>Show individual service results</summary><div class='grid' style='margin-top:12px'>{connection_cards}</div></details><div class='actions' style='margin-top:14px'><form method='post' action='/setup/test-connections'><button>Run safe connection check</button></form><a class='button secondary' href='/office/linking'>Installer connection details</a></div></div>
+<div class='card'><div class='settings-eyebrow'>STEP 3 · OPTIONAL</div><h2>Bring in existing customer information</h2><p>Starting fresh? You can simply mark this reviewed. If you have a customer CSV or archive ZIP, Floodman shows a preview and validation report before it writes any records.</p><div class='actions'><a class='button' href='/office/imports'>Preview an import</a><a class='button secondary' href='/office/imports/customers/template.csv'>Download customer template</a></div></div>
+<div class='card'><div class='settings-eyebrow'>STEP 4 · REVIEW</div><h2>Confirm your operating choices</h2><p class='muted'>Check an item only after the owner understands it. These acknowledgements do not activate the feature.</p><form method='post' action='/setup/checklist' class='checks'>
+<label><input type='checkbox' name='legal_reviewed' value='true' {'checked' if checklist.get('legal_reviewed') else ''}><span><b>Customer documents:</b> I tested Work Authorization, Change Order, and Completion of Service. I understand local templates must be approved before production use.</span></label>
+<label><input type='checkbox' name='messaging_reviewed' value='true' {'checked' if checklist.get('messaging_reviewed') else ''}><span><b>Customer communication:</b> I reviewed text consent and STOP/START behavior, staff escalation, invoices, and past-due reminders.</span></label>
+<label><input type='checkbox' name='import_reviewed' value='true' {'checked' if checklist.get('import_reviewed') else ''}><span><b>Existing data:</b> I previewed the import format, or I am starting fresh and do not need an import.</span></label>
+<button>Save these choices</button></form></div>
+<div class='card'><div class='settings-eyebrow'>FINAL STEP</div><h2>Mark the owner review complete</h2><p>This changes only the setup badge. Live payment, messaging, and signing credentials still require deliberate server configuration.</p><form method='post' action='/setup/finish'><button class='good'>Mark go-live review complete</button></form></div>
 """
-    return _page("Guided Setup", body, "setup")
+    return _page("Go-Live Checklist", body, "setup")
 
 
 @app.post("/setup/profile")
@@ -881,18 +968,42 @@ def save_profile(
     postal_code: str = Form(default=""),
 ) -> RedirectResponse:
     _require("connections.manage")
+    company_name = company_name.strip()
+    office_email = office_email.strip().lower()
+    billing_email = billing_email.strip().lower()
+    if len(company_name) < 2:
+        store.set_notice("Enter a company display name with at least two characters.")
+        return RedirectResponse("/setup#company-profile", status_code=303)
+    if timezone.strip() != "America/Detroit":
+        store.set_notice("Floodman business scheduling must use Eastern Time (Detroit).")
+        return RedirectResponse("/setup#company-profile", status_code=303)
+    email_pattern = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    if office_email and not email_pattern.fullmatch(office_email):
+        store.set_notice("Enter a valid main office email address, or leave it blank.")
+        return RedirectResponse("/setup#company-profile", status_code=303)
+    if billing_email and not email_pattern.fullmatch(billing_email):
+        store.set_notice("Enter a valid billing email address, or leave it blank.")
+        return RedirectResponse("/setup#company-profile", status_code=303)
+    state_value = state.strip().upper() or "MI"
+    if not re.fullmatch(r"[A-Z]{2}", state_value):
+        store.set_notice("Use the two-letter state abbreviation, such as MI.")
+        return RedirectResponse("/setup#company-profile", status_code=303)
+    postal_value = postal_code.strip()
+    if postal_value and not re.fullmatch(r"\d{5}(?:-\d{4})?", postal_value):
+        store.set_notice("Enter a five-digit ZIP code, optionally followed by four digits.")
+        return RedirectResponse("/setup#company-profile", status_code=303)
     store.update_profile(
         {
-            "company_name": company_name.strip(),
+            "company_name": company_name,
             "legal_name": legal_name.strip(),
-            "office_email": office_email.strip(),
-            "billing_email": billing_email.strip(),
+            "office_email": office_email,
+            "billing_email": billing_email,
             "office_phone": office_phone.strip(),
-            "timezone": timezone.strip() or "America/Detroit",
+            "timezone": "America/Detroit",
             "street": street.strip(),
             "city": city.strip(),
-            "state": state.strip(),
-            "postal_code": postal_code.strip(),
+            "state": state_value,
+            "postal_code": postal_value,
         }
     )
     return RedirectResponse("/setup", status_code=303)
@@ -1117,31 +1228,34 @@ async def linking_page() -> HTMLResponse:
     connections = snapshot.get("connections") or {}
     config = snapshot.get("link_config") or {}
     rows = []
+    advanced_rows = []
     definitions = [
-        ("RoomFlow", "roomflow", settings.roomflow_sync_endpoint, "Server-side HMAC integration"),
-        ("Floodman ERP workflow bridge", "gauzy_workflow_bridge", settings.gauzy_base_url, "Safe local workflow adapter"),
-        ("Floodman ERP", "gauzy_full_ui", settings.gauzy_web_url, "All upstream Floodman ERP modules"),
-        ("Floodman Payments", "square", settings.square_base_url, "Secure card processing, payments and webhooks"),
-        ("Signing workflow bridge", "documenso_workflow_bridge", settings.documenso_base_url, "Floodman document workflow adapter"),
-        ("Full Documenso", "documenso_full_ui", settings.documenso_web_url, "Templates, signing fields and audit UI"),
-        ("Twilio", "twilio", settings.twilio_base_url, "Two-way SMS and delivery callbacks"),
-        ("SMTP capture", "smtp", f"{settings.smtp_host}:{settings.smtp_port}", "Workflow email transport"),
-        ("Local email inbox", "mailpit", settings.mailpit_url, "View captured local email"),
-        ("Messaging AI", "messaging_ai", settings.messaging_ai_url, f"Provider: {settings.messaging_ai_provider}"),
-        ("Competitor Intelligence", "competitor_intelligence", settings.competitor_url, "Scheduled public-site monitoring"),
+        ("RoomFlow", "roomflow", settings.roomflow_sync_endpoint, "Saves field layouts and estimates into Floodman"),
+        ("Floodman ERP workflow", "gauzy_workflow_bridge", settings.gauzy_base_url, "Keeps customer, project, estimate, invoice, and payment records together"),
+        ("Floodman ERP screen", "gauzy_full_ui", settings.gauzy_web_url, "Opens the full employee and business-management system"),
+        ("Card payments", "square", settings.square_base_url, "Processes test or production card payments without storing card numbers"),
+        ("Document workflow", "documenso_workflow_bridge", settings.documenso_base_url, "Sends PDFs into the signing process"),
+        ("Signing application", "documenso_full_ui", settings.documenso_web_url, "Manages reusable documents, signing fields, and history"),
+        ("Customer texts", "twilio", settings.twilio_base_url, "Handles approved two-way text messages and delivery results"),
+        ("Outgoing email", "smtp", f"{settings.smtp_host}:{settings.smtp_port}", "Sends workflow email or captures it safely during testing"),
+        ("Test email inbox", "mailpit", settings.mailpit_url, "Shows locally captured messages without contacting customers"),
+        ("Message assistant", "messaging_ai", settings.messaging_ai_url, f"Drafting policy: {settings.messaging_ai_provider}"),
+        ("Market research", "competitor_intelligence", settings.competitor_url, "Checks approved public sites for useful business changes"),
     ]
     for label, key, endpoint, purpose in definitions:
         result = connections.get(key) or {"status": "NOT TESTED", "detail": "Run connection test"}
-        rows.append([esc(label), badge(result.get("status")), f"<span class='mono'>{esc(endpoint)}</span>", esc(purpose)])
-    connection_table = table(("Service", "Status", "Endpoint", "Responsibility"), rows)
+        rows.append([esc(label), badge(result.get("status")), esc(purpose)])
+        advanced_rows.append([esc(label), f"<span class='mono'>{esc(endpoint)}</span>", esc(result.get("detail") or "")])
+    connection_table = table(("Service", "Status", "What it does"), rows)
+    endpoint_table = table(("Service", "Server address", "Last result"), advanced_rows)
     mode_options = lambda current: "".join(
         f"<option value='{value}' {'selected' if current == value else ''}>{label}</option>"
         for value, label in (("FULL_LOCAL", "Full local application"), ("LOCAL_MOCK", "Local simulator"), ("SANDBOX", "Provider sandbox"), ("PRODUCTION", "Production later"))
     )
     body = f"""
-<div class='callout'><b>Full local operations mode:</b> the Floodman ERP and Documenso applications run beside the Floodman-safe payment, messaging, signing-workflow and webhook simulators. Secrets stay in <code>.env.windows</code>, never in this browser form.</div>
-<div class='card'><h2>Running services</h2>{connection_table}<div class='actions' style='margin-top:14px'><form method='post' action='/setup/test-connections'><button>Test all connections</button></form><a class='button' href='/office/apps'>Open all applications</a><a class='button secondary' href='/office/linking/checklist.txt'>Download checklist</a></div></div>
-<div class='card'><h2>Connection plan</h2><form method='post' action='/office/linking/plan'><div class='form-grid'>
+<div class='callout advanced-banner'><b>Installer area:</b> everyday staff do not need to change anything on this page. Use <a href='/office/settings'>Settings &amp; Setup</a> for normal business choices. This page never displays or accepts provider passwords, access tokens, or card credentials.</div>
+<div class='card'><div class='actions spread'><div><h2>Are Floodman services answering?</h2><p class='muted'>The check is safe: it reads service health and does not send customer messages, charge a card, or change production data.</p></div><form method='post' action='/setup/test-connections'><button class='good'>Run connection check</button></form></div><div class='connection-simple-table'>{connection_table}</div><div class='actions' style='margin-top:14px'><a class='button' href='/office/apps'>Open applications</a><a class='button secondary' href='/office/linking/checklist.txt'>Download installer checklist</a></div></div>
+<details class='card plain-details'><summary>Advanced: server addresses and connection plan</summary><div style='margin-top:14px'>{endpoint_table}</div><p class='muted'>Change these planning values only when an installer gives you reviewed replacements. Saving this form records a plan; the server owner must still apply secrets outside the browser.</p><form method='post' action='/office/linking/plan'><div class='form-grid'>
 <div class='field full'><label>RoomFlow web address</label><input type='url' name='roomflow_url' value='{esc(config.get('roomflow_url'))}'></div>
 <div class='field'><label>Floodman ERP mode</label><select name='gauzy_mode'>{mode_options(config.get('gauzy_mode'))}</select></div><div class='field'><label>Floodman ERP API base URL</label><input name='gauzy_base_url' value='{esc(config.get('gauzy_base_url'))}'></div>
 <div class='field'><label>Payment processor mode</label><select name='square_mode'>{mode_options(config.get('square_mode'))}</select></div><div class='field'><label>Payment processor API base URL</label><input name='square_base_url' value='{esc(config.get('square_base_url'))}'></div>
@@ -1151,13 +1265,13 @@ async def linking_page() -> HTMLResponse:
 <div class='field'><label>Twilio Messaging Service SID</label><input name='twilio_messaging_service_sid' value='{esc(config.get('twilio_messaging_service_sid'))}'></div><div class='field'><label>SMTP mode</label><select name='smtp_mode'><option value='LOCAL_CAPTURE' {'selected' if config.get('smtp_mode') == 'LOCAL_CAPTURE' else ''}>Local capture</option><option value='SANDBOX' {'selected' if config.get('smtp_mode') == 'SANDBOX' else ''}>Test mailbox</option><option value='PRODUCTION' {'selected' if config.get('smtp_mode') == 'PRODUCTION' else ''}>Production later</option></select></div>
 <div class='field'><label>SMTP host</label><input name='smtp_host' value='{esc(config.get('smtp_host'))}'></div><div class='field'><label>SMTP port</label><input type='number' name='smtp_port' value='{esc(config.get('smtp_port'))}'></div>
 <div class='field'><label>Messaging AI provider</label><select name='messaging_ai_provider'><option value='deterministic' {'selected' if config.get('messaging_ai_provider') == 'deterministic' else ''}>Deterministic local policy</option><option value='openai' {'selected' if config.get('messaging_ai_provider') == 'openai' else ''}>OpenAI after approval</option></select></div>
-</div><div class='actions' style='margin-top:14px'><button>Save plan</button><a class='button secondary' href='/office/linking/env-snippet.txt'>Download .env snippet</a></div></form></div>
+</div><div class='actions' style='margin-top:14px'><button>Save reviewed connection plan</button><a class='button secondary' href='/office/linking/env-snippet.txt'>Download server configuration template</a></div></form></details>
 <div class='card'><h2>Application launch</h2><div class='actions'><a class='button' href='{esc(settings.gauzy_web_url)}' target='_blank'>Floodman ERP</a><a class='button' href='{esc(settings.documenso_web_url)}' target='_blank'>Documenso</a><a class='button' href='{esc(settings.roomflow_url)}' target='_blank'>RoomFlow</a><a class='button secondary' href='{esc(settings.mailpit_url)}' target='_blank'>Mailpit</a><a class='button secondary' href='{esc(settings.engineering_public_url)}/lab' target='_blank'>Engineering Sandbox</a></div><p class='muted'>Start everything with <code>Start-Floodman-Full-System.cmd</code>.</p></div>
-<div class='card'><h2>RoomFlow server bridge</h2><p>The HMAC secret belongs in the authenticated Supabase Edge Function or another server-side worker, never browser JavaScript.</p><pre>FLOODMAN_ORCHESTRATOR_URL={settings.api_public_url}
+<details class='card plain-details'><summary>Advanced: RoomFlow server bridge values</summary><p>The HMAC secret belongs in the authenticated Supabase Edge Function or another server-side worker, never browser JavaScript.</p><pre>FLOODMAN_ORCHESTRATOR_URL={settings.api_public_url}
 FLOODMAN_ORCHESTRATOR_KEY_ID=v1
-FLOODMAN_ORCHESTRATOR_HMAC_SECRET=&lt;base64 secret from .env.windows&gt;</pre></div>
+FLOODMAN_ORCHESTRATOR_HMAC_SECRET=&lt;base64 secret from server configuration&gt;</pre></details>
 """
-    return _page("Connections", body, "linking")
+    return _page("Advanced Connections", body, "linking")
 
 
 @app.post("/office/linking/plan")
@@ -1179,6 +1293,17 @@ def save_link_plan(
     smtp_port: int = Form(default=1025),
     messaging_ai_provider: str = Form(default="deterministic"),
 ) -> RedirectResponse:
+    _require("connections.manage")
+    mode_values = {"FULL_LOCAL", "LOCAL_MOCK", "SANDBOX", "PRODUCTION"}
+    if any(value not in mode_values for value in (gauzy_mode, square_mode, documenso_mode, twilio_mode)):
+        store.set_notice("Choose one of the listed connection modes.")
+        return RedirectResponse("/office/linking", status_code=303)
+    if smtp_mode not in {"LOCAL_CAPTURE", "SANDBOX", "PRODUCTION"}:
+        store.set_notice("Choose one of the listed email modes.")
+        return RedirectResponse("/office/linking", status_code=303)
+    if messaging_ai_provider not in {"deterministic", "openai"}:
+        store.set_notice("Choose one of the listed message-assistant policies.")
+        return RedirectResponse("/office/linking", status_code=303)
     store.update_link_config(
         {
             "roomflow_url": roomflow_url.strip(), "gauzy_mode": gauzy_mode, "gauzy_base_url": gauzy_base_url.strip(),
@@ -1295,12 +1420,13 @@ def imports_page() -> HTMLResponse:
         "No imports have been uploaded.",
     )
     body = f"""
-<div class='callout success'><b>Upload either format:</b> Floodman accepts your customer <code>.csv</code> directly and complete historical <code>.zip</code> archives. A ZIP containing only one customer CSV is also detected automatically.</div>
+<div class='callout success'><b>Your original file is never changed.</b> Floodman first opens a private preview, explains anything that needs correction, and waits for your confirmation before saving records.</div>
+<div class='role-guide'><div><b>1. Choose your file</b><small>Use the customer CSV you already have, or a complete business archive ZIP.</small></div><div><b>2. Review the preview</b><small>Floodman lists matched customers, new records, warnings, and files before writing.</small></div><div><b>3. Confirm the import</b><small>Only an owner-approved confirmation saves the validated records.</small></div></div>
 <div class='card import-upload-card'>
-  <div class='import-upload-copy'><span class='mobile-hero-kicker'>AUTO-DETECT IMPORT</span><h2>Customer CSV or business archive ZIP</h2><p>Choose the exact <b>Clients.csv</b> export you already have, or choose a ZIP containing contacts, properties, estimates, invoices, payments, documents, notes, and attachments. Floodman detects the format before writing anything.</p></div>
+  <div class='import-upload-copy'><span class='mobile-hero-kicker'>SAFE PREVIEW</span><h2>Choose a customer CSV or business archive ZIP</h2><p>Choose the exact <b>Clients.csv</b> export you already have, or a ZIP with complete business history. Floodman recognizes the format for you.</p></div>
   <form method='post' action='/office/imports/upload-any' enctype='multipart/form-data' class='import-upload-form'>
     <label class='file-drop-field'><span class='file-drop-icon'>⇩</span><b>Select a CSV or ZIP file</b><small>Accepted: .csv and .zip · Maximum request size 50 MB through the Hub</small><input type='file' name='import_file' accept='.csv,.zip,text/csv,application/zip,application/x-zip-compressed' required></label>
-    <button class='good'>Preview and validate</button>
+    <button class='good'>Open safe preview</button>
   </form>
   <div class='import-format-grid'>
     <div><b>Customer CSV</b><span>Creates or matches customer files and service properties. No emails, texts, invoices, charges, or reminders are sent.</span></div>
@@ -1309,7 +1435,7 @@ def imports_page() -> HTMLResponse:
   <div class='actions'><a class='button secondary' href='/office/imports/customers/template.csv'>Customer CSV template</a><a class='button secondary' href='/office/imports/templates.zip'>Archive templates ZIP</a><a class='button secondary' href='/office/imports/sample.zip'>Sample archive ZIP</a></div>
 </div>
 <div class='card'><h2>Import history</h2>{history}</div>
-<div class='card'><h2>Import safeguards</h2><p>Original customer IDs, names, company, email, phone, service address, notes, lead source, properties, estimate revisions, invoices, payments, PDFs, signed documents, timestamps, and provider references are retained whenever available. Historical balances remain archive values and are not enrolled in payment reminders automatically.</p></div>
+<details class='card plain-details'><summary>What Floodman keeps and how duplicates are prevented</summary><p>Original customer IDs, names, company, email, phone, service address, notes, lead source, properties, estimate revisions, invoices, payments, PDFs, signed documents, timestamps, and provider references are retained whenever available. Stable source identifiers update an existing imported record instead of duplicating it. Historical balances remain archive values and are not enrolled in payment reminders automatically.</p></details>
 """
     return _page("Import CSV or ZIP", body, "imports")
 
@@ -3715,8 +3841,20 @@ def payment_settings_page() -> HTMLResponse:
     _require("connections.manage")
     config = providers.square_payment_configuration()
     status = "TEST MODE" if config.get("local_mock") else "READY" if config.get("live") else "SETUP REQUIRED"
-    body = f"""<div class='grid two'><div class='card'><h2>Floodman Payments</h2><p><b>Status:</b> {badge(status)}</p><p><b>Environment:</b> {esc(config.get('environment'))}</p><p><b>Application ID:</b> {esc('Configured' if config.get('application_id') else 'Missing')}</p><p><b>Location:</b> {esc('Configured' if config.get('location_id') else 'Missing')}</p><p><b>Customer payment URL:</b> {esc(settings.customer_public_url)}</p></div><div class='card'><h2>Security boundary</h2><p>Card numbers and card security codes are entered only in the processor-hosted secure card field. Floodman stores payment IDs, masked card details, receipts, amounts, and customer authorization records.</p><p>Configure credentials through <code>config/floodman-payments.env</code>, never in browser JavaScript or GitHub.</p></div></div>"""
-    return _page("Floodman Payments", body, "connections")
+    status_message = (
+        "Safe test payments are available. No real card will be charged."
+        if config.get("local_mock")
+        else "The production processor identifiers are present. Complete a small approved test before go-live."
+        if config.get("live")
+        else "Ask the server owner to connect the Square Sandbox before accepting card payments."
+    )
+    body = f"""
+<div class='callout {'success' if config.get('local_mock') or config.get('live') else 'warning'}'><b>{esc(status)}:</b> {esc(status_message)}</div>
+<div class='grid two'><div class='card'><div class='settings-eyebrow'>CURRENT READINESS</div><h2>Card payment connection</h2><p><b>Mode:</b> {badge(status)}</p><p><b>Environment:</b> {esc(str(config.get('environment') or 'Not configured').replace('_', ' ').title())}</p><p><b>Application:</b> {esc('Connected' if config.get('application_id') else 'Not connected')}</p><p><b>Business location:</b> {esc('Connected' if config.get('location_id') else 'Not connected')}</p><p><b>Customer payment page:</b><br><span class='mono'>{esc(settings.customer_public_url)}</span></p></div><div class='card'><div class='settings-eyebrow'>WHAT STAFF NEED TO KNOW</div><h2>Card information stays with Square</h2><p>Customers or authorized staff type card details only into Square's secure card field. Floodman keeps the payment result, amount, receipt, processor ID, card brand, and last four digits.</p><div class='callout success'><b>Never paste a card number, expiration date, or security code into notes, messages, or this settings area.</b></div></div></div>
+<div class='card'><h2>Simple setup path</h2><div class='role-guide'><div><b>1. Start in test mode</b><small>Use local test mode or Square Sandbox before any production payment.</small></div><div><b>2. Server owner connects Square</b><small>The owner installs the application ID, access token, location ID, and webhook secret outside the browser.</small></div><div><b>3. Run one approved test</b><small>Verify the receipt, invoice balance, and payment record agree.</small></div><div><b>4. Approve production</b><small>Switch only after the business owner reviews the payment and refund process.</small></div></div><div class='actions'><a class='button' href='/office/payments'>Open payment records</a><a class='button secondary' href='/office/settings'>Back to settings</a></div></div>
+<details class='card plain-details'><summary>Server owner instructions</summary><p>Copy <code>/home/container/config/floodman-payments.env.example</code> to <code>/home/container/config/floodman-payments.env</code>, insert reviewed Square Sandbox values, restart Floodman, and return here. Never place credentials in browser JavaScript, GitHub, chat, or screenshots.</p><p class='muted'>Required server values: application ID, server access token, location ID, and webhook signature key. This page intentionally shows only whether identifiers are present.</p></details>
+"""
+    return _page("Card Payment Setup", body, "payment-settings")
 
 
 @app.get("/office/estimates/{estimate_id}/pdf")
@@ -3914,13 +4052,18 @@ def catalog_page(q: str = "", category: str = "") -> HTMLResponse:
     category_options = "".join(f"<option value='{esc(value)}' {'selected' if value.casefold() == category_key else ''}>{esc(value)}</option>" for value in categories)
     create = ""
     if has_permission(_user(), "estimates.manage"):
-        create = """<div class='card'><h2>Add reusable line item</h2><form method='post' action='/office/catalog/add'><div class='form-grid three'><div class='field'><label>Name</label><input name='name' required></div><div class='field'><label>Category / default header</label><input name='category' value='General Services' required></div><div class='field'><label>Unit</label><input name='unit' value='each' required></div><div class='field'><label>Unit price</label><input name='unit_price' type='number' min='0' step='0.01' value='0.00'></div><div class='field checks'><label><input type='checkbox' name='taxable' value='yes'> Taxable</label></div><div class='field full'><label>Description</label><textarea name='description'></textarea></div></div><button style='margin-top:12px'>Save line item</button></form></div>"""
+        create = """<details class='card plain-details'><summary>Add a new service or price</summary><p class='muted'>Add something your team sells often. It will appear in office estimates and the RoomFlow scope builder.</p><form method='post' action='/office/catalog/add'><div class='form-grid three'><div class='field'><label>Service name <span class='required-mark'>Required</span></label><input name='name' maxlength='200' placeholder='Interior perimeter drainage' required><small class='field-help'>Use the name a customer will understand.</small></div><div class='field'><label>Estimate section</label><input name='category' value='General Services' maxlength='120' required><small class='field-help'>Services with the same section stay grouped together.</small></div><div class='field'><label>How it is measured</label><select name='unit'><option value='each'>Each</option><option value='LF'>Linear foot</option><option value='SF'>Square foot</option><option value='hour'>Hour</option><option value='day'>Day</option><option value='allowance'>Allowance</option></select></div><div class='field'><label>Standard unit price</label><input name='unit_price' type='number' min='0' max='9999999.99' step='0.01' value='0.00' inputmode='decimal'><small class='field-help'>Enter dollars, not cents. It can still be changed on an estimate.</small></div><div class='field checks'><label><input type='checkbox' name='taxable' value='yes'> Apply sales tax when the estimate uses tax</label></div><div class='field full'><label>Customer-facing description <span class='muted'>Optional</span></label><textarea name='description' maxlength='2000' placeholder='What is included in this service?'></textarea></div></div><button class='good' style='margin-top:12px'>Save service</button></form></details>"""
+    source_labels = {
+        "FLOODMAN_CUSTOM": "Added by your team",
+        "ROOMFLOW_SUPABASE": "Current RoomFlow/Supabase",
+        "ROOMFLOW_BUNDLED_CATALOG": "Floodman starter list",
+    }
     cards = "".join(
-        f"<article class='catalog-card'><div class='catalog-source'>{esc(item.get('source_provider') or 'FLOODMAN_CUSTOM')}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div><small>{esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or '')}</small><div style='margin-top:9px'>{badge('ACTIVE' if item.get('active') is not False else 'INACTIVE')}</div></article>"
+        f"<article class='catalog-card'><div class='catalog-source'>{esc(source_labels.get(str(item.get('source_provider') or ''), 'Floodman service'))}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div><small>Estimate section: {esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or 'No customer description yet.')}</small><div style='margin-top:9px'>{badge('AVAILABLE' if item.get('active') is not False else 'HIDDEN', 'good' if item.get('active') is not False else 'neutral')}</div></article>"
         for item in items[:1000]
-    ) or "<div class='callout'>No catalog items match this search. Load the bundled RoomFlow catalog, sync the live RoomFlow/Supabase catalog, or add a custom line item above.</div>"
-    body = f"""{create}<div class='card'><div class='actions spread'><div><h2>Line Item Catalog</h2><p class='muted'>Reusable scope items for estimates, invoices, and RoomFlow. Custom items added in an estimate save here automatically.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Load bundled RoomFlow catalog</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Sync live RoomFlow/Supabase catalog</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Search</label><input name='q' value='{esc(q)}' placeholder='Waterproofing, mold, demolition, landfill…'></div><div class='field'><label>Category</label><select name='category'><option value=''>All categories</option>{category_options}</select></div><button>Filter</button></form><div class='catalog-grid'>{cards}</div></div>"""
-    return _page("Line Item Catalog", body, "catalog")
+    ) or "<div class='callout'>No services match this search. Clear the filters, refresh the starter list, or add a service.</div>"
+    body = f"""<div class='callout success'><b>One price list for office and field staff.</b> Choose these services while building an estimate in Floodman Office or RoomFlow. A price is a reusable starting point and can be adjusted on an individual estimate.</div><div class='card'><div class='actions spread'><div><h2>Services &amp; Prices</h2><p class='muted'>{len(all_items)} reusable services are available. RoomFlow/Supabase items update by their original source ID, so refreshing does not create duplicates.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Refresh starter services</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Pull current RoomFlow prices</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Find a service</label><input type='search' name='q' value='{esc(q)}' placeholder='Try waterproofing, mold, or demolition' autocomplete='off'></div><div class='field'><label>Show section</label><select name='category'><option value=''>All sections</option>{category_options}</select></div><button>Apply filters</button></form><div class='catalog-grid'>{cards}</div></div>{create} """
+    return _page("Services & Prices", body, "catalog")
 
 
 @app.post("/office/catalog/add")
@@ -4668,15 +4811,68 @@ def roomflow_workspace() -> HTMLResponse:
             "</article>"
         )
     history = "".join(cards) or "<p class='muted'>No RoomFlow estimates have been saved into Floodman yet.</p>"
+    import_action = ""
+    if has_permission(user, "imports.manage"):
+        import_action = "<a class='button secondary' href='/office/roomflow/import'>Bring in old RoomFlow data</a>"
     body = f"""
-<div class='callout'><b>RoomFlow is part of Floodman.</b> You are using the <b>{esc(active_workspace.get('name') or 'Floodman')}</b> company workspace through your existing ERP sign-in. Draw the property, build the scope, and press <b>Save to Floodman</b>.</div>
+<div class='callout success'><b>No separate RoomFlow account is needed.</b> Your ERP sign-in already opens the <b>{esc(active_workspace.get('name') or 'Floodman')}</b> company workspace. RoomFlow saves to the same customer, property, and estimate files used by the office.</div>
+<div class='role-guide'><div><b>1. Choose customer</b><small>Open Customer &amp; job file, then search by name, phone, email, or address.</small></div><div><b>2. Choose property</b><small>Select that customer's service address so the job stays on the right file.</small></div><div><b>3. Sketch and price</b><small>Draw the layout, then add services from the shared Services &amp; Prices list.</small></div><div><b>4. Save to Floodman</b><small>Save the draft. Re-saving updates the same estimate instead of making a duplicate.</small></div></div>
 <div class='card roomflow-workspace-card'>
-  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'><a class='button secondary' href='/roomflow/' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
+  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'>{import_action}<a class='button secondary' href='/office/catalog'>Services &amp; prices</a><a class='button secondary' href='/roomflow/' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
   <iframe class='roomflow-frame' src='/roomflow/?embedded=1' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
 </div>
 <div class='card'><h2>Recent RoomFlow saves</h2><div class='roomflow-history-grid'>{history}</div></div>
 """
     return _page("RoomFlow Estimator", body, "roomflow")
+
+
+@app.get("/office/roomflow/import")
+def roomflow_supabase_import_page() -> HTMLResponse:
+    _require("imports.manage")
+    history_rows = []
+    for item in store.records("roomflow_imports")[:25]:
+        counts = item.get("counts") or {}
+        record_total = sum(int(value or 0) for value in counts.values() if isinstance(value, (int, float)))
+        history_rows.append([
+            esc(str(item.get("started_at") or item.get("created_at") or "")[:19].replace("T", " ")),
+            badge(item.get("status") or "UNKNOWN"),
+            esc(item.get("email_hint") or "Hidden"),
+            esc(record_total),
+            esc(item.get("error") or ""),
+        ])
+    body = f"""
+<div class='callout success'><b>This is a one-time bridge for an older RoomFlow cloud account.</b> Current staff use their normal Floodman ERP sign-in. Use this only when you need companies, jobs, customers, properties, layouts, or catalog items that still exist in the original RoomFlow Supabase project.</div>
+<div class='role-guide'><div><b>1. Enter the old sign-in</b><small>Use the email and password that worked in the original RoomFlow account.</small></div><div><b>2. Floodman reads approved records</b><small>The password is used for this request only and is never written to the Office store.</small></div><div><b>3. Matching records update</b><small>Stable Supabase source IDs update earlier imports instead of intentionally duplicating them.</small></div></div>
+<div class='card'><h2>Bring in old RoomFlow data</h2><form method='post' action='/office/roomflow/import' autocomplete='off'><div class='form-grid'><div class='field'><label>Original RoomFlow email</label><input type='email' name='email' autocomplete='username' required></div><div class='field'><label>Original RoomFlow password</label><input type='password' name='password' autocomplete='current-password' required><small class='field-help'>Floodman clears this form value and does not save the password.</small></div></div><div class='actions' style='margin-top:14px'><button class='good'>Start secure import</button><a class='button secondary' href='/office/roomflow'>Cancel</a></div></form></div>
+<details class='card plain-details'><summary>Previous RoomFlow import attempts</summary>{table(('Started','Result','Account','Records processed','Message'), history_rows, 'No old RoomFlow imports have been run.')}</details>
+<div class='callout warning'><b>Measured-layout rule:</b> Floodman keeps genuine captured layouts when the source provides them. A missing layout stays marked for field capture; the import never invents a diagram.</div>
+"""
+    return _page("Bring In Old RoomFlow Data", body, "roomflow")
+
+
+@app.post("/office/roomflow/import")
+def run_roomflow_supabase_import(email: str = Form(...), password: str = Form(...)) -> RedirectResponse:
+    actor = _require("imports.manage")
+    try:
+        result = import_roomflow_supabase(
+            store,
+            email=email,
+            password=password,
+            actor_id=str(actor.get("id") or ""),
+            supabase_url=DEFAULT_ROOMFLOW_SUPABASE_URL,
+            supabase_anon_key=DEFAULT_ROOMFLOW_SUPABASE_ANON_KEY,
+        )
+        counts = result.get("counts") or {}
+        store.set_notice(
+            "Old RoomFlow import completed. "
+            f"{len(result.get('workspaces') or [])} company workspaces are available; "
+            f"{int(counts.get('jobs') or counts.get('roomflow_jobs') or 0)} jobs were processed."
+        )
+    except RoomFlowSupabaseError as exc:
+        store.set_notice(str(exc))
+    finally:
+        password = ""
+    return RedirectResponse("/office/roomflow/import", status_code=303)
 
 
 @app.get("/office/api/roomflow/jobs")
@@ -5343,24 +5539,26 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
 @app.get("/office/apps")
 def applications_page() -> HTMLResponse:
     _require("apps.view")
-    cards = [
-        ("Floodman Office", settings.public_url, "Owner command center, custom contacts, properties, jobs, billing, A/R, members, imports, messaging, and intelligence.", "Open command center"),
-        ("Floodman Operations Hub", settings.gauzy_hub_url, "The Floodman ERP with the Floodman launcher for RoomFlow, signing, receivables, messaging, imports, members, and AI competitor intelligence.", "Open main hub"),
-        ("Documenso Signing", settings.documenso_web_url, "Create reusable templates and send Work Authorizations, Change Orders, Completion of Service forms, and other PDFs for signature.", "Open signing system"),
-        ("RoomFlow", f"{settings.public_url}/office/roomflow", "Build property layouts, work scopes, estimates, invoices, and crew work orders inside Floodman.", "Open integrated RoomFlow"),
-        ("AI Competitor Intelligence", f"{settings.public_url}/office/intelligence", "Monitor competitors, compare services and offers, identify content gaps, and generate evidence-backed Floodman opportunities.", "Open intelligence"),
-        ("Local Email Inbox", settings.mailpit_url, "Inspect local account invites, document messages, invoices, receipts, and reminder emails without contacting real customers.", "Open Mailpit"),
-        ("Engineering Sandbox", f"{settings.engineering_public_url}/lab", "Run the end-to-end mock workflow, sign documents, make test payments, simulate customer texts, and force reminders.", "Open lab"),
-        ("Floodman API Explorer", f"{settings.api_public_url}/docs", "Inspect and test the orchestrator API used by RoomFlow, payments, signing, messaging, and receivables.", "Open API"),
+    everyday_apps = [
+        ("Floodman Office", settings.public_url, "Customers, properties, estimates, invoices, payments, documents, tasks, and daily operations.", "Open office"),
+        ("Main Floodman ERP", settings.gauzy_hub_url, "Employees, time, projects, accounting, inventory, reporting, and organization management.", "Open main ERP"),
+        ("Documents & Signing", settings.documenso_web_url, "Reusable templates and customer signatures for Work Authorizations, Change Orders, and Completion of Service.", "Open signing"),
+        ("RoomFlow", f"{settings.public_url}/office/roomflow", "Customer-linked field layouts, measurements, scopes, and estimates using the same Floodman sign-in.", "Open RoomFlow"),
+        ("Market Research", f"{settings.public_url}/office/intelligence", "Approved public-site monitoring, comparisons, and evidence-backed sales opportunities.", "Open research"),
     ]
-    rendered = "".join(
+    installer_apps = [
+        ("Test Email Inbox", settings.mailpit_url, "Review messages captured during local testing without contacting real customers.", "Open test inbox"),
+        ("Workflow Test Lab", f"{settings.engineering_public_url}/lab", "Test signing, payments, text messages, reminders, and end-to-end workflows.", "Open test lab"),
+        ("API Explorer", f"{settings.api_public_url}/docs", "Developer documentation for the narrow RoomFlow, payment, signing, messaging, and receivables APIs.", "Open developer API"),
+    ]
+    render_apps = lambda apps: "".join(
         f"<div class='card app-card'><h2>{esc(name)}</h2><p>{esc(description)}</p><a class='button' href='{esc(url)}' target='_blank' rel='noreferrer'>{esc(action)}</a></div>"
-        for name, url, description, action in cards
+        for name, url, description, action in apps
     )
     credentials = f"""<div class='card'><h2>Floodman business identity</h2><div class='grid two'>
     <div><h3>Primary Floodman ERP owner</h3><p><span class='mono'>{esc(settings.gauzy_admin_email)}</span></p><p class='muted'>The password is intentionally never displayed by the front end. Use the owner password configured in the Pterodactyl Startup settings.</p></div>
     <div><h3>Staff accounts</h3><p>Create employees and invitations inside native Floodman ERP, then assign Floodman module roles under Members &amp; Access.</p><p class='muted'>No seeded employee test account is enabled in clean business mode.</p></div></div></div>"""
-    body = f"<div class='callout'><b>Floodman ERP is the main hub.</b> Its native ERP remains intact, while the Floodman launcher connects RoomFlow, signing, receivables, messaging, imports, members, and competitor intelligence in the same workspace.</div><div class='grid two'>{rendered}</div>{credentials}"
+    body = f"<div class='callout success'><b>Choose the job you want to do.</b> Your Floodman ERP sign-in carries into the connected Floodman browser modules; RoomFlow does not need a second account.</div><div class='grid two'>{render_apps(everyday_apps)}</div><details class='card plain-details'><summary>Installer and testing tools</summary><p class='muted'>These tools are for local testing or technical troubleshooting, not everyday customer work.</p><div class='grid two' style='margin-top:12px'>{render_apps(installer_apps)}</div></details>{credentials}"
     return _page("All Applications", body, "apps")
 
 
@@ -5609,16 +5807,41 @@ def members_page() -> HTMLResponse:
     _require("members.manage")
     users = store.list_users()
     invites = store.list_invites()
-    role_options = "".join(f"<option value='{esc(role)}'>{esc(role.replace('_',' ').title())}</option>" for role in ROLE_PERMISSIONS)
+    role_labels = {
+        "ADMIN": "Administrator",
+        "OFFICE_MANAGER": "Office manager",
+        "BILLING": "Billing",
+        "ESTIMATOR": "Estimator",
+        "TECHNICIAN": "Field technician",
+        "VIEWER": "View only",
+    }
+    role_help = {
+        "ADMIN": "Everything except ownership; use for a trusted backup administrator.",
+        "OFFICE_MANAGER": "Customers, jobs, estimates, billing, documents, messages, tasks, and calendar.",
+        "BILLING": "Invoices, payments, receivables, and customer billing records.",
+        "ESTIMATOR": "Customers, properties, RoomFlow, estimates, documents, notes, and assigned work.",
+        "TECHNICIAN": "View job records, add notes, complete tasks, and clock time.",
+        "VIEWER": "Read-only access to normal business records.",
+    }
+    assignable_roles = tuple(role_labels)
+    role_options = "".join(
+        f"<option value='{esc(role)}' {'selected' if role == 'VIEWER' else ''}>{esc(role_labels[role])}</option>"
+        for role in assignable_roles
+    )
     user_rows = []
     for item in users:
-        controls = badge(item.get("role")) if item.get("role") == "OWNER" else f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><select name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role)}</option>" for role in ROLE_PERMISSIONS if role!='OWNER')}</select><select name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>ACTIVE</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>DISABLED</option></select><input name='password' type='password' placeholder='Optional new password'><button>Save</button></form>"""
+        controls = badge("Primary owner", "good") if item.get("role") == "OWNER" else f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><label class='muted'>Access level<select aria-label='Access level for {esc(item.get('name'))}' name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role_labels[role])}</option>" for role in assignable_roles)}</select></label><label class='muted'>Account status<select aria-label='Account status for {esc(item.get('name'))}' name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>Active</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>Disabled</option></select></label><details><summary>Set a local recovery password</summary><input name='password' type='password' minlength='10' autocomplete='new-password' placeholder='At least 10 characters'></details><button>Save access</button></form>"""
         source = item.get("auth_source") or ("FLOODMAN" if item.get("gauzy_user_id") else "LOCAL")
-        user_rows.append([esc(item.get("name")), esc(item.get("email")), badge(item.get("role")), badge(source), badge(item.get("status")), controls])
-    invite_rows = [[esc(item.get("name")), esc(item.get("email")), badge(item.get("role")), badge(item.get("status")), esc(item.get("expires_at"))] for item in invites]
-    body = f"""<div class='card'><h2>Add a staff member</h2><p class='muted'><b>Recommended:</b> create or invite the employee in Floodman ERP first. They can then choose “Continue with Floodman ERP” when a Floodman module asks them to sign in, and their module account is provisioned automatically. Use the form below only for a Floodman-only account.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Name</label><input name='name' required></div><div class='field'><label>Email</label><input type='email' name='email' required></div><div class='field'><label>Role</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create invitation</button></form></div>
-    <div class='actions'><a class='button' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees' target='_top'>Open Floodman ERP employees</a><a class='button secondary' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees/invites' target='_top'>Open Floodman ERP invitations</a></div><div class='card'><h2>Floodman module access</h2>{table(('Name','Email','Module role','Identity','Status','Administration'), user_rows)}</div><div class='card'><h2>Invitation history</h2>{table(('Name','Email','Role','Status','Expires'), invite_rows)}</div>"""
-    return _page("Members & Roles", body, "members")
+        user_rows.append([esc(item.get("name")), esc(item.get("email")), badge("Owner" if item.get("role") == "OWNER" else role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge("ERP sign-in" if source in {"GAUZY", "FLOODMAN"} else "ERP + local" if source == "LOCAL_AND_GAUZY" else "Local recovery"), badge("Active" if item.get("status") == "ACTIVE" else "Disabled", "good" if item.get("status") == "ACTIVE" else "neutral"), controls])
+    invite_rows = [[esc(item.get("name")), esc(item.get("email")), badge(role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge(str(item.get("status") or "Pending").title()), esc(str(item.get("expires_at") or "")[:10])] for item in invites]
+    role_guide = "".join(f"<div><b>{esc(role_labels[role])}</b><small>{esc(role_help[role])}</small></div>" for role in assignable_roles)
+    body = f"""
+    <div class='callout success'><b>Use one Floodman ERP sign-in.</b> Add the employee in the main ERP first. The first time they choose <b>Continue with Floodman ERP</b>, Floodman creates their module access automatically—no second RoomFlow account is needed.</div>
+    <div class='card'><div class='actions spread'><div><h2>Add or invite an employee</h2><p class='muted'>Create the person once in the main ERP, then return here only if their module access level needs adjustment.</p></div><div class='actions'><a class='button good' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees' target='_top'>Open ERP employees</a><a class='button secondary' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees/invites' target='_top'>Open ERP invitations</a></div></div><h3>Which access level should I choose?</h3><div class='role-guide'>{role_guide}</div><p class='muted'>Start with the narrowest role that fits the job. Only the primary owner can control ownership.</p></div>
+    <div class='card'><h2>Floodman and RoomFlow access</h2><p class='muted'>Changes apply to the integrated Floodman modules. ERP employment and organization permissions remain managed in the main ERP.</p>{table(('Team member','Email','Access level','Sign-in','Status','Change access'), user_rows)}</div>
+    <details class='card plain-details'><summary>Advanced: create a Floodman-only recovery account</summary><p class='muted'>Use this only when the person cannot use the main ERP identity. The invitation expires in seven days and creates a separate local password.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Full name</label><input name='name' minlength='2' maxlength='160' autocomplete='name' required></div><div class='field'><label>Email</label><input type='email' name='email' autocomplete='email' required></div><div class='field'><label>Access level</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create recovery invitation</button></form></details>
+    <details class='card plain-details'><summary>Invitation history</summary>{table(('Name','Email','Access level','Status','Expires'), invite_rows)}</details>"""
+    return _page("Team & Access", body, "members")
 
 
 @app.post("/office/members/invite")

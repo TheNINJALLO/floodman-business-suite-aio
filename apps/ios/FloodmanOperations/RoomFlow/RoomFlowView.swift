@@ -15,9 +15,19 @@ struct RoomFlowJobsView: View {
 
     var body: some View {
         List {
-            Section("Company workspace") {
+            Section("Quick start") {
+                Label("Choose the customer", systemImage: "1.circle.fill")
+                Label("Choose the service property", systemImage: "2.circle.fill")
+                Label("Sketch and add priced services", systemImage: "3.circle.fill")
+                Label("Save the draft to Floodman", systemImage: "4.circle.fill")
+                Text("Your Floodman sign-in already includes RoomFlow. No separate RoomFlow account is needed.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Company") {
                 if workspaces.isEmpty {
-                    Text("No RoomFlow workspace is available yet.")
+                    Text("Floodman is preparing your company workspace.")
                         .foregroundStyle(.secondary)
                 } else {
                     Picker("Active company", selection: $selectedWorkspaceID) {
@@ -32,17 +42,18 @@ struct RoomFlowJobsView: View {
                         Task { await selectWorkspace(newValue) }
                     }
                 }
+                DisclosureGroup("More company options") {
+                    Button {
+                        showCreateWorkspace = true
+                    } label: {
+                        Label("Create another company", systemImage: "building.2.crop.circle")
+                    }
 
-                Button {
-                    showCreateWorkspace = true
-                } label: {
-                    Label("Create company workspace", systemImage: "building.2.crop.circle")
-                }
-
-                Button {
-                    showImport = true
-                } label: {
-                    Label("Import original RoomFlow cloud data", systemImage: "icloud.and.arrow.down")
+                    Button {
+                        showImport = true
+                    } label: {
+                        Label("Bring in old RoomFlow data", systemImage: "icloud.and.arrow.down")
+                    }
                 }
             }
 
@@ -163,26 +174,26 @@ struct RoomFlowImportView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Use the email and password from the original RoomFlow Supabase login. Floodman uses them for this import only and does not save the password. Repeat imports update stable source records.")
+                    Text("Use the sign-in from the original RoomFlow cloud account. Floodman uses the password for this request only, clears it immediately, and updates matching source records instead of creating duplicates.")
                         .font(.callout)
-                    TextField("RoomFlow email", text: $email)
+                    TextField("Original RoomFlow email", text: $email)
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
-                    SecureField("RoomFlow password", text: $password)
+                    SecureField("Original RoomFlow password", text: $password)
                         .textContentType(.password)
                 }
                 if !error.isEmpty {
                     Section { Text(error).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("Import RoomFlow")
+            .navigationTitle("Bring In RoomFlow Data")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { cancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(busy ? "Importing…" : "Import") {
+                    Button(busy ? "Importing…" : "Start Import") {
                         importTask = Task { await importData() }
                     }
                         .disabled(busy || email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty)
@@ -229,7 +240,6 @@ struct RoomFlowWorkspaceCreateView: View {
     @Binding var isPresented: Bool
     let onCreated: () -> Void
     @State private var name = ""
-    @State private var timezone = "America/Detroit"
     @State private var busy = false
     @State private var error = ""
     @State private var createTask: Task<Void, Never>?
@@ -237,12 +247,19 @@ struct RoomFlowWorkspaceCreateView: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Company or workspace name", text: $name)
-                TextField("Business time zone", text: $timezone)
-                    .textInputAutocapitalization(.never)
+                Section {
+                    Text("Most teams need only the company Floodman created automatically. Add another only when its customers and jobs must stay separate.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    TextField("Company name", text: $name)
+                        .textContentType(.organizationName)
+                }
+                Section("Business time") {
+                    LabeledContent("Time zone", value: "Eastern Time (Detroit)")
+                }
                 if !error.isEmpty { Text(error).foregroundStyle(.red) }
             }
-            .navigationTitle("New workspace")
+            .navigationTitle("Another Company")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { cancel() }
@@ -274,7 +291,7 @@ struct RoomFlowWorkspaceCreateView: View {
                 method: "POST",
                 body: [
                     "name": name.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "timezone": timezone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "America/Detroit" : timezone
+                    "timezone": "America/Detroit"
                 ]
             )
             isPresented = false

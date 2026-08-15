@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .auth import (
+    ROLE_PERMISSIONS,
     hash_password,
     invite_expiry,
     new_token,
@@ -395,15 +396,23 @@ class OfficeStore:
 
     def create_invite(self, name: str, email: str, role: str, created_by: str) -> tuple[dict[str, Any], str]:
         email_key = email.strip().lower()
+        name_value = name.strip()
+        role_value = role.strip().upper()
+        if len(name_value) < 2:
+            raise ValueError("Enter the staff member's full name.")
+        if not email_key or "@" not in email_key:
+            raise ValueError("Enter a valid staff email address.")
+        if role_value not in ROLE_PERMISSIONS or role_value == "OWNER":
+            raise ValueError("Choose one of the listed staff access levels.")
         if self.user_by_email(email_key):
             raise ValueError("A member with that email already exists.")
         token = new_token("invite_")
         invite_id = str(uuid.uuid4())
         invite = {
             "id": invite_id,
-            "name": name.strip(),
+            "name": name_value,
             "email": email_key,
-            "role": role.strip().upper(),
+            "role": role_value,
             "token_hash": token_hash(token),
             "created_by": created_by,
             "created_at": _now(),
@@ -460,9 +469,15 @@ class OfficeStore:
             if user.get("role") == "OWNER" and status and status != "ACTIVE":
                 raise ValueError("The primary owner cannot be disabled.")
             if role and user.get("role") != "OWNER":
-                user["role"] = role.upper()
+                role_value = role.upper()
+                if role_value not in ROLE_PERMISSIONS or role_value == "OWNER":
+                    raise ValueError("Choose one of the listed staff access levels.")
+                user["role"] = role_value
             if status:
-                user["status"] = status.upper()
+                status_value = status.upper()
+                if status_value not in {"ACTIVE", "DISABLED"}:
+                    raise ValueError("Choose Active or Disabled for the account status.")
+                user["status"] = status_value
             if password:
                 user["password_hash"] = hash_password(password)
             user["updated_at"] = _now()

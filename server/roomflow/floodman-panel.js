@@ -8,6 +8,7 @@
   const RELEASE = '4.6.9';
   const LINK_KEY = 'floodman_roomflow_links_v2';
   const ESTIMATE_KEY = 'floodman_roomflow_estimate_ids_v1';
+  const GUIDE_KEY = 'floodman_roomflow_quick_start_dismissed_v1';
   const API = '/office/api/roomflow';
   const appState = () => window.state || {};
   const integration = () => window.RoomFlowIntegrations || null;
@@ -111,7 +112,32 @@
 
   function setStatus(message, kind = 'info') {
     const node = $('#fm-rf-status'); if (!node) return;
-    node.textContent = message || ''; node.className = `fm-rf-status ${kind} ${message ? 'is-open' : ''}`;
+    node.replaceChildren(); node.className = `fm-rf-status ${kind} ${message ? 'is-open' : ''}`;
+    if (!message) return;
+    const copy = document.createElement('span'); copy.textContent = message;
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'fm-rf-status-close'; close.setAttribute('aria-label', 'Dismiss message'); close.textContent = '×'; close.addEventListener('click', () => setStatus(''));
+    node.append(copy, close);
+  }
+  function guideDismissed() { try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch (_) { return false; } }
+  function showGuide(show = true) {
+    const guide = $('#fm-rf-quick-start'); if (!guide) return;
+    guide.hidden = !show;
+    try { if (show) localStorage.removeItem(GUIDE_KEY); else localStorage.setItem(GUIDE_KEY, '1'); } catch (_) {}
+  }
+  function updateGuide() {
+    const readiness = {
+      customer: Boolean(model.contact),
+      property: Boolean(model.property),
+      scope: normalizeLines().length > 0,
+      save: Boolean(appState().floodmanEstimateId),
+    };
+    $$('[data-guide-step]').forEach(node => {
+      const complete = Boolean(readiness[node.dataset.guideStep]);
+      node.classList.toggle('is-complete', complete);
+      const mark = node.querySelector('b'); if (mark) mark.textContent = complete ? '✓' : node.dataset.guideNumber || '•';
+    });
+    const company = $('#fm-rf-guide-company');
+    if (company) company.textContent = model.activeWorkspace?.name ? `Company: ${model.activeWorkspace.name}` : 'Loading company…';
   }
   function workspaceOptions() {
     if (!model.workspaces.length) return '<option value="">No Floodman companies available</option>';
@@ -258,9 +284,9 @@
     </div><div class="fm-rf-button-row"><a class="fm-rf-button secondary" href="${escapeHtml(p.url || `/office/properties/${encodeURIComponent(p.id)}`)}" target="_top">Open property file</a><button type="button" class="fm-rf-button secondary" id="fm-rf-change-property">Change property</button></div>`;
     $('#fm-rf-change-property')?.addEventListener('click', clearProperty);
   }
-  function showResults(host, items, onSelect, emptyText = 'No matches found') {
+  function showResults(host, items, onSelect, emptyText = 'No matches found', emptyHref = '', emptyAction = '') {
     if (!host) return; host.innerHTML = '';
-    if (!items.length) { host.innerHTML = `<div class="fm-rf-result"><b>${escapeHtml(emptyText)}</b><small>Try a name, email, phone, or address.</small></div>`; host.classList.add('is-open'); return; }
+    if (!items.length) { host.innerHTML = `<div class="fm-rf-result"><b>${escapeHtml(emptyText)}</b><small>Check the spelling or add the missing record in Floodman.</small>${emptyHref ? `<a class="fm-rf-empty-action" href="${escapeHtml(emptyHref)}" target="_top">${escapeHtml(emptyAction || 'Add record')}</a>` : ''}</div>`; host.classList.add('is-open'); return; }
     for (const item of items) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'fm-rf-result';
       button.innerHTML = `<b>${escapeHtml(item.label || '')}</b><small>${escapeHtml(item.meta || '')}</small>`;
@@ -270,12 +296,12 @@
   }
   async function searchCustomers(query) {
     const host = $('#fm-rf-customer-results'); if (query.trim().length < 2) { host?.classList.remove('is-open'); return; }
-    try { const data = await fetchJson(`/office/api/search/contacts?q=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectCustomer(item.id)); }
+    try { const data = await fetchJson(`/office/api/search/contacts?q=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectCustomer(item.id), 'No customer matches', '/office/contacts?new=1', 'Add a customer in Floodman'); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
   }
   async function searchProperties(query) {
     const host = $('#fm-rf-property-results'); if (!model.contact) return;
-    try { const data = await fetchJson(`/office/api/search/properties?q=${encodeURIComponent(query)}&contact_id=${encodeURIComponent(model.contact.id)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectProperty(item.id), 'No properties found for this customer'); }
+    try { const data = await fetchJson(`/office/api/search/properties?q=${encodeURIComponent(query)}&contact_id=${encodeURIComponent(model.contact.id)}&workspace_id=${encodeURIComponent(model.activeWorkspace?.id || '')}&limit=25`); showResults(host, data.items || [], item => selectProperty(item.id), 'No properties found for this customer', `/office/properties?contact_id=${encodeURIComponent(model.contact.id)}`, 'Add a service property'); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
   }
   async function selectCustomer(contactId, { silent = false } = {}) {
@@ -591,7 +617,7 @@
       const result = $('#fm-rf-sync-result'); if (result) result.innerHTML = `Estimate <a class="fm-rf-link" href="${escapeHtml(estimateUrl)}" target="_top">${escapeHtml(data.estimate_number)}</a> synced. ${data.erp_synced ? 'Floodman ERP is linked.' : escapeHtml(data.warning || (data.warnings || []).join(' ') || '')}`;
       setStatus(data.created ? 'RoomFlow estimate created in Floodman.' : 'RoomFlow estimate updated in Floodman.', 'good'); await refreshJobs();
     } catch (error) { setStatus(error.message, 'bad'); }
-    finally { model.syncing = false; if (button) { button.disabled = false; button.textContent = 'Save job & sync estimate'; } }
+    finally { model.syncing = false; if (button) { button.disabled = false; button.textContent = 'Save draft to Floodman'; } updateGuide(); }
   }
   async function restoreLink() {
     const key = currentJobKey(); model.lastJobKey = key; const link = linkedRecord();
@@ -649,23 +675,26 @@
   function buildUi() {
     document.documentElement.classList.add('floodman-roomflow');
     const topbar = document.createElement('header'); topbar.id = 'fm-roomflow-topbar';
-    topbar.innerHTML = `<div class="fm-rf-brand"><img class="fm-rf-brand-mark" src="/floodman-brand/floodman-mark.svg" alt=""><div class="fm-rf-brand-copy"><strong>Floodman RoomFlow</strong><small>Customer-linked field estimating</small></div></div><div class="fm-rf-top-actions"><span id="fm-rf-job-chip" class="fm-rf-job-chip">No customer selected</span><a class="fm-rf-top-button secondary" href="/office" target="_top">Back to Operations</a><button type="button" class="fm-rf-top-button" id="fm-rf-open-panel">Customer & job file</button></div>`;
+    topbar.innerHTML = `<div class="fm-rf-brand"><img class="fm-rf-brand-mark" src="/floodman-brand/floodman-mark.svg" alt=""><div class="fm-rf-brand-copy"><strong>Floodman RoomFlow</strong><small>Customer-linked field estimating</small></div></div><div class="fm-rf-top-actions"><span id="fm-rf-job-chip" class="fm-rf-job-chip">No customer selected</span><a class="fm-rf-top-button secondary" href="/office" target="_top">Back to Operations</a><button type="button" class="fm-rf-top-button fm-rf-help-button" id="fm-rf-help" aria-label="Show RoomFlow quick start">Help</button><button type="button" class="fm-rf-top-button" id="fm-rf-open-panel">Customer & job file</button></div>`;
     const backdrop = document.createElement('div'); backdrop.id = 'fm-roomflow-backdrop';
     const panel = document.createElement('aside'); panel.id = 'fm-roomflow-panel'; panel.setAttribute('aria-hidden', 'true'); panel.setAttribute('aria-label', 'Customer and job file');
-    panel.innerHTML = `<header class="fm-rf-panel-header"><div><h2>Customer & job file</h2><p>Link this sketch to one Floodman customer and property, then sync the estimate directly into Floodman ERP.</p></div><button type="button" class="fm-rf-icon-button" id="fm-rf-close-panel" aria-label="Close">×</button></header><div class="fm-rf-panel-body">
-      <section class="fm-rf-card"><h3>Floodman company workspace</h3><p class="fm-rf-card-intro">Your ERP login already authorizes RoomFlow. Choose the company that owns this job, or create another company without making a separate RoomFlow account.</p><div class="fm-rf-field"><label for="fm-rf-workspace-select">Active company</label><select class="fm-rf-select" id="fm-rf-workspace-select"><option value="">Loading company…</option></select></div><div class="fm-rf-inline"><input class="fm-rf-input" id="fm-rf-new-workspace-name" placeholder="New company name"><button class="fm-rf-button secondary" type="button" id="fm-rf-create-workspace">Create company</button></div><p class="fm-rf-card-intro" style="margin-top:8px">Active: <strong id="fm-rf-workspace-label">Loading company…</strong></p></section>
+    panel.innerHTML = `<header class="fm-rf-panel-header"><div><h2>Customer & job file</h2><p>Follow the four short steps, then save the estimate to the same Floodman file used by the office.</p></div><button type="button" class="fm-rf-icon-button" id="fm-rf-close-panel" aria-label="Close customer and job panel">×</button></header><div class="fm-rf-panel-body">
+      <section class="fm-rf-card fm-rf-guide" id="fm-rf-quick-start"><button type="button" class="fm-rf-guide-close" id="fm-rf-guide-close" aria-label="Dismiss quick start">×</button><h3>Quick start</h3><p class="fm-rf-card-intro" id="fm-rf-guide-company">Loading company…</p><ol class="fm-rf-guide-steps"><li data-guide-step="customer" data-guide-number="1"><b>1</b><span>Choose the customer</span></li><li data-guide-step="property" data-guide-number="2"><b>2</b><span>Choose the service property</span></li><li data-guide-step="scope" data-guide-number="3"><b>3</b><span>Sketch and add priced services</span></li><li data-guide-step="save" data-guide-number="4"><b>4</b><span>Save the draft to Floodman</span></li></ol><p class="fm-rf-card-intro">You can dismiss this guide and reopen it with <b>Help</b> in the top bar.</p></section>
+      <details class="fm-rf-card fm-rf-details"><summary>Company workspace <span id="fm-rf-workspace-label">Loading company…</span></summary><p class="fm-rf-card-intro">Your ERP sign-in already authorizes RoomFlow. Most teams never need to change this. Choose or create another company only when the job belongs to a different business workspace.</p><div class="fm-rf-field"><label for="fm-rf-workspace-select">Active company</label><select class="fm-rf-select" id="fm-rf-workspace-select"><option value="">Loading company…</option></select></div><div class="fm-rf-inline"><input class="fm-rf-input" id="fm-rf-new-workspace-name" minlength="2" maxlength="200" autocomplete="organization" placeholder="New company name"><button class="fm-rf-button secondary" type="button" id="fm-rf-create-workspace">Create company</button></div></details>
       <section class="fm-rf-card"><h3>1. Customer</h3><p class="fm-rf-card-intro">Search by name, company, email, phone, address, or tag. No thousand-item dropdown.</p><div class="fm-rf-field"><label>Find customer</label><input class="fm-rf-input" id="fm-rf-customer-search" autocomplete="off" placeholder="Start typing a customer…"><div class="fm-rf-results" id="fm-rf-customer-results"></div></div><div id="fm-rf-customer-summary"></div></section>
       <section class="fm-rf-card"><h3>2. Service property</h3><p class="fm-rf-card-intro">Results are filtered to the selected customer.</p><div class="fm-rf-field"><label>Find property</label><input class="fm-rf-input" id="fm-rf-property-search" autocomplete="off" disabled placeholder="Choose a customer first"><div class="fm-rf-results" id="fm-rf-property-results"></div></div><div id="fm-rf-property-summary"></div></section>
-      <section class="fm-rf-card"><h3>Customer notes & tags</h3><div class="fm-rf-field"><label>Tags</label><input class="fm-rf-input" id="fm-rf-tags-input" placeholder="Foundation, Repeat Customer, Insurance"><div class="fm-rf-button-row"><button class="fm-rf-button secondary" type="button" id="fm-rf-save-tags">Save tags</button></div></div><div class="fm-rf-field"><label>New note</label><textarea class="fm-rf-textarea" id="fm-rf-note-body" placeholder="Job-site access, customer request, call note…"></textarea></div><div class="fm-rf-field"><label>Note category</label><select class="fm-rf-select" id="fm-rf-note-category"><option>JOB</option><option>CALL</option><option>SERVICE</option><option>BILLING</option><option>GENERAL</option></select></div><label style="display:flex;align-items:center;gap:8px;font-size:12px"><input type="checkbox" id="fm-rf-note-pinned"> Pin this note</label><div class="fm-rf-button-row"><button class="fm-rf-button" type="button" id="fm-rf-add-note">Add note to customer file</button></div><div class="fm-rf-note-list" id="fm-rf-note-list"></div></section>
-      <section class="fm-rf-card"><h3>Line-item catalog</h3><p class="fm-rf-card-intro">Import the current Supabase RoomFlow catalog into Floodman so the same reusable services and prices appear in estimates and invoices.</p><div class="fm-rf-button-row"><button class="fm-rf-button secondary" type="button" id="fm-rf-sync-catalog">Sync RoomFlow catalog</button><a class="fm-rf-button secondary" href="/office/catalog" target="_top">Open catalog</a></div><p class="fm-rf-card-intro" id="fm-rf-catalog-sync-result"></p></section>
-      <section class="fm-rf-card"><h3>Estimate headers & line items</h3><p class="fm-rf-card-intro">Use multiple scope headers, search the shared catalog, or add a custom item that is saved automatically for future estimates.</p><div id="fm-rf-estimate-scope"></div></section>
-      <section class="fm-rf-card"><h3>3. Floodman estimate</h3><p class="fm-rf-card-intro">RoomFlow line items, section headers, and the complete job snapshot are saved to the customer file. Re-syncing updates the same draft.</p><div class="fm-rf-button-row"><button class="fm-rf-button good" type="button" id="fm-rf-sync-estimate">Save job & sync estimate</button><a class="fm-rf-button secondary" href="/office/estimates" target="_top">Open estimates</a><a class="fm-rf-button secondary" href="/office/documents" target="_top">Documents & signing</a></div><p class="fm-rf-card-intro" id="fm-rf-sync-result" style="margin-top:10px"></p></section><section class="fm-rf-card"><h3>Recent RoomFlow jobs</h3><p class="fm-rf-card-intro">Load a server-saved layout on another approved phone, tablet, or computer.</p><div id="fm-rf-job-list"></div></section><div id="fm-rf-status" class="fm-rf-status"></div></div>`;
+      <details class="fm-rf-card fm-rf-details"><summary>Customer notes and tags <span>Optional</span></summary><div class="fm-rf-field"><label>Tags</label><input class="fm-rf-input" id="fm-rf-tags-input" placeholder="Foundation, Repeat Customer, Insurance"><div class="fm-rf-button-row"><button class="fm-rf-button secondary" type="button" id="fm-rf-save-tags">Save tags</button></div></div><div class="fm-rf-field"><label>New note</label><textarea class="fm-rf-textarea" id="fm-rf-note-body" placeholder="Job-site access, customer request, call note…"></textarea></div><div class="fm-rf-field"><label>Note category</label><select class="fm-rf-select" id="fm-rf-note-category"><option value="JOB">Job</option><option value="CALL">Phone call</option><option value="SERVICE">Service</option><option value="BILLING">Billing</option><option value="GENERAL">General</option></select></div><label style="display:flex;align-items:center;gap:8px;font-size:12px"><input type="checkbox" id="fm-rf-note-pinned"> Keep this note at the top</label><div class="fm-rf-button-row"><button class="fm-rf-button" type="button" id="fm-rf-add-note">Add note to customer file</button></div><div class="fm-rf-note-list" id="fm-rf-note-list"></div></details>
+      <details class="fm-rf-card fm-rf-details"><summary>Refresh shared services and prices <span>Usually automatic</span></summary><p class="fm-rf-card-intro">Pull the current RoomFlow/Supabase catalog into Floodman. Stable source IDs update matching services instead of creating duplicates.</p><div class="fm-rf-button-row"><button class="fm-rf-button secondary" type="button" id="fm-rf-sync-catalog">Refresh current prices</button><a class="fm-rf-button secondary" href="/office/catalog" target="_top">Open services & prices</a></div><p class="fm-rf-card-intro" id="fm-rf-catalog-sync-result"></p></details>
+      <section class="fm-rf-card"><h3>3. Sketch and priced services</h3><p class="fm-rf-card-intro">Use simple estimate sections, search the shared service list, or add a custom service for this estimate.</p><div id="fm-rf-estimate-scope"></div></section>
+      <section class="fm-rf-card"><h3>4. Save to Floodman</h3><p class="fm-rf-card-intro">The layout, measurements, sections, and prices stay on this customer and property. Saving again updates the same draft.</p><div class="fm-rf-button-row"><button class="fm-rf-button good" type="button" id="fm-rf-sync-estimate">Save draft to Floodman</button><a class="fm-rf-button secondary" href="/office/estimates" target="_top">Open estimates</a><a class="fm-rf-button secondary" href="/office/documents" target="_top">Documents & signing</a></div><p class="fm-rf-card-intro" id="fm-rf-sync-result" style="margin-top:10px"></p></section><details class="fm-rf-card fm-rf-details"><summary>Open a recent RoomFlow job</summary><p class="fm-rf-card-intro">Load a server-saved layout on another approved phone, tablet, or computer.</p><div id="fm-rf-job-list"></div></details><div id="fm-rf-status" class="fm-rf-status" role="status" aria-live="polite"></div></div>`;
     const mobileNav = document.createElement('nav'); mobileNav.className = 'fm-rf-mobile-nav';
     mobileNav.innerHTML = `<button type="button" data-rf-tab="jobs"><b>⌂</b>Jobs</button><button type="button" data-rf-tab="project"><b>▱</b>Sketch</button><button type="button" data-rf-tab="add"><b>＋</b>Add</button><button type="button" data-rf-tab="review"><b>✓</b>Review</button><button type="button" data-rf-panel><b>◎</b>Customer</button>`;
     document.body.append(topbar, backdrop, panel, mobileNav);
     neutralizeLegacyCloudControls();
     $('#fm-rf-workspace-select')?.addEventListener('change', event => changeWorkspace(event.target.value));
     $('#fm-rf-create-workspace')?.addEventListener('click', () => createWorkspace($('#fm-rf-new-workspace-name')));
+    $('#fm-rf-help')?.addEventListener('click', () => { panelOpen(true); showGuide(true); $('#fm-rf-quick-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    $('#fm-rf-guide-close')?.addEventListener('click', () => showGuide(false));
     $('#fm-rf-open-panel')?.addEventListener('click', () => { panelOpen(true); $('#fm-rf-close-panel')?.focus(); }); $('#fm-rf-close-panel')?.addEventListener('click', () => { panelOpen(false); $('#fm-rf-open-panel')?.focus(); }); backdrop.addEventListener('click', () => panelOpen(false));
     $('#fm-rf-customer-search')?.addEventListener('input', event => { clearTimeout(model.searchTimer); model.searchTimer = setTimeout(() => searchCustomers(event.target.value), 220); });
     $('#fm-rf-property-search')?.addEventListener('input', event => { clearTimeout(model.propertyTimer); model.propertyTimer = setTimeout(() => searchProperties(event.target.value), 220); });
@@ -687,7 +716,7 @@
     };
     if (widePanel.addEventListener) widePanel.addEventListener('change', syncPinnedPanel); else widePanel.addListener(syncPinnedPanel);
     syncPinnedPanel();
-    renderCustomer(); renderProperty(); renderEstimateScope(); updateJobChip();
+    renderCustomer(); renderProperty(); renderEstimateScope(); updateJobChip(); showGuide(!guideDismissed()); updateGuide();
   }
   async function initialize() {
     buildUi();
@@ -695,11 +724,16 @@
     try { await refreshWorkspaceContext(); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
     await restoreLink(); await refreshJobs();
-    window.setTimeout(() => syncRoomFlowCatalog({ silent: true }).finally(() => renderEstimateScope()), 1800);
+    if (params.get('catalog_sync') === '1') {
+      panelOpen(true); const catalogDetails = $('#fm-rf-sync-catalog')?.closest('details'); if (catalogDetails) catalogDetails.open = true;
+      await syncRoomFlowCatalog({ force: true }).finally(() => renderEstimateScope());
+    } else {
+      window.setTimeout(() => syncRoomFlowCatalog({ silent: true }).finally(() => renderEstimateScope()), 1800);
+    }
     setInterval(() => {
       const key = currentJobKey(); if (key !== model.lastJobKey) restoreLink();
       const signature = estimateScopeSignature(); if (signature !== model.lastEstimateSignature) renderEstimateScope();
-      updateJobChip(); neutralizeLegacyCloudControls();
+      updateJobChip(); updateGuide(); neutralizeLegacyCloudControls();
     }, 1200);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true }); else initialize();

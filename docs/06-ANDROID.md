@@ -57,4 +57,4 @@ The authoritative workflow is `.github/workflows/build-android.yml`. Local alpha
 
 ## Known status
 
-The 2026-08-14 local alpha12 JDK 17/Gradle 8.13 gate passes compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK, and unsigned release AAB. Artifact identity, embedded RoomFlow pin, signature state, and SHA-256 values were inspected. No GitHub run was dispatched because this checkout has no remote (BLK-010), and no physical-device/signing/store pass is claimed.
+The 2026-08-15 local alpha12 JDK 17/Gradle 8.13 gate passes compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK, and unsigned release AAB. Artifact identity, refreshed low-training RoomFlow bridge, embedded pin, signature state, and SHA-256 values were inspected. No GitHub run was dispatched because this checkout has no remote (BLK-010), and no physical-device/signing/store pass is claimed.

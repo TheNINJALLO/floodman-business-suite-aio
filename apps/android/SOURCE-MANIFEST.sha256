@@ -1,9 +1,9 @@
-a510af23e1f0762df0afb4589b935f6a9829eb7d235a72350b5b3dc6d17da844  ./.gitignore
+bdc14f68420e8c2f1b24dbc034f9b4e15b5b05366e3fa92218dac88beb819381  ./.gitignore
 4500ae8e828b248f7011e80006dc46c165b821ee5f85397ae996e061a50b6d9d  ./app/build.gradle.kts
 bfc3363ec40040b99773b2c8e7e40e9de4757dddee97ffc24280ea412192476d  ./app/proguard-rules.pro
 6a8b94d8941ea912b5c278a6a5f0d3dadd4b339fe3e4970e282b920a9c8a7179  ./app/src/main/AndroidManifest.xml
 2691e88cad0cb5fa31a9d582fa7dce3909a648862560bc914f8386b88d0f400e  ./app/src/main/assets/roomflow/ASSETS_FETCHED_BY_GITHUB_ACTIONS.txt
-cb3dc18ed826e3ecb440ad202a3e19f5a7e4f245493efe39cf53f588f2c1a761  ./app/src/main/assets/roomflow/floodman-native-bridge.js
+3bb743638be08ffaadd30d91ebe15eb00bfe45f9794f3577a2dcf2c86eb4ec0f  ./app/src/main/assets/roomflow/floodman-native-bridge.js
 2214f8d24a7b0beb7d3424f8aa9eb345f1bfb5f75cadefba78090bb261c30cf3  ./app/src/main/java/com/floodman/operations/data/AppGraph.kt
 109f7ca4ffa084130b12f90c67f65ed04dafd3ad027d56dd9746d1972fa6a028  ./app/src/main/java/com/floodman/operations/data/FloodmanApi.kt
 d434e26bdbae15a2fcbd50a4810eab47fc9e7ed95fb816d3226ddc0f298ab1ea  ./app/src/main/java/com/floodman/operations/data/Models.kt
@@ -14,7 +14,7 @@ d434e26bdbae15a2fcbd50a4810eab47fc9e7ed95fb816d3226ddc0f298ab1ea  ./app/src/main
 489b8d971b2a3ffbd1d5fb2944b5be7aaf92048e19dee287fb62eab24461ee17  ./app/src/main/java/com/floodman/operations/roomflow/RoomFlowActivity.kt
 0f7e07be109dba6299c05b25e4a4696d07f442402132c1eb1820d4b57fe6b4da  ./app/src/main/java/com/floodman/operations/security/DeviceProof.kt
 411963d8a05d493a99a7c6d202e929148b41b2ddf3f663237d6fe536ac5f738d  ./app/src/main/java/com/floodman/operations/security/SecureStore.kt
-7203c998e910ef4fc3277c631b1f41eee7973a1afad031e9d6878e8dcbeee6c9  ./app/src/main/java/com/floodman/operations/ui/FloodmanApp.kt
+e0fceed91c1cb4d792afc75fc5d04200388eed286466dc180ff0e1249d6c4fc5  ./app/src/main/java/com/floodman/operations/ui/FloodmanApp.kt
 f93322cab05d1583a327af0ca587129cc37d75b9dd4afbfb61b70b46f1816a49  ./app/src/main/java/com/floodman/operations/ui/MainViewModel.kt
 a8a0c560459c8639c76493d005b77f88a2d09d639b4b12ed86956cae50e87d63  ./app/src/main/java/com/floodman/operations/ui/theme/Theme.kt
 0ace40edc1123720f1f2526d18a97311447c2b24377ff9ca25dd5e79b39d23c9  ./app/src/main/res/drawable/ic_floodman_background.xml
@@ -44,7 +44,7 @@ c0295c0484388e11d36646c037583df12453ccda42fa01ab2dee04a79a4cc7b1  ./build.gradle
 857645a4cf6bff1d91b4e6e06ded159117290693285f66930dabac424181840f  ./docs/ANDROID_ALPHA09_BUILD_FIX.md
 05ace428410e4a54ead84c9b2fc6ea6408f553d13322165bbfe147457b2152bd  ./docs/ANDROID_BUILD_AND_SIGNING.md
 83d249d511ce4962bf918f21e5171805e7d9bb1bd26c68fec27ff11479f4f56a  ./docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha11.md
-d5f538f3f27259130a5575a3b3ccd6e358f9f4ad5a081bb746b9e4febcbd637a  ./docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md
+d43d3fd84c511e9d5ee001b3293a5f9ba03d328e1239f2a843a9e4e20552b354  ./docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md
 06946dbd385a54616aba62ad5a3f2520357be0278e0d39cafa74aa36cd782b3a  ./docs/ARCHITECTURE.md
 5f226cb3d4b10ec972cc89ef3d744f375739099a37491acbc32957cfcdfc8361  ./docs/RELEASE_NOTES-v0.3.0.md
 b39cf2a3d152277b612d8243a9679ef7b199a3d940392b7bdc79490e2422f16f  ./docs/ROOMFLOW_NATIVE.md

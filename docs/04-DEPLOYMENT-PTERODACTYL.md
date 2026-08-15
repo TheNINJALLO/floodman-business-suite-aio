@@ -11,12 +11,12 @@ Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-14 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.9 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package removes the separate RoomFlow account/company blocker and includes the native workspace-query isolation used by Android alpha12/iOS alpha03. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
+The 2026-08-15 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.9 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the unified RoomFlow workspace, guided CRM/RoomFlow settings, owner-only original RoomFlow import, and native workspace-query isolation used by Android alpha12/iOS alpha03. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
 
 Current deployable SHA-256 values:
 
 ```text
-27302b1987ebe3e2ffba957c846493dbcb0ed223f634ea895b5b6b5a00cb44f3  floodman-operations-runtime-v4.6.9.zip
+c0dfa6fa3b39e5c34a8322c734a09be6895e087a709c1371a99aba4f0a5050d4  floodman-operations-runtime-v4.6.9.zip
 01c01658d86b6afc199c03227e75da1ef4c28dda85174d4ee9d380120e7ac6a3  mobile-start-v4.6.9.sh
 de57da3ecaf56c9b04acaabdb0fbf22005175eeb76818dfcea8ec40c15f4e79d  egg-floodman-operations-mobile-v4.6.9.json
 ```

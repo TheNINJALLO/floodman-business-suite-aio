@@ -175,13 +175,13 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
     assert "floodman_session" in client.cookies
 
     pages = [
-        "/setup", "/office", "/office/desktop", "/office/mobile?mobile=1", "/office/apps",
+        "/setup", "/office", "/office/desktop", "/office/mobile?mobile=1", "/office/apps", "/office/settings",
         "/office/linking", "/office/imports", "/office/contacts", "/office/properties",
         "/office/catalog", "/office/estimates", "/office/estimates/new", "/office/invoices",
         "/office/payments", "/office/payment-settings", "/office/documents", "/office/tasks",
         "/office/notes", "/office/time", "/office/members", "/office/messages",
         "/office/receivables", "/office/intelligence", "/office/alerts", "/office/platform",
-        "/office/signing", "/office/roomflow",
+        "/office/signing", "/office/roomflow", "/office/roomflow/import",
         f"/office/contacts/{records['contact']['id']}",
         f"/office/contacts/{records['contact']['id']}/edit",
         f"/office/properties/{records['property']['id']}",
@@ -197,6 +197,51 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
         response = client.get(path)
         assert response.status_code == 200, f"{path} returned {response.status_code}: {response.text[:300]}"
         assert "Floodman" in response.text, f"{path} did not render a Floodman page"
+
+    settings_page = client.get("/office/settings")
+    assert "OWNER START HERE" in settings_page.text
+    assert "Everyday setup" in settings_page.text and "Advanced connections" in settings_page.text
+    setup_page = client.get("/setup")
+    assert "Eastern Time (Detroit)" in setup_page.text
+    assert "name='timezone'" in setup_page.text and "name='timezone' value=" not in setup_page.text
+    original_profile = main.store.profile()
+    rejected_timezone = client.post(
+        "/setup/profile",
+        data={"company_name": "UI Smoke", "timezone": "UTC", "state": "MI"},
+    )
+    assert rejected_timezone.status_code == 303
+    assert main.store.profile() == original_profile, "invalid time zone changed the company profile"
+    invites_before = len(main.store.list_invites())
+    rejected_owner = client.post(
+        "/office/members/invite",
+        data={"name": "Unsafe Owner", "email": "unsafe-owner@example.test", "role": "OWNER"},
+    )
+    assert rejected_owner.status_code == 303
+    assert len(main.store.list_invites()) == invites_before, "a second owner invitation was accepted"
+    workspaces_before = len(main.store.records("roomflow_workspaces"))
+    rejected_workspace = client.post(
+        "/office/api/roomflow/workspaces",
+        json={"name": "Wrong Time Company", "timezone": "UTC"},
+    )
+    assert rejected_workspace.status_code == 422
+    assert len(main.store.records("roomflow_workspaces")) == workspaces_before
+    original_import = main.import_roomflow_supabase
+    captured_import: dict[str, str] = {}
+    try:
+        def fake_import(_store: Any, *, email: str, password: str, actor_id: str, **_kwargs: Any) -> dict[str, Any]:
+            captured_import.update(email=email, password=password, actor_id=actor_id)
+            return {"counts": {"jobs": 2}, "workspaces": [{"id": "workspace-test"}]}
+
+        main.import_roomflow_supabase = fake_import
+        imported = client.post(
+            "/office/roomflow/import",
+            data={"email": "old-roomflow@example.test", "password": "Temporary-RoomFlow-Password"},
+        )
+        assert imported.status_code == 303
+        assert captured_import["email"] == "old-roomflow@example.test"
+        assert "Temporary-RoomFlow-Password" not in str(main.store.snapshot())
+    finally:
+        main.import_roomflow_supabase = original_import
 
     for kind in ("estimate", "invoice"):
         record = records[kind]
@@ -236,6 +281,9 @@ def static_overlay_contracts() -> None:
     assert "fm-pwa-toast-dismiss" in sources["pwa_js"] and "Dismiss notification" in sources["pwa_js"]
     assert ".fm-pwa-toast-dismiss" in sources["pwa_css"]
     assert "fm-rf-panel-dismissed" in sources["panel_js"]
+    assert "floodman_roomflow_quick_start_dismissed_v1" in sources["panel_js"]
+    assert "Dismiss quick start" in sources["panel_js"] and "Dismiss message" in sources["panel_js"]
+    assert "params.get('catalog_sync') === '1'" in sources["panel_js"]
     assert "event.key === 'Escape'" in sources["panel_js"]
     assert "No separate RoomFlow account is required" in sources["panel_js"]
     assert "authOverlay.style.display = 'none'" in sources["panel_js"]
@@ -356,12 +404,12 @@ def browser_smoke(main: Any) -> None:
             page.wait_for_url(re.compile(r"/office/desktop"))
 
             desktop_pages = [
-                "/setup", "/office/desktop?desktop=1", "/office/apps", "/office/linking", "/office/imports",
+                "/setup", "/office/desktop?desktop=1", "/office/apps", "/office/settings", "/office/linking", "/office/imports",
                 "/office/contacts", "/office/properties", "/office/catalog", "/office/estimates",
                 "/office/estimates/new", "/office/invoices", "/office/payments", "/office/payment-settings",
                 "/office/documents", "/office/tasks", "/office/notes", "/office/time", "/office/members",
                 "/office/messages", "/office/receivables", "/office/intelligence", "/office/alerts",
-                "/office/platform", "/office/signing", "/office/roomflow",
+                "/office/platform", "/office/signing", "/office/roomflow", "/office/roomflow/import",
             ]
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -400,6 +448,13 @@ def browser_smoke(main: Any) -> None:
             assert page.evaluate("window.__legacyAccountPrompted") is False
             assert page.locator("#auth-overlay").evaluate("node => getComputedStyle(node).display") == "none"
             assert "No separate RoomFlow account is needed" in page.locator("#more-company-switcher").locator("xpath=ancestor::*[contains(@class,'checklist-room-card')][1]").inner_text()
+            guide = page.locator("#fm-rf-quick-start")
+            assert guide.is_visible()
+            page.locator("#fm-rf-guide-close").click()
+            assert guide.is_hidden()
+            page.locator("#fm-rf-help").click()
+            assert guide.is_visible()
+            assert page.locator(".fm-rf-details:not([open])").count() >= 3
             page.locator("#fm-rf-close-panel").click()
             assert page.locator("html").evaluate("node => node.classList.contains('fm-rf-panel-dismissed')")
             assert panel.get_attribute("aria-hidden") == "true"
@@ -426,10 +481,18 @@ def browser_smoke(main: Any) -> None:
             assert sidebar.get_attribute("aria-hidden") == "false"
             mobile_page.keyboard.press("Escape")
             assert sidebar.get_attribute("aria-hidden") == "true"
-            for path in ["/office/mobile?mobile=1", "/office/contacts", "/office/properties", "/office/estimates", "/office/invoices", "/office/roomflow"]:
+            for path in ["/office/mobile?mobile=1", "/office/settings", "/office/contacts", "/office/properties", "/office/estimates", "/office/invoices", "/office/roomflow", "/office/roomflow/import"]:
                 response = mobile_page.goto(base + path, wait_until="domcontentloaded")
                 assert response and response.status == 200, f"mobile browser route failed: {path}"
                 assert not mobile_page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 2"), f"mobile horizontal overflow: {path}"
+
+            mobile_page.goto(base + "/roomflow/", wait_until="domcontentloaded")
+            mobile_page.locator("#fm-rf-help").click()
+            assert mobile_page.locator("#fm-roomflow-panel").get_attribute("aria-hidden") == "false"
+            assert mobile_page.locator("#fm-rf-quick-start").is_visible()
+            assert not mobile_page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 2"), "mobile RoomFlow horizontal overflow"
+            mobile_page.locator("#fm-rf-close-panel").click()
+            assert mobile_page.locator("#fm-roomflow-panel").get_attribute("aria-hidden") == "true"
 
             mobile_page.close()
             desktop.close()

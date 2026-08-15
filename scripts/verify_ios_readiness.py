@@ -129,6 +129,12 @@ require_tokens(
         'accessibilityLabel("Close RoomFlow")',
         "importTask?.cancel()",
         "createTask?.cancel()",
+        'Section("Quick start")',
+        'LabeledContent("Time zone", value: "Eastern Time (Detroit)")',
+        'DisclosureGroup("More company options")',
+        'SecureField("Original RoomFlow password", text: $password)',
+        "let suppliedPassword = password",
+        'password = ""',
         'origin.host == "127.0.0.1" ? .grant : .deny',
         'url.host == "127.0.0.1"',
         "javaScriptCanOpenWindowsAutomatically = false",
@@ -137,6 +143,17 @@ require_tokens(
     ],
 )
 require("interactiveDismissDisabled" not in roomflow_view, "RoomFlow sheets can become non-dismissible")
+
+root_view = read("apps/ios/FloodmanOperations/Views/RootView.swift")
+require_tokens(
+    root_view,
+    "iOS app settings",
+    [
+        'Section("App settings")',
+        'LabeledContent("Business time", value: "Eastern Time (Detroit)")',
+        'DisclosureGroup("Installer connection details")',
+    ],
+)
 
 roomflow_bridge = read("apps/ios/FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js")
 require_tokens(

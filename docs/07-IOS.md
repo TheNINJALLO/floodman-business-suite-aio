@@ -52,4 +52,4 @@ Never commit those values. Store them only as GitHub Actions secrets or in a ded
 
 ## Known status
 
-The 2026-08-14 alpha03 Windows source/readiness gate passes, including build 3 identity, workspace-aware RoomFlow lookup, the exact prepared pin, all 10 source server smokes, and all 9 packaged smokes. Windows cannot run Xcode, so a simulator build is still required and remains `BLK-004`; no compiler pass is inferred. Native estimate, invoice, payment, scheduling, and employee-assignment depth must be verified against Android before calling the Apple app feature-complete.
+The 2026-08-15 alpha03 Windows source/readiness gate passes, including build 3 identity, guided RoomFlow workflow, progressive company/import controls, fixed Detroit business time, transient import-password handling, workspace-aware lookup, and the exact prepared pin. Windows cannot run Xcode, so a simulator build is still required and remains `BLK-004`; no compiler pass is inferred. Native estimate, invoice, payment, scheduling, and employee-assignment depth must be verified against Android before calling the Apple app feature-complete.

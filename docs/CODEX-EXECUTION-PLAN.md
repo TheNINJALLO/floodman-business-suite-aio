@@ -10,10 +10,11 @@
 ## Phase 1 — web correctness and usability
 
 - **Complete (2026-08-12).** Enumerated custom HTML/CSS/JavaScript producers and public/private route families.
-- Rendered 37 authenticated route states plus public estimate, invoice, payment, receipt, and PDF routes with fictional temporary data.
+- Rendered 39 authenticated route states plus public estimate, invoice, payment, receipt, and PDF routes with fictional temporary data.
 - Added a real Chromium-family browser gate for dialog/drawer close paths, Escape behavior, focus restoration, and horizontal overflow at 1440×900 and 390×844.
 - Repaired PWA, Hub, active/legacy RoomFlow, Full ERP recovery, Windows time-zone, and PDF portability defects while preserving Floodman branding and attribution.
 - **Complete (2026-08-13).** Routed the genuine ERP credential exchange through the Office identity bridge so one successful ERP login establishes ERP, Office, and RoomFlow browser access; retained an explicit local-owner recovery path and return signed-in users to the originally requested module.
+- **Settings usability complete (2026-08-15).** Every staff-visible CRM, setup, provider, company, catalog, import, RoomFlow, Android, and iOS settings surface is inventoried. Central guided setup, plain labels, safe Detroit defaults, server validation, owner/installer progressive disclosure, dismissible help/feedback, and owner-only stable RoomFlow import pass keyboard, close, desktop, mobile, source, package, and native readiness gates.
 
 ## Phase 2 — RoomFlow and Supabase
 
@@ -29,7 +30,7 @@
 - Prepared and validated RoomFlow assets from the exact pin with package-visible release/pin provenance.
 - Passed `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`, `assembleRelease`, and `bundleRelease` without weakening lint; the only 17 lint notices concern newer dependency versions.
 - Recorded local artifact SHA-256 values and added CI checksum generation. Physical-device/public-HTTPS and release signing remain separate external gates.
-- **Alpha12 complete locally (2026-08-14).** The selected Floodman workspace now scopes RoomFlow customer/property lookups; exact-pin assets identify server 4.6.9. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. CI dispatch requires a repository remote under BLK-010; device/signing gates remain external.
+- **Alpha12 usability refresh complete locally (2026-08-15).** The selected Floodman workspace scopes RoomFlow customer/property lookups; four-step guidance, plain customer/import controls, fixed Detroit time, and installer-only connection editing are packaged with exact-pin server 4.6.9 assets. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. CI dispatch requires a repository remote under BLK-010; device/signing gates remain external.
 
 ## Phase 4 — iOS
 
@@ -37,13 +38,13 @@
 - Prepared and validated the complete native RoomFlow bundle from the same exact pin; hardened loopback HTTP framing, WebView origin permissions, and all native close/cancel paths.
 - Rebuilt the simulator workflow to select Xcode 26, validate sources/assets, generate the project, build unsigned, package the `.app`, and record checksums. The guarded TestFlight path now repeats the unsigned simulator compile for the same commit before signing.
 - Actual `xcodebuild` remains `BLOCKED`, not passed, until the macOS workflow runs. Signing, archive, TestFlight, and device acceptance remain blocked until explicitly authorized and configured.
-- **Alpha03 local preparation complete (2026-08-14).** Source/build identity and native workspace-aware queries are updated. All Windows-available source, bridge, project, asset, pin, readiness, and workflow checks pass; BLK-004 remains the honest boundary for the real unsigned Xcode compile.
+- **Alpha03 local preparation refreshed (2026-08-15).** Source/build identity, workspace-aware queries, four-step guidance, progressive company/import controls, fixed Detroit time, transient import-password handling, and installer-only endpoint details pass every Windows-available source, bridge, project, asset, pin, readiness, and workflow check; BLK-004 remains the honest boundary for the real unsigned Xcode compile.
 
 ## Phase 5 — server and packaging
 
 - **Local gates complete (2026-08-13); external acceptance remains blocked.** All 10 repository server smoke programs pass with isolated fictional state, and all 9 portable programs pass from the extracted deployment ZIP.
 - **v4.6.8 server-only test build complete (2026-08-13).** The user explicitly deferred Android/iOS builds for this distinct Pterodactyl test identity. Two deterministic package builds, all 163 internal hashes, launcher syntax, RoomFlow compatibility, and repository verification with 0 warnings pass. Native versions and compatibility minimums remain unchanged; the exception does not advance signing, device, staging, or production gates.
-- **v4.6.9 RoomFlow unlock complete locally (2026-08-14).** The remaining upstream Supabase account/company gate is replaced by ERP-session Floodman workspace controls; browser and native jobs, identity lookup, and saves are company-scoped. Local Edge, 10 source smokes, 163 packaged hashes, 9 portable package smokes, deterministic packaging, launcher syntax, and RoomFlow compatibility pass. Staging installation remains BLK-005.
+- **v4.6.9 usability refresh complete locally (2026-08-15).** ERP-session workspaces, the central settings path, low-training RoomFlow workflow, and owner-only original Supabase migration are packaged without a version or pin change. Local Edge, 10 source smokes, 163 packaged hashes, 9 portable package smokes, two deterministic packages, launcher syntax, and RoomFlow compatibility pass. Staging installation remains BLK-005.
 - Pinned the derivative base and four complete-AIO upstream images by registry digest, plus all five server-image workflow actions by commit.
 - Added service-specific transitive Python constraints, a deny-by-default Docker context, and an automated immutable-input verifier.
 - Completed a clean `--pull --no-cache` linux/amd64 derivative build and a network-isolated image audit: 174/174 server manifest entries, all five installed Python package sets, non-root ownership, empty inherited development-secret placeholders, and live-state exclusions passed.

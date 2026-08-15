@@ -32,24 +32,25 @@ NAV_GROUPS = [
     ]),
     ("Sales & Billing", [
         ("/office/estimates", "Estimates", "estimates", "estimates.view"),
-        ("/office/catalog", "Line Item Catalog", "catalog", "estimates.view"),
+        ("/office/catalog", "Services & Prices", "catalog", "estimates.view"),
         ("/office/invoices", "Invoices", "invoices", "invoices.view"),
         ("/office/payments", "Payments", "payments", "payments.view"),
-        ("/office/payment-settings", "Payment Setup", "connections", "connections.manage"),
+        ("/office/payment-settings", "Card Payment Setup", "payment-settings", "connections.manage"),
         ("/office/receivables", "Receivables", "receivables", "receivables.view"),
     ]),
     ("People & Communication", [
         ("/office/time", "Time Clock", "time", "time.self"),
-        ("/office/members", "Members & Roles", "members", "members.manage"),
+        ("/office/members", "Team & Access", "members", "members.manage"),
         ("/office/documents", "Documents & Signing", "documents", "documents.view"),
         ("/office/messages", "Messages", "messages", "messages.view"),
         ("/office/alerts", "Staff Alerts", "alerts", "alerts.view"),
     ]),
     ("Growth & Administration", [
+        ("/office/settings", "Settings & Setup", "settings", "connections.manage"),
         ("/office/intelligence", "AI Competitor Intelligence", "intelligence", "intelligence.view"),
         ("/office/imports", "Import Center", "imports", "imports.manage"),
-        ("/office/linking", "Connections", "linking", "connections.manage"),
-        ("/setup", "Setup", "setup", "connections.manage"),
+        ("/office/linking", "Advanced Connections", "linking", "connections.manage"),
+        ("/setup", "Go-Live Checklist", "setup", "connections.manage"),
     ]),
 ]
 
@@ -574,6 +575,10 @@ BASE_CSS = r"""
 .estimate-index-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;background:linear-gradient(135deg,#102c49,#0a1a2e)}.estimate-index-hero h2{margin:5px 0}.estimate-index-hero .eyebrow{color:#72cfff;font-size:11px;font-weight:900;letter-spacing:.12em}.estimate-index-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.estimate-workflow-step{position:relative;border-left:4px solid #2ea7df}.estimate-step-heading{display:flex;gap:12px;align-items:flex-start;margin-bottom:15px}.estimate-step-heading>span{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:50%;background:#1d78b7;color:#fff;font-weight:900}.estimate-step-heading h2{margin:0}.estimate-step-heading p{margin:4px 0 0;color:var(--muted)}.estimate-mode-buttons{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.estimate-mode-buttons button.active{background:#1d78b7;border-color:#5fc5ff;color:#fff}.estimate-mode-panel[hidden]{display:none}.estimate-workflow-submit{display:flex;justify-content:space-between;align-items:center;gap:15px;border-color:#2f775c;background:#0b2a21}.estimate-workflow-submit h2{margin:0 0 4px}.estimate-linked-records{display:grid;grid-template-columns:1fr 1fr;gap:12px}.estimate-linked-records>div{padding:12px;border:1px solid var(--line);border-radius:10px;background:#0a1728}.estimate-linked-records small,.estimate-linked-records b{display:block}.estimate-linked-records small{color:var(--muted);text-transform:uppercase;font-size:10px}.estimate-linked-records b{margin-top:5px}.preline{white-space:pre-line}.two-wide{grid-column:span 2}
 @media(max-width:1100px){.estimate-index-hero,.estimate-workflow-submit{align-items:stretch;flex-direction:column}.estimate-index-hero .actions,.estimate-workflow-submit .actions{width:100%}.estimate-index-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.estimate-linked-records{grid-template-columns:1fr}.two-wide{grid-column:auto}}
 @media(max-width:720px){.estimate-index-metrics{grid-template-columns:1fr 1fr}.estimate-mode-buttons{display:grid;grid-template-columns:1fr}.estimate-step-heading>span{flex-basis:34px;width:34px;height:34px}.estimate-workflow-step{padding-top:15px}.estimate-workflow-submit .actions{display:grid}}
+
+/* Low-training settings workspace */
+.settings-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:22px;border-color:#39799d;background:linear-gradient(135deg,#123a5a,#0c2238)}.settings-hero h2{font-size:25px;margin:4px 0 7px}.settings-eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;color:#76d4ff;text-transform:uppercase}.settings-hero-copy{max-width:760px}.settings-hero-copy p{margin:0;color:#c4d6e8;line-height:1.55}.settings-progress{min-width:150px;text-align:center;padding:15px;border:1px solid #477492;border-radius:13px;background:#07192a}.settings-progress strong{display:block;font-size:30px;color:#7fe6b8}.settings-progress small{color:var(--muted)}.settings-section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:24px 0 12px}.settings-section-head h2,.settings-section-head p{margin:0}.settings-section-head p{color:var(--muted)}.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:13px}.settings-card{display:flex;flex-direction:column;min-height:235px;margin:0;padding:17px}.settings-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.settings-card-number{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:#1d78b7;color:#fff;font-weight:900}.settings-card h3{font-size:18px;margin:12px 0 6px}.settings-card p{margin:0 0 12px;color:#b9cada;line-height:1.5}.settings-card .settings-summary{margin-top:auto;padding:10px;border-radius:9px;background:#081727;color:var(--muted);font-size:12px}.settings-card .actions{margin-top:12px}.settings-card .button{width:100%}.field-help{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.4}.required-mark{color:#8bd3ff;font-weight:750}.plain-details{margin-top:14px}.plain-details>summary{min-height:42px;display:flex;align-items:center}.choice-card{padding:13px;border:1px solid var(--line);border-radius:11px;background:#0a1728}.choice-card b,.choice-card small{display:block}.choice-card small{margin-top:5px;color:var(--muted);line-height:1.45}.role-guide{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin:12px 0}.role-guide>div{padding:11px;border:1px solid var(--line);border-radius:10px;background:#0a1728}.role-guide b,.role-guide small{display:block}.role-guide small{margin-top:4px;color:var(--muted)}.advanced-banner{border-color:#5c512d;background:#2a2516}.connection-simple-table table{min-width:520px}
+@media(max-width:720px){.settings-hero{flex-direction:column;padding:18px}.settings-progress{width:100%}.settings-section-head{align-items:flex-start;flex-direction:column}.settings-card{min-height:0}.settings-grid{grid-template-columns:1fr}}
 
 """
 

@@ -406,10 +406,10 @@
       modal.setAttribute('aria-labelledby', 'fm-workspace-title');
       modal.innerHTML = `
         <form id="fm-roomflow-workspace-form" autocomplete="off">
-          <h2 id="fm-workspace-title">Create Floodman workspace</h2>
-          <p>Create a company workspace only when it does not already exist. Imported Supabase companies appear automatically after Cloud Import.</p>
-          <label>Company or workspace name<input id="fm-workspace-name" type="text" maxlength="300" required></label>
-          <label>Time zone<input id="fm-workspace-timezone" type="text" maxlength="80" value="${this.escape(this.activeWorkspace?.timezone || 'America/Detroit')}" required></label>
+          <h2 id="fm-workspace-title">Create another company</h2>
+          <p>Most teams need only the company Floodman created automatically. Add another only when its customers and jobs must stay in a separate company workspace.</p>
+          <label>Company name<input id="fm-workspace-name" type="text" minlength="2" maxlength="200" autocomplete="organization" placeholder="Company name" required></label>
+          <label>Business time zone<select id="fm-workspace-timezone"><option value="America/Detroit">Eastern Time (Detroit)</option></select></label>
           <div><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Create</button></div>
         </form>`;
       document.body.appendChild(modal);
@@ -439,11 +439,11 @@
       modal.setAttribute('aria-labelledby', 'fm-import-title');
       modal.innerHTML = `
         <form id="fm-roomflow-import-form" autocomplete="off">
-          <h2 id="fm-import-title">Import original RoomFlow</h2>
-          <p>Use the email and password from the former RoomFlow Supabase login. Floodman uses them for this import only and does not save the password. Existing imports are updated, not intentionally duplicated.</p>
-          <label>Email<input id="fm-import-email" type="email" autocomplete="username" required></label>
-          <label>Password<input id="fm-import-password" type="password" autocomplete="current-password" required></label>
-          <div><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Import</button></div>
+          <h2 id="fm-import-title">Bring in old RoomFlow data</h2>
+          <p>Use the sign-in from the original RoomFlow cloud account. Floodman uses the password for this import request only, clears it immediately, and updates matching source records instead of intentionally duplicating them.</p>
+          <label>Original RoomFlow email<input id="fm-import-email" type="email" autocomplete="username" required></label>
+          <label>Original RoomFlow password<input id="fm-import-password" type="password" autocomplete="current-password" required></label>
+          <div><button type="button" data-cancel>Cancel</button><button type="submit" class="primary">Start secure import</button></div>
         </form>`;
       document.body.appendChild(modal);
       const close = () => modal.remove();
@@ -610,10 +610,10 @@
     bar.innerHTML = `
       <button onclick="FloodmanNative.close()">‹ Floodman</button>
       <select id="fm-workspace-select" aria-label="RoomFlow company" onchange="FloodmanRoomFlow.changeWorkspace(this.value)"><option>Loading company…</option></select>
-      <button class="compact" title="Create company workspace" onclick="FloodmanRoomFlow.showWorkspaceDialog()">＋</button>
+      <button class="compact" title="Create another company" aria-label="Create another company" onclick="FloodmanRoomFlow.showWorkspaceDialog()">＋</button>
       <div id="fm-link-summary">Choose customer · Choose property</div>
-      <button onclick="FloodmanRoomFlow.chooseCustomer()">Link</button>
-      <button onclick="FloodmanRoomFlow.showImportDialog()">Cloud</button>
+      <button title="Choose the customer and service property" onclick="FloodmanRoomFlow.chooseCustomer()">Customer</button>
+      <button title="Bring in data from the original RoomFlow cloud account" onclick="FloodmanRoomFlow.showImportDialog()">Import</button>
       <button class="save" onclick="FloodmanRoomFlow.save()">Save</button>
       <span id="fm-native-status">Loading…</span>`;
     document.body.appendChild(bar);
@@ -637,7 +637,7 @@
       .fm-roomflow-modal h2{margin:0 0 8px}
       .fm-roomflow-modal p{color:#cbd5e1;line-height:1.45}
       .fm-roomflow-modal label{display:block;margin:12px 0;color:#dbeafe;font-weight:700}
-      .fm-roomflow-modal input{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:12px;border-radius:9px;border:1px solid #456;background:#071722;color:#fff;font-size:16px}
+      .fm-roomflow-modal input,.fm-roomflow-modal select{display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:12px;border-radius:9px;border:1px solid #456;background:#071722;color:#fff;font-size:16px}
       .fm-roomflow-modal form>div{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
       .fm-roomflow-modal button{padding:10px 16px;border:0;border-radius:9px;background:#334155;color:#fff}
       .fm-roomflow-modal button.primary{background:#0783ad}

@@ -258,7 +258,10 @@ def create_roomflow_workspace(
 ) -> dict[str, Any]:
     clean_name = _text(name, 300)
     if len(clean_name) < 2:
-        raise ValueError("Workspace name must contain at least two characters.")
+        raise ValueError("Enter a company name with at least two characters.")
+    requested_timezone = _text(timezone, 80) or "America/Detroit"
+    if requested_timezone != "America/Detroit":
+        raise ValueError("Floodman company workspaces use Eastern Time (Detroit).")
     for existing in ensure_roomflow_workspaces(store, actor_id=actor_id):
         if _text(existing.get("name"), 300).casefold() == clean_name.casefold():
             select_roomflow_workspace(store, user_id, str(existing["id"]), actor_id=actor_id)
@@ -267,7 +270,7 @@ def create_roomflow_workspace(
         "roomflow_workspaces",
         {
             "name": clean_name,
-            "timezone": _text(timezone, 80) or _text(store.profile().get("timezone"), 80) or "America/Detroit",
+            "timezone": "America/Detroit",
             "status": "ACTIVE",
             "imported": False,
             "is_default": False,
