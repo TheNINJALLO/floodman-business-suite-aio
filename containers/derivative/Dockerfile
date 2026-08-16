@@ -4,8 +4,8 @@ ARG FLOODMAN_BASE_IMAGE=ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sh
 FROM ${FLOODMAN_BASE_IMAGE}
 
 LABEL org.opencontainers.image.title="Floodman Operations"
-LABEL org.opencontainers.image.description="Floodman Operations v4.6.9 derivative AIO runtime."
-LABEL org.opencontainers.image.version="4.6.9"
+LABEL org.opencontainers.image.description="Floodman Operations v4.6.10 derivative AIO runtime."
+LABEL org.opencontainers.image.version="4.6.10"
 LABEL org.opencontainers.image.authors="Josh Aldrich"
 
 USER root
@@ -20,7 +20,7 @@ RUN chmod 0755 /opt/floodman/aio/*.sh
 # The pinned upstream image declares development credential defaults. Floodman's
 # start-suite generates persistent random values before the ERP starts; clear the
 # inherited placeholders so no known credential remains usable from image config.
-ENV FLOODMAN_RELEASE=pterodactyl-mobile-v4.6.9 \
+ENV FLOODMAN_RELEASE=pterodactyl-mobile-v4.6.10 \
     TZ=America/Detroit \
     EXPRESS_SESSION_SECRET= \
     JWT_SECRET= \

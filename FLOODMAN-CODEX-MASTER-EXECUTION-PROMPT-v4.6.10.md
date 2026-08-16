@@ -1,4 +1,4 @@
-# Floodman Codex master execution prompt v4.6.9
+# Floodman Codex master execution prompt v4.6.10
 
 ## Mission
 
@@ -6,7 +6,7 @@ Continue the checked-in Floodman Operations handoff without restarting completed
 
 The active release identities are:
 
-- server `4.6.9`
+- server `4.6.10`
 - Mobile API `0.3.0-alpha11`
 - Android `0.3.0-alpha12`
 - iOS `0.1.0-alpha03`
@@ -15,9 +15,9 @@ The active release identities are:
 
 `AGENTS.md` is authoritative. This file narrows execution behavior but does not relax any repository instruction.
 
-### Scoped v4.6.9 test-release authorization
+### Scoped v4.6.10 web-update authorization
 
-On 2026-08-13 the user explicitly authorized server/Pterodactyl test builds while deferring Android and iOS builds. On 2026-08-14 the reported RoomFlow account/company blocker required a distinct v4.6.9 server artifact so a host already recognizing v4.6.8 can install the repair. The user subsequently authorized updating both native candidates and sending Android through its build gate. Android advances to `0.3.0-alpha12` and iOS advances to `0.1.0-alpha03`; Mobile API compatibility remains additive at `0.3.0-alpha11`, with minimum Android `0.3.0-alpha11` and minimum iOS `0.1.0-alpha02`. This authorization covers local unsigned builds and the unsigned CI build workflow only. It does not authorize production deployment, signing, Play/TestFlight upload, live-data access, or a claim that device/macOS gates passed.
+On 2026-08-15 the user explicitly requested a version bump so the web system can recognize and install the completed CRM/RoomFlow usability update. This authorizes the distinct server/Pterodactyl `4.6.10` identity and local test artifacts only. Mobile API remains additive at `0.3.0-alpha11`, Android remains `0.3.0-alpha12`, iOS remains `0.1.0-alpha03`, and the minimum-client versions and RoomFlow pin do not advance. The previously recorded Android build and iOS source-readiness evidence remain historical evidence for those unchanged native candidates; this web-only bump does not claim a new native compile. It does not authorize production deployment, signing, Play/TestFlight upload, live-data access, or a claim that device/macOS/staging gates passed.
 
 ## Task selection and evidence
 

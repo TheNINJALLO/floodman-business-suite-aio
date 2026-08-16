@@ -2,6 +2,14 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.6.10
+
+- Added one ordered Settings & Setup home for business details, team access, services/prices, RoomFlow, payments, signing, imports, and advanced connections.
+- Reworked CRM and RoomFlow settings with plain labels, safe Detroit-time defaults, server validation, progressive disclosure, and dismissible help/feedback for low-training use.
+- Added the owner-only browser path for importing original RoomFlow Supabase data through the existing stable-ID, update-without-duplication importer; supplied passwords are not persisted.
+- Added four-step RoomFlow guidance across the web and the unchanged Android alpha12/iOS alpha03 source candidates.
+- Advanced only the server/web/Pterodactyl identity so hosts already recognizing v4.6.9 can install the update. Mobile API, native app versions, minimum-client versions, and the exact RoomFlow pin remain unchanged.
+
 ## 4.6.9
 
 - Advanced the unsigned native candidates to Android `0.3.0-alpha12` and iOS `0.1.0-alpha03` after explicit authorization; Mobile API and minimum-client versions remain backward compatible.

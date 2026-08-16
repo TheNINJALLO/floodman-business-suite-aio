@@ -3,7 +3,7 @@
   if (window.__FLOODMAN_PWA_LOADED__) return;
   window.__FLOODMAN_PWA_LOADED__ = true;
 
-  const RELEASE = '4.6.9';
+  const RELEASE = '4.6.10';
   const isLocal = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
   const secureEnough = window.isSecureContext && (location.protocol === 'https:' || isLocal);
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;

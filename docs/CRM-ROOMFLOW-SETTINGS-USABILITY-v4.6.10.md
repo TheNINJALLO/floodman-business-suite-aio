@@ -1,8 +1,8 @@
-# CRM and RoomFlow settings usability — v4.6.9
+# CRM and RoomFlow settings usability — v4.6.10
 
 Date: 2026-08-15
 Scope: Floodman Office CRM, integrated RoomFlow, RoomFlow source-data import, Android and iOS settings entry points
-Release identity: unchanged (`server 4.6.9`, Mobile API `0.3.0-alpha11`, Android `alpha12`, iOS `alpha03`)
+Release identity: unchanged (`server 4.6.10`, Mobile API `0.3.0-alpha11`, Android `alpha12`, iOS `alpha03`)
 
 ## Intended first-day experience
 

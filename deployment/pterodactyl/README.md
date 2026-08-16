@@ -5,7 +5,7 @@ The live test deployment uses one Pterodactyl server allocation with Floodman's 
 ## Current matched release
 
 ```text
-Server:  Floodman Operations 4.6.9
+Server:  Floodman Operations 4.6.10
 Android: 0.3.0-alpha11
 Apple:   0.1.0-alpha02 development source
 ```
@@ -16,11 +16,11 @@ Apple:   0.1.0-alpha02 development source
 bash ./mobile-start.sh
 ```
 
-Import `egg-floodman-operations-mobile-v4.6.9.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
+Import `egg-floodman-operations-mobile-v4.6.10.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
 
 ```text
-mobile-start-v4.6.9.sh -> mobile-start.sh
-floodman-operations-runtime-v4.6.9.zip (do not extract)
+mobile-start-v4.6.10.sh -> mobile-start.sh
+floodman-operations-runtime-v4.6.10.zip (do not extract)
 ```
 
 The egg installs the same current launcher automatically on a fresh server. The ZIP remains a separate upload so its SHA-256 can be verified before startup. Set a non-placeholder Owner password and create `config/tailscale-auth-key.txt` with a one-off non-ephemeral auth key before the first start.
@@ -46,4 +46,4 @@ The egg installs the same current launcher automatically on a fresh server. The 
 7. Verify `/mobile-api/v1/health`, `/office-health/live`, private desktop/mobile routes, signing, and one PDF.
 8. Roll back the launcher and runtime only if the matching release fails. Never delete data directories as a repair shortcut.
 
-The v4.6.9 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Historical copies under `release-artifacts/` are rollback provenance, not the current upload source.
+The v4.6.10 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Historical copies under `release-artifacts/` are rollback provenance, not the current upload source.

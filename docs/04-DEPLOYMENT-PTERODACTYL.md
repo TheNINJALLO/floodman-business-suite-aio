@@ -4,21 +4,21 @@
 
 ```text
 Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
-Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.6.9.json
-Launcher: deployment/releases/mobile-start-v4.6.9.sh
-Runtime: deployment/releases/floodman-operations-runtime-v4.6.9.zip
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.6.10.json
+Launcher: deployment/releases/mobile-start-v4.6.10.sh
+Runtime: deployment/releases/floodman-operations-runtime-v4.6.10.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-15 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.9 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the unified RoomFlow workspace, guided CRM/RoomFlow settings, owner-only original RoomFlow import, and native workspace-query isolation used by Android alpha12/iOS alpha03. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
+The 2026-08-15 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.6.10 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the unified RoomFlow workspace, guided CRM/RoomFlow settings, owner-only original RoomFlow import, and native workspace-query isolation used by Android alpha12/iOS alpha03. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
 
 Current deployable SHA-256 values:
 
 ```text
-c0dfa6fa3b39e5c34a8322c734a09be6895e087a709c1371a99aba4f0a5050d4  floodman-operations-runtime-v4.6.9.zip
-01c01658d86b6afc199c03227e75da1ef4c28dda85174d4ee9d380120e7ac6a3  mobile-start-v4.6.9.sh
-de57da3ecaf56c9b04acaabdb0fbf22005175eeb76818dfcea8ec40c15f4e79d  egg-floodman-operations-mobile-v4.6.9.json
+3ea0a0708585e6b8aafa1f2ac40bf69b2c6c4298d6d4867f8b2eb93594c404a5  floodman-operations-runtime-v4.6.10.zip
+e3165e78f6a84e6b3bf01a9a7d15f3eda181cb67e4541470eea220dc42e71cc5  mobile-start-v4.6.10.sh
+fcc1324d1e7525323200fee584bd7ccdbd60fa43938a70e32074ec0c6a9f987c  egg-floodman-operations-mobile-v4.6.10.json
 ```
 
 Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.

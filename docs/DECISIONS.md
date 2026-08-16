@@ -150,3 +150,11 @@
 - RoomFlow migration: Expose the existing stable-ID original Supabase importer as an owner-only Office page in addition to the native flows. The supplied password exists only for the import request and never enters Office state, history, logs, URLs, or configuration. Existing import layout-honesty and update-without-duplication rules remain authoritative.
 - Release consequence: This is an additive source/usability refresh. Keep server `4.6.9`, Mobile API `0.3.0-alpha11`, Android `0.3.0-alpha12`, iOS `0.1.0-alpha03`, and RoomFlow pin `1f97817a52b916875e50cc6380c0d284072b8ce8` unchanged; regenerate and checksum the same-version installable runtime and native build artifacts.
 - Boundary: The genuine upstream ERP keeps its own accounting, organization, employee, role, inventory, and reporting administration. Floodman links owners to those screens and does not rewrite upstream records, expose a public administration endpoint, activate production providers, or mutate live data during settings review.
+
+## DEC-023 — Give the web usability release a distinct v4.6.10 identity
+
+- Date: 2026-08-15
+- Decision: On the user's explicit request, advance the server, web/PWA, container metadata, Pterodactyl launcher, runtime ZIP, egg, and current control/documentation identity from `4.6.9` to `4.6.10` so an installed v4.6.9 host recognizes the completed settings update.
+- Compatibility: Keep Mobile API `0.3.0-alpha11`, Android `0.3.0-alpha12`, iOS `0.1.0-alpha03`, minimum Android `0.3.0-alpha11`, minimum iOS `0.1.0-alpha02`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8` unchanged. The changes are additive and do not require a new native-client floor.
+- Evidence policy: Reopen only the server/web packaging gate. Run pre- and post-bump repository checks, all 10 source smokes, deterministic packaging, internal hashes, all 9 portable extracted-package smokes, launcher syntax, inventories, manifests, checksums, and final repository verification. Retain the 2026-08-15 Android build and iOS source-readiness results as evidence for unchanged candidates, not as new v4.6.10 native builds.
+- Safety: This authorizes local update artifacts, not a production deployment, live database change, live Supabase import, signing, store upload, device acceptance, macOS compilation, or staging acceptance.

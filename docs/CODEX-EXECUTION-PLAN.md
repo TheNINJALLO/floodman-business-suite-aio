@@ -15,6 +15,7 @@
 - Repaired PWA, Hub, active/legacy RoomFlow, Full ERP recovery, Windows time-zone, and PDF portability defects while preserving Floodman branding and attribution.
 - **Complete (2026-08-13).** Routed the genuine ERP credential exchange through the Office identity bridge so one successful ERP login establishes ERP, Office, and RoomFlow browser access; retained an explicit local-owner recovery path and return signed-in users to the originally requested module.
 - **Settings usability complete (2026-08-15).** Every staff-visible CRM, setup, provider, company, catalog, import, RoomFlow, Android, and iOS settings surface is inventoried. Central guided setup, plain labels, safe Detroit defaults, server validation, owner/installer progressive disclosure, dismissible help/feedback, and owner-only stable RoomFlow import pass keyboard, close, desktop, mobile, source, package, and native readiness gates.
+- **v4.6.10 web update complete locally (2026-08-15).** The distinct server/web and Pterodactyl identity lets an existing v4.6.9 host recognize the settings/usability update. Source/browser tests, deterministic artifacts, extracted-package tests, hashes, inventory, and verification pass while the additive Mobile API, native app versions, RoomFlow pin, and external signing/device/macOS/staging boundaries remain unchanged.
 
 ## Phase 2 — RoomFlow and Supabase
 

@@ -25,6 +25,7 @@
 | 4.6.7 | Authentication-aware Full ERP routing and HTTPS boot guard |
 | 4.6.8 | Unified ERP/Office/RoomFlow login and distinct server-only Pterodactyl test-update identity |
 | 4.6.9 | ERP-session RoomFlow companies, native workspace isolation, Android alpha12, and iOS alpha03 |
+| 4.6.10 | Guided CRM/RoomFlow settings, safe validation/defaults, owner-only old-data import, and distinct web-update artifacts |
 
 ## Android milestones
 
@@ -54,4 +55,4 @@
 
 ## Status note
 
-Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.9; Android alpha12 and iOS alpha03 are unsigned test candidates. Android build evidence and the external iOS compiler status are recorded separately.
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.10; Android alpha12 and iOS alpha03 are unchanged unsigned test candidates. Android build evidence and the external iOS compiler status are recorded separately.

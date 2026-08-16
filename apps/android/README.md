@@ -6,14 +6,14 @@ Native Android staff application for Floodman Operations.
 
 ```text
 App version: 0.3.0-alpha12
-Current server runtime: Floodman Operations v4.6.9
+Current server runtime: Floodman Operations v4.6.10
 Minimum capability-compatible server: Floodman Operations v4.6.3
 Android package: com.floodman.operations
 Minimum Android: Android 9 (API 28)
 Time zone: America/Detroit
 ```
 
-Android alpha12 retains the additive v4.6.3 Mobile API capability baseline while matching the current v4.6.9 server and company-workspace repair. RoomFlow customer/property searches and saves are scoped to the selected company. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
+Android alpha12 retains the additive v4.6.3 Mobile API capability baseline while matching the current v4.6.10 server and company-workspace repair. RoomFlow customer/property searches and saves are scoped to the selected company. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
 
 ## Original RoomFlow migration
 

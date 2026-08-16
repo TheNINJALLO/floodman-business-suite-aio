@@ -3,11 +3,11 @@ set -eu
 
 cd /home/container
 
-log() { printf '[Floodman Mobile v4.6.9] %s\n' "$*"; }
-die() { printf '[Floodman Mobile v4.6.9] ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '[Floodman Mobile v4.6.10] %s\n' "$*"; }
+die() { printf '[Floodman Mobile v4.6.10] ERROR: %s\n' "$*" >&2; exit 1; }
 
 base='/opt/floodman/aio'
-hotfix='/home/container/runtime/floodman-v4.6.9'
+hotfix='/home/container/runtime/floodman-v4.6.10'
 run_dir='/home/container/run'
 
 [ -r "$base/start-suite.sh" ] || die 'The Floodman runtime image is missing /opt/floodman/aio/start-suite.sh.'
@@ -38,20 +38,20 @@ esac
 
 mkdir -p "$hotfix" "$run_dir/postgres" /home/container/logs
 
-overlay_zip="/home/container/floodman-operations-runtime-v4.6.9.zip"
+overlay_zip="/home/container/floodman-operations-runtime-v4.6.10.zip"
 overlay_extract="$hotfix/app-overlay"
-overlay_root="$overlay_extract/floodman-operations-v4.6.9"
-[ -r "$overlay_zip" ] || die 'Keep floodman-operations-runtime-v4.6.9.zip in the Pterodactyl server root before starting.'
+overlay_root="$overlay_extract/floodman-operations-v4.6.10"
+[ -r "$overlay_zip" ] || die 'Keep floodman-operations-runtime-v4.6.10.zip in the Pterodactyl server root before starting.'
 rm -rf "$overlay_extract"
 mkdir -p "$overlay_extract"
-unzip -q "$overlay_zip" -d "$overlay_extract" || die 'Could not extract the Floodman v4.6.9 mobile-API overlay.'
-[ "$(cat "$overlay_root/VERSION" 2>/dev/null || true)" = '4.6.9' ] || die 'The uploaded mobile-API overlay is not Floodman v4.6.9.'
-( cd "$overlay_root" && sha256sum -c MANIFEST.sha256 >/dev/null ) || die 'The Floodman v4.6.9 mobile-API overlay failed its checksum verification.'
-log 'Verified the cumulative Floodman v4.6.9 full-ERP login overlay with authentication-aware routing, injected browser recovery, separate desktop/mobile workspaces, RoomFlow workspaces, guarded PDFs, estimates, invoices, scheduling, and payments.'
+unzip -q "$overlay_zip" -d "$overlay_extract" || die 'Could not extract the Floodman v4.6.10 mobile-API overlay.'
+[ "$(cat "$overlay_root/VERSION" 2>/dev/null || true)" = '4.6.10' ] || die 'The uploaded mobile-API overlay is not Floodman v4.6.10.'
+( cd "$overlay_root" && sha256sum -c MANIFEST.sha256 >/dev/null ) || die 'The Floodman v4.6.10 mobile-API overlay failed its checksum verification.'
+log 'Verified the cumulative Floodman v4.6.10 full-ERP login overlay with authentication-aware routing, injected browser recovery, separate desktop/mobile workspaces, RoomFlow workspaces, guarded PDFs, estimates, invoices, scheduling, and payments.'
 # Remove only stale extracted runtime trees. Uploaded rollback ZIPs and all data remain untouched.
 rm -rf /home/container/runtime/floodman-v4.6.0 /home/container/runtime/floodman-v4.6.1 /home/container/runtime/floodman-v4.6.2 /home/container/runtime/floodman-v4.6.3 /home/container/runtime/floodman-v4.6.4 /home/container/runtime/floodman-v4.6.5 /home/container/runtime/floodman-v4.6.6
 mkdir -p /home/container/config
-printf '%s\n' '4.6.9' > /home/container/config/floodman-active-runtime.txt
+printf '%s\n' '4.6.10' > /home/container/config/floodman-active-runtime.txt
 
 
 
@@ -534,8 +534,8 @@ while :; do
   sleep 2
 done
 
-overlay="$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/competitor-intel"
-[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman Competitor Intelligence v4.6.9 overlay is missing.'
+overlay="$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/competitor-intel"
+[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman Competitor Intelligence v4.6.10 overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/competitor-intel:$overlay:/opt/floodman/competitor-intel"
 exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8090 --no-access-log
@@ -557,7 +557,7 @@ wait_for_database() {
   done
 }
 
-overlay="$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/competitor-intel"
+overlay="$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/competitor-intel"
 [ -r "$overlay/app/scheduler.py" ] || fm_die 'The Floodman Competitor Intelligence scheduler overlay is missing.'
 
 while :; do
@@ -577,7 +577,7 @@ COMPETITOR_SCHEDULER
 cat > "$hotfix/floodman-boot-guard.js" <<'BOOT_GUARD'
 (() => {
   'use strict';
-  const release = 'pterodactyl-mobile-v4.6.9';
+  const release = 'pterodactyl-mobile-v4.6.10';
   const started = Date.now();
   const pendingLoginKey = 'floodmanLoginNext';
 
@@ -751,7 +751,7 @@ cat > "$hotfix/floodman-status.html" <<'STATUS_PAGE'
   <p class="muted">This page checks the Floodman Operations Hub, Floodman ERP API, Floodman workflow API, signing, test email, and Engineering Sandbox from the same browser you are using.</p>
   <div id="checks" class="grid"><div class="row"><b>Checks</b><span>running…</span></div></div>
   <div class="actions"><a class="primary" href="/full-erp?target=login">Open Floodman login</a><button class="secondary" id="again">Run again</button></div>
-  <p class="muted" style="font-size:12px;margin-top:18px">Release pterodactyl-mobile-v4.6.9</p>
+  <p class="muted" style="font-size:12px;margin-top:18px">Release pterodactyl-mobile-v4.6.10</p>
 </main>
 <script>
 (() => {
@@ -793,7 +793,7 @@ set -eu
 . /opt/floodman/aio/common.sh
 if [ -r /home/container/config/floodman-mobile.env ]; then set -a; . /home/container/config/floodman-mobile.env; set +a; fi
 while [ ! -f "$FM_RUN/databases-ready" ] || [ ! -f "$FM_RUN/gauzy-finalized" ]; do sleep 2; done
-overlay="$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/office-console"
+overlay="$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/office-console"
 [ -r "$overlay/app/main.py" ] || fm_die 'The Floodman mobile Office overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/office-console:$overlay:/opt/floodman/office-console"
@@ -808,7 +808,7 @@ while [ ! -f "$FM_RUN/gauzy-finalized" ]; do sleep 2; done
 fm_wait_http "http://127.0.0.1:8700/health/live" 600 false || fm_die "Floodman Office did not become ready before Hub startup."
 
 runtime_web="$FM_HOME/runtime/gauzy-web"
-config_hash="$(printf '%s\n' "$SERVER_PORT|$FLOODMAN_COMPANY_NAME|pterodactyl-mobile-v4.6.9" | sha256sum | awk '{print $1}')"
+config_hash="$(printf '%s\n' "$SERVER_PORT|$FLOODMAN_COMPANY_NAME|pterodactyl-mobile-v4.6.10" | sha256sum | awk '{print $1}')"
 old_hash="$(cat "$runtime_web/.floodman-config-hash" 2>/dev/null || true)"
 if [ "$config_hash" != "$old_hash" ] || [ ! -s "$runtime_web/index.html" ]; then
   fm_log "Preparing the branded Floodman ERP browser with same-origin API routing..."
@@ -845,17 +845,17 @@ fi
 
 mkdir -p "$FM_HOME/runtime/hub"
 envsubst '${HUB_TITLE} ${HUB_RELEASE} ${HUB_OFFICE_URL} ${HUB_ROOMFLOW_URL} ${HUB_DOCUMENSO_URL} ${HUB_MAILPIT_URL} ${HUB_ENGINEERING_URL} ${HUB_API_URL} ${HUB_COMPETITOR_URL} ${HUB_SYNC_STATUS_URL} ${HUB_REMOTE_ACCESS_ENABLED} ${HUB_REMOTE_DOCUMENSO_PORT} ${HUB_REMOTE_MAILPIT_PORT} ${HUB_REMOTE_ENGINEERING_PORT} ${HUB_REMOTE_API_PORT} ${HUB_REMOTE_DOCUMENSO_URL} ${HUB_REMOTE_MAILPIT_URL} ${HUB_REMOTE_ENGINEERING_URL} ${HUB_REMOTE_API_URL}' \
-  < "$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/hub/hub-config.js.template" \
+  < "$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/hub/hub-config.js.template" \
   > "$FM_HOME/runtime/hub/floodman-hub-config.js"
 envsubst '${SERVER_PORT} ${HUB_RELEASE}' \
-  < "$FM_HOME/runtime/floodman-v4.6.9/nginx.conf.template" \
+  < "$FM_HOME/runtime/floodman-v4.6.10/nginx.conf.template" \
   > "$FM_CONFIG/nginx.conf"
 
 fm_log "Starting Floodman Operations Hub on port $SERVER_PORT with same-origin browser routing..."
 exec nginx -e "$FM_LOGS/nginx-bootstrap.log" -c "$FM_CONFIG/nginx.conf" -g 'daemon off;'
 START_HUB
 
-# Use the verified v4.6.9 Nginx template, which serves the manifest, service worker, install page, icons, and safe offline shell.
+# Use the verified v4.6.10 Nginx template, which serves the manifest, service worker, install page, icons, and safe offline shell.
 cp "$overlay_root/aio/nginx.conf.template" "$hotfix/nginx.conf.template"
 
 
@@ -868,7 +868,7 @@ import sys
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 if "listen 127.0.0.1:9010;" not in text:
-    gateway = '\n\n    # Public customer gateway. Only signing, customer portal/payment pages, and\n    # the Android Mobile API are exposed. Floodman Office stays private.\n    server {\n        listen 127.0.0.1:9010;\n        server_name floodman-public-gateway;\n\n        access_log off;\n        client_max_body_size 50m;\n        add_header X-Content-Type-Options "nosniff" always;\n        add_header Referrer-Policy "same-origin" always;\n\n        location = /__floodman_public_gateway_health {\n            default_type application/json;\n            add_header Cache-Control "no-store" always;\n            return 200 \'{"status":"ok","service":"floodman-public-gateway","release":"v4.6.9"}\';\n        }\n\n        location = /mobile-api {\n            return 308 /mobile-api/;\n        }\n\n        location ^~ /mobile-api/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n            add_header Cache-Control "no-store" always;\n        }\n\n        location = /customer {\n            return 308 /customer/;\n        }\n\n        location ^~ /customer/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n        }\n\n        # Every other path belongs to Floodman Signing. Office, ERP, Mailpit,\n        # Engineering, and private API documentation are not reachable here.\n        location / {\n            proxy_pass http://127.0.0.1:9001;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 300s;\n            proxy_send_timeout 300s;\n            proxy_buffering off;\n        }\n    }\n'
+    gateway = '\n\n    # Public customer gateway. Only signing, customer portal/payment pages, and\n    # the Android Mobile API are exposed. Floodman Office stays private.\n    server {\n        listen 127.0.0.1:9010;\n        server_name floodman-public-gateway;\n\n        access_log off;\n        client_max_body_size 50m;\n        add_header X-Content-Type-Options "nosniff" always;\n        add_header Referrer-Policy "same-origin" always;\n\n        location = /__floodman_public_gateway_health {\n            default_type application/json;\n            add_header Cache-Control "no-store" always;\n            return 200 \'{"status":"ok","service":"floodman-public-gateway","release":"v4.6.10"}\';\n        }\n\n        location = /mobile-api {\n            return 308 /mobile-api/;\n        }\n\n        location ^~ /mobile-api/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n            add_header Cache-Control "no-store" always;\n        }\n\n        location = /customer {\n            return 308 /customer/;\n        }\n\n        location ^~ /customer/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n        }\n\n        # Every other path belongs to Floodman Signing. Office, ERP, Mailpit,\n        # Engineering, and private API documentation are not reachable here.\n        location / {\n            proxy_pass http://127.0.0.1:9001;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 300s;\n            proxy_send_timeout 300s;\n            proxy_buffering off;\n        }\n    }\n'
     index = text.rfind("\n}")
     if index < 0:
         raise SystemExit("Could not locate the Nginx http block terminator")
@@ -922,8 +922,8 @@ cat > "$hotfix/start-engineering-private.sh" <<'START_ENGINEERING_PRIVATE'
 set -eu
 . /opt/floodman/aio/common.sh
 export LAB_STATE_DIR="$FM_DATA/lab-state"
-overlay="$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/local-lab"
-[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman Engineering Sandbox v4.6.9 overlay is missing.'
+overlay="$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/local-lab"
+[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman Engineering Sandbox v4.6.10 overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/local-lab:$overlay:/opt/floodman/local-lab"
 exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "$ENGINEERING_PORT" --no-access-log
@@ -934,8 +934,8 @@ cat > "$hotfix/start-orchestrator-private.sh" <<'START_ORCHESTRATOR_PRIVATE'
 set -eu
 . /opt/floodman/aio/common.sh
 while [ ! -f "$FM_RUN/databases-ready" ] || [ ! -f "$FM_RUN/gauzy-finalized" ]; do sleep 2; done
-overlay="$FM_HOME/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/orchestrator"
-[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman API v4.6.9 overlay is missing.'
+overlay="$FM_HOME/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/orchestrator"
+[ -r "$overlay/app/main.py" ] || fm_die 'The Floodman API v4.6.10 overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/orchestrator:$overlay:/opt/floodman/orchestrator"
 exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "$FLOODMAN_API_PORT" --proxy-headers --forwarded-allow-ips '*' --no-access-log
@@ -1287,7 +1287,7 @@ SUPERVISOR_TAILSCALE
 # Keep all original secret generation and service configuration. Replace only
 # the runtime release and final Supervisor file.
 sed \
-  -e 's/pterodactyl-mobile-v[0-9][0-9.]*/pterodactyl-mobile-v4.6.9/g' \
+  -e 's/pterodactyl-mobile-v[0-9][0-9.]*/pterodactyl-mobile-v4.6.10/g' \
   -e "s#exec supervisord -n -c /opt/floodman/aio/supervisord.conf#exec supervisord -n -c $hotfix/supervisord.conf#" \
   "$base/start-suite.sh" > "$hotfix/start-suite.sh"
 chmod 0755 "$hotfix/start-suite.sh"
@@ -1369,7 +1369,7 @@ fi
 if grep -Fq '/home/container/runtime/floodman-v4.1.0/' "$hotfix/nginx.conf.template"; then
   die 'The Hub is still serving stale v4.1.0 frontend assets.'
 fi
-grep -Fq '/home/container/runtime/floodman-v4.6.9/app-overlay/floodman-operations-v4.6.9/' "$hotfix/nginx.conf.template" || die 'The Hub is not serving the current v4.6.9 frontend assets.'
+grep -Fq '/home/container/runtime/floodman-v4.6.10/app-overlay/floodman-operations-v4.6.10/' "$hotfix/nginx.conf.template" || die 'The Hub is not serving the current v4.6.10 frontend assets.'
 node --check "$overlay_root/hub/hub.js" >/dev/null || die 'Could not validate the dual-workspace Hub script.'
 node --check "$overlay_root/pwa/floodman-sw.js" >/dev/null || die 'Could not validate the updated Floodman service worker.'
 python3 "$overlay_root/tests/full_erp_routing_smoke.py" >/home/container/logs/floodman-full-erp-routing-smoke.log 2>&1 \
@@ -1408,20 +1408,20 @@ python3 -m py_compile \
   "$overlay_root/orchestrator/app/adapters/square.py" \
   "$overlay_root/orchestrator/app/adapters/gauzy.py" \
   "$overlay_root/roomflow/prepare-roomflow.py" \
-  || die 'Could not validate the Floodman v4.6.9 runtime patches.'
+  || die 'Could not validate the Floodman v4.6.10 runtime patches.'
 if grep -RIn --include='*.py' -E '(^|[[:space:]])(from[[:space:]]+PIL|import[[:space:]]+PIL)' \
   "$overlay_root/office-console" "$overlay_root/tests" >/home/container/logs/floodman-pillow-import-scan.log 2>&1; then
   cat /home/container/logs/floodman-pillow-import-scan.log >&2 || true
-  die 'A Pillow/PIL import remains in the uploaded Floodman v4.6.9 runtime.'
+  die 'A Pillow/PIL import remains in the uploaded Floodman v4.6.10 runtime.'
 fi
 PYTHONPATH="/opt/pydeps/office-console:$overlay_root/office-console:/opt/floodman/office-console" \
   python3 -c 'from app import pdf_documents, roomflow_assets; assert not hasattr(pdf_documents, "_PILImage"); print(pdf_documents.__file__); print(roomflow_assets.__file__)' \
   > /home/container/logs/floodman-office-overlay-preflight.log 2>&1 \
-  || { cat /home/container/logs/floodman-office-overlay-preflight.log >&2 || true; die 'The exact v4.6.9 Office overlay could not be imported during startup preflight.'; }
+  || { cat /home/container/logs/floodman-office-overlay-preflight.log >&2 || true; die 'The exact v4.6.10 Office overlay could not be imported during startup preflight.'; }
 PYTHONPATH="/opt/pydeps/office-console:$overlay_root/office-console:/opt/floodman/office-console" \
   python3 "$overlay_root/tests/pdf_runtime_smoke.py" >/home/container/logs/floodman-pdf-runtime-smoke.log 2>&1 \
   || { cat /home/container/logs/floodman-pdf-runtime-smoke.log >&2 || true; die 'Could not validate direct RoomFlow JPEG embedding for estimate PDFs.'; }
-printf '%s\n' '4.6.9' > /home/container/config/floodman-active-runtime.txt
+printf '%s\n' '4.6.10' > /home/container/config/floodman-active-runtime.txt
 printf '%s\n' "$overlay_root/office-console" > /home/container/config/floodman-active-office-path.txt
 log "Office overlay preflight passed without Pillow/PIL: $overlay_root/office-console"
 grep -Fq "payload === true" "$hotfix/floodman-boot-guard.js" || die 'Could not install the Floodman authentication redirect fix.'
@@ -1472,8 +1472,8 @@ grep -Fq 'app.include_router(build_mobile_router(store, providers, settings))' "
   || die 'Could not attach the Android Mobile API router.'
 grep -Fq 'mobile_refresh_tokens' "$overlay_root/office-console/app/store.py" || die 'Could not install rotating Android refresh sessions.'
 grep -Fq 'FLOODMAN_MOBILE_TOKEN_SECRET' "$overlay_root/office-console/app/config.py" || die 'Could not install mobile API security configuration.'
-grep -Fq '$FM_HOME/runtime/floodman-v4.6.9/nginx.conf.template' "$hotfix/start-hub.sh" || die 'The Floodman Hub is not loading the gateway-enabled Nginx template.'
-if grep -Fq 'app-overlay/floodman-operations-v4.6.9/aio/nginx.conf.template' "$hotfix/start-hub.sh"; then
+grep -Fq '$FM_HOME/runtime/floodman-v4.6.10/nginx.conf.template' "$hotfix/start-hub.sh" || die 'The Floodman Hub is not loading the gateway-enabled Nginx template.'
+if grep -Fq 'app-overlay/floodman-operations-v4.6.10/aio/nginx.conf.template' "$hotfix/start-hub.sh"; then
   die 'The Floodman Hub still points at the pre-gateway Nginx template.'
 fi
 grep -Fq 'listen 127.0.0.1:9010;' "$hotfix/nginx.conf.template" || die 'Could not install the loopback-only Floodman public gateway.'
@@ -1481,7 +1481,7 @@ grep -Fq 'location ^~ /mobile-api/' "$hotfix/nginx.conf.template" || die 'Could 
 grep -Fq 'location ^~ /customer/' "$hotfix/nginx.conf.template" || die 'Could not route customer payment pages through the Floodman public gateway.'
 grep -Fq 'floodman-mobile.env' "$hotfix/start-office-console.sh" || die 'Could not load the persistent Android device/session key.'
 
-# Validate the full v4.6.9 native-app parity, RoomFlow migration, and scheduling additions.
+# Validate the full v4.6.10 native-app parity, RoomFlow migration, and scheduling additions.
 grep -Fq 'from .mobile_operations import build_operations_router' "$overlay_root/office-console/app/mobile_api.py" || die 'Could not attach full native mobile operations.'
 grep -Fq '@router.patch("/estimates/{estimate_id}")' "$overlay_root/office-console/app/mobile_operations.py" || die 'Could not install native estimate editing.'
 grep -Fq 'send_work_authorization' "$overlay_root/office-console/app/mobile_operations.py" || die 'Could not install native Work Authorization actions.'
@@ -1520,7 +1520,7 @@ PYTHONPATH="/opt/pydeps/office-console:$overlay_root/office-console:/opt/floodma
   python3 "$overlay_root/tests/roomflow_workspace_smoke.py" >/home/container/logs/floodman-roomflow-workspace-smoke.log 2>&1 \
   || { cat /home/container/logs/floodman-roomflow-workspace-smoke.log >&2 || true; die 'Could not validate RoomFlow workspace recovery, creation, selection, and job isolation.'; }
 
-# Remove only the generated ERP browser copy so v4.6.9 is guaranteed to
+# Remove only the generated ERP browser copy so v4.6.10 is guaranteed to
 # rebuild it with same-origin URLs. Databases and configuration are untouched.
 rm -rf /home/container/runtime/gauzy-web
 
@@ -1528,5 +1528,5 @@ stop_bootstrap_tailscaled
 trap - EXIT INT TERM
 
 export TZ=America/Detroit
-log "Floodman v4.6.9 validated the stable root selector, true desktop shell, service-aware online detection, separate mobile shell, authentication-aware /full-erp launcher and injected ERP boot guard, matched Android alpha11 runtime, RoomFlow workspaces, guarded PDFs, estimates, invoices, payments, calendar, and public API at $TAILSCALE_MAIN_URL..."
+log "Floodman v4.6.10 validated the stable root selector, true desktop shell, service-aware online detection, separate mobile shell, authentication-aware /full-erp launcher and injected ERP boot guard, matched Android alpha11 runtime, RoomFlow workspaces, guarded PDFs, estimates, invoices, payments, calendar, and public API at $TAILSCALE_MAIN_URL..."
 exec sh "$hotfix/start-suite.sh"
