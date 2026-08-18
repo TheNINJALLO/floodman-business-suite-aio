@@ -37,7 +37,8 @@ OPERATION_KINDS = {
     "contacts", "properties", "estimates", "invoices", "payments", "documents", "notes", "time_entries", "tasks",
     "roomflow_jobs", "catalog_items", "public_links", "payment_attempts", "mobile_devices", "mobile_refresh_tokens",
     "mobile_audit", "appointments", "announcements", "notifications", "push_tokens", "calendar_subscriptions",
-    "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections"
+    "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections",
+    "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit"
 }
 
 DEFAULT_STATE: dict[str, Any] = {
@@ -106,6 +107,14 @@ def _safe_relative(name: str) -> Path:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+class CaptureOperationConflict(ValueError):
+    pass
+
+
+class CaptureOperationNotFound(KeyError):
+    pass
 
 
 class OfficeStore:
@@ -602,6 +611,160 @@ class OfficeStore:
             raise KeyError(kind)
         values = list(self.snapshot()["operations"].get(kind, {}).values())
         return sorted(values, key=lambda item: item.get("updated_at", ""), reverse=True)
+
+    def commit_roomflow_capture_operation(
+        self,
+        *,
+        operation_id: str,
+        request_hash: str,
+        action: str,
+        workspace_id: str,
+        job_id: str,
+        room_id: str,
+        room: dict[str, Any] | None,
+        expected_revision: int,
+        actor_id: str,
+    ) -> dict[str, Any]:
+        """Atomically apply or replay one RoomFlow Capture operation.
+
+        The operation receipt, room revision, parent job snapshot, and redacted
+        audit entry share one durable Office-state write. This keeps mobile
+        retries from creating duplicate rooms or partially updating a job.
+        """
+
+        normalized_action = str(action or "").upper()
+        if normalized_action not in {"CREATE", "UPDATE", "DELETE"}:
+            raise ValueError("unsupported capture operation")
+        now = _now()
+        with self.lock:
+            operations = self._state["operations"]
+            receipts = operations["roomflow_capture_operations"]
+            existing_receipt = receipts.get(operation_id)
+            if existing_receipt:
+                if str(existing_receipt.get("request_hash") or "") != request_hash:
+                    raise CaptureOperationConflict("operation ID was already used for different capture data")
+                return {"replayed": True, **deepcopy(existing_receipt.get("result") or {})}
+
+            jobs = operations["roomflow_jobs"]
+            job = jobs.get(job_id)
+            if not job or str(job.get("workspace_id") or "") != workspace_id:
+                raise CaptureOperationNotFound("RoomFlow job not found")
+
+            rooms = operations["roomflow_capture_rooms"]
+            existing = rooms.get(room_id)
+            if existing and (str(existing.get("workspace_id") or "") != workspace_id or str(existing.get("job_id") or "") != job_id):
+                raise CaptureOperationNotFound("Captured room not found")
+
+            if normalized_action == "CREATE":
+                if existing and not existing.get("deleted_at"):
+                    raise CaptureOperationConflict("captured room already exists")
+                if expected_revision not in {0, -1}:
+                    raise CaptureOperationConflict("new captured rooms must start at revision 0")
+                revision = 1
+                created_at = now
+                created_by = actor_id
+            else:
+                if not existing or existing.get("deleted_at"):
+                    raise CaptureOperationNotFound("Captured room not found")
+                current_revision = int(existing.get("revision") or 0)
+                if expected_revision != current_revision:
+                    raise CaptureOperationConflict(f"captured room changed on another device; current revision is {current_revision}")
+                revision = current_revision + 1
+                created_at = str(existing.get("created_at") or now)
+                created_by = str(existing.get("created_by") or actor_id)
+
+            if normalized_action == "DELETE":
+                record = {
+                    **deepcopy(existing or {}),
+                    "revision": revision,
+                    "deleted_at": now,
+                    "updated_at": now,
+                    "updated_by": actor_id,
+                }
+                result_room: dict[str, Any] | None = None
+            else:
+                if not room:
+                    raise ValueError("capture room is required")
+                record = {
+                    "id": room_id,
+                    "workspace_id": workspace_id,
+                    "job_id": job_id,
+                    "schema_version": int(room.get("schemaVersion") or 0),
+                    "revision": revision,
+                    "room": deepcopy(room),
+                    "deleted_at": None,
+                    "source": "ROOMFLOW_CAPTURE",
+                    "created_at": created_at,
+                    "updated_at": now,
+                    "created_by": created_by,
+                    "updated_by": actor_id,
+                }
+                result_room = deepcopy(room)
+            rooms[room_id] = record
+
+            snapshot = deepcopy(job.get("snapshot") if isinstance(job.get("snapshot"), dict) else {})
+            snapshot_rooms = [
+                deepcopy(value)
+                for value in snapshot.get("rooms", [])
+                if isinstance(value, dict) and str(value.get("roomId") or value.get("id") or "") != room_id
+            ]
+            if result_room is not None:
+                snapshot_rooms.append(deepcopy(result_room))
+            snapshot["rooms"] = snapshot_rooms
+            snapshot["captureSchemaVersion"] = 2
+            snapshot["captureRevision"] = int(snapshot.get("captureRevision") or 0) + 1
+            job["snapshot"] = snapshot
+            job["updated_at"] = now
+            job["updated_by"] = actor_id
+
+            result = {
+                "operationId": operation_id,
+                "action": normalized_action,
+                "roomId": room_id,
+                "revision": revision,
+                "deleted": normalized_action == "DELETE",
+                "room": result_room,
+            }
+            receipts[operation_id] = {
+                "id": operation_id,
+                "operation_id": operation_id,
+                "request_hash": request_hash,
+                "action": normalized_action,
+                "workspace_id": workspace_id,
+                "job_id": job_id,
+                "room_id": room_id,
+                "result": deepcopy(result),
+                "status": "APPLIED",
+                "source": "ROOMFLOW_CAPTURE",
+                "created_at": now,
+                "updated_at": now,
+                "created_by": actor_id,
+                "updated_by": actor_id,
+            }
+            metadata = (room or (existing or {}).get("room") or {}).get("scanMetadata") or {}
+            audit_id = str(uuid.uuid4())
+            operations["roomflow_capture_audit"][audit_id] = {
+                "id": audit_id,
+                "event": f"ROOMFLOW_CAPTURE_{normalized_action}",
+                "workspace_id": workspace_id,
+                "job_id": job_id,
+                "room_id": room_id,
+                "operation_id": operation_id,
+                "revision": revision,
+                "capture_mode": str(metadata.get("captureMode") or "unknown")[:80],
+                "point_count": int(metadata.get("pointCount") or 0),
+                "automatic_corrections": int(metadata.get("automaticCorrectionCount") or 0),
+                "manual_corrections": int(metadata.get("manualCorrectionCount") or 0),
+                "raw_capture_retained": False,
+                "occurred_at": now,
+                "source": "ROOMFLOW_CAPTURE",
+                "created_at": now,
+                "updated_at": now,
+                "created_by": actor_id,
+                "updated_by": actor_id,
+            }
+            self._save()
+            return {"replayed": False, **deepcopy(result)}
 
     def save_upload(self, filename: str, content: bytes) -> tuple[str, Path]:
         safe_name = Path(filename or "document.pdf").name.replace("\x00", "")

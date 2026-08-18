@@ -22,10 +22,12 @@ from pydantic import BaseModel, Field
 from .auth import has_permission, permissions_for
 from .config import Settings
 from .providers import ProviderClient
-from .store import OfficeStore
+from .store import CaptureOperationConflict, CaptureOperationNotFound, OfficeStore
 from .project_plans import merge_project_plan
 from .mobile_operations import build_operations_router
 from .roomflow_assets import store_layout_image, layout_path
+from .roomflow_capture import CaptureValidationError
+from .roomflow_capture_service import RoomFlowCaptureService
 from .roomflow_supabase import (
     DEFAULT_ROOMFLOW_SUPABASE_ANON_KEY,
     DEFAULT_ROOMFLOW_SUPABASE_URL,
@@ -54,6 +56,8 @@ MOBILE_CAPABILITIES = [
     "roomflow.supabase-import.v1",
     "roomflow.layout-capture.v1",
     "roomflow.workspaces.v1",
+    "roomflow.capture.v2",
+    "roomflow.capture.offline.v1",
 ]
 ACCESS_ALGORITHM = "HS256"
 _LOGIN_WINDOW_SECONDS = 600
@@ -402,6 +406,7 @@ class MobileSecurity:
 def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings: Settings) -> APIRouter:
     router = APIRouter(prefix=API_PREFIX, tags=["Floodman Android"])
     security = MobileSecurity(settings, store)
+    capture_service = RoomFlowCaptureService(store)
 
     def audit(event: str, *, user_id: str = "", device_id: str = "", request: Request | None = None, detail: dict[str, Any] | None = None) -> None:
         try:
@@ -1769,6 +1774,100 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
         if not record or str(record.get("workspace_id") or "") != selected_workspace_id:
             raise HTTPException(404, "RoomFlow job not found")
         return _roomflow_detail_payload(record)
+
+    def _capture_error(exc: Exception) -> None:
+        if isinstance(exc, CaptureOperationNotFound):
+            raise HTTPException(404, str(exc).strip("'")) from exc
+        if isinstance(exc, CaptureOperationConflict):
+            raise HTTPException(409, str(exc)) from exc
+        raise HTTPException(422, str(exc)) from exc
+
+    @router.get("/roomflow/jobs/{job_id}/capture/rooms")
+    def capture_rooms(job_id: str, user: dict[str, Any] = permission("estimates.view")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        try:
+            return {"schemaVersion": 2, "items": capture_service.list_rooms(workspace_id=workspace_id, job_id=job_id)}
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
+
+    @router.get("/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+    def capture_room(job_id: str, room_id: str, user: dict[str, Any] = permission("estimates.view")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        try:
+            return capture_service.get_room(workspace_id=workspace_id, job_id=job_id, room_id=room_id)
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
+
+    @router.post("/roomflow/jobs/{job_id}/capture/rooms")
+    def create_capture_room(job_id: str, payload: dict[str, Any], user: dict[str, Any] = permission("estimates.manage")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        room = payload.get("room") if isinstance(payload.get("room"), dict) else payload
+        try:
+            return capture_service.apply(
+                action="CREATE",
+                operation_id=str(payload.get("operationId") or ""),
+                workspace_id=workspace_id,
+                job_id=job_id,
+                actor_id=str(user.get("id") or ""),
+                room_id=str(payload.get("roomId") or room.get("roomId") or room.get("id") or ""),
+                expected_revision=int(payload.get("expectedRevision") or 0),
+                room=room,
+            )
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
+
+    @router.put("/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+    def update_capture_room(job_id: str, room_id: str, payload: dict[str, Any], user: dict[str, Any] = permission("estimates.manage")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        room = payload.get("room") if isinstance(payload.get("room"), dict) else payload
+        try:
+            return capture_service.apply(
+                action="UPDATE",
+                operation_id=str(payload.get("operationId") or ""),
+                workspace_id=workspace_id,
+                job_id=job_id,
+                actor_id=str(user.get("id") or ""),
+                room_id=room_id,
+                expected_revision=int(payload.get("expectedRevision") or 0),
+                room=room,
+            )
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
+
+    @router.delete("/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+    def delete_capture_room(
+        job_id: str,
+        room_id: str,
+        operation_id: str,
+        expected_revision: int,
+        user: dict[str, Any] = permission("estimates.manage"),
+    ) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        try:
+            return capture_service.apply(
+                action="DELETE",
+                operation_id=operation_id,
+                workspace_id=workspace_id,
+                job_id=job_id,
+                actor_id=str(user.get("id") or ""),
+                room_id=room_id,
+                expected_revision=expected_revision,
+            )
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
+
+    @router.post("/roomflow/jobs/{job_id}/capture/operations")
+    def replay_capture_operations(job_id: str, payload: dict[str, Any], user: dict[str, Any] = permission("estimates.manage")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        try:
+            return capture_service.apply_batch(
+                workspace_id=workspace_id,
+                job_id=job_id,
+                actor_id=str(user.get("id") or ""),
+                operations=payload.get("operations") if isinstance(payload.get("operations"), list) else [],
+            )
+        except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+            _capture_error(exc)
 
     def _save_roomflow_job(
         payload: RoomFlowSaveRequest,

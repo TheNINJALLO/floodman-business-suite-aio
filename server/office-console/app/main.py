@@ -39,6 +39,8 @@ from .providers import ProviderClient
 from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_deposit
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
+from .roomflow_capture import CaptureValidationError
+from .roomflow_capture_service import RoomFlowCaptureService
 from .roomflow_supabase import (
     DEFAULT_ROOMFLOW_SUPABASE_ANON_KEY,
     DEFAULT_ROOMFLOW_SUPABASE_URL,
@@ -52,13 +54,14 @@ from .roomflow_supabase import (
 )
 from .customer_portal import page as customer_page, grouped_lines as customer_grouped_lines, payment_page as customer_payment_page
 from .security import SignedRequestError, verify_signed_body
-from .store import OfficeStore
+from .store import CaptureOperationConflict, CaptureOperationNotFound, OfficeStore
 from .mobile_api import build_mobile_router
 from .ui import badge, esc, json_pre, layout, money_cents, money_units, progress, simple_page, table
 
 
 settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
+roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
 app = FastAPI(title="Floodman Operations", version="4.6.10", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
@@ -5183,7 +5186,7 @@ ROOMFLOW_SNAPSHOT_KEYS = {
     "interiorPipes", "stanchions", "mainBeams", "capturedMeasurements", "costing",
     "createdTimestamp", "updatedTimestamp", "revisionNumber", "leadIntake",
     "currentJobName", "jobId", "syncState", "floodmanContactId", "floodmanPropertyId",
-    "floodmanEstimateId", "floodmanEstimateUrl", "floodmanLink",
+    "floodmanEstimateId", "floodmanEstimateUrl", "floodmanLink", "captureSchemaVersion", "captureRevision",
 }
 
 
@@ -5208,6 +5211,120 @@ def roomflow_job_detail_api(job_id: str) -> dict[str, Any]:
     if not job or str(job.get("workspace_id") or "") != selected_workspace_id:
         raise HTTPException(status_code=404, detail="RoomFlow job not found")
     return {"job": job}
+
+
+def _capture_error(exc: Exception) -> None:
+    if isinstance(exc, CaptureOperationNotFound):
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    if isinstance(exc, CaptureOperationConflict):
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+async def _capture_json(request: Request) -> dict[str, Any]:
+    try:
+        value = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Capture payload must be valid JSON") from exc
+    if not isinstance(value, dict):
+        raise HTTPException(status_code=400, detail="Capture payload must be an object")
+    return value
+
+
+@app.get("/office/api/roomflow/jobs/{job_id}/capture/rooms")
+def roomflow_capture_rooms_api(job_id: str) -> dict[str, Any]:
+    actor = _require("estimates.view")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    try:
+        return {"schemaVersion": 2, "items": roomflow_capture_service.list_rooms(workspace_id=workspace_id, job_id=job_id)}
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
+
+
+@app.get("/office/api/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+def roomflow_capture_room_api(job_id: str, room_id: str) -> dict[str, Any]:
+    actor = _require("estimates.view")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    try:
+        return roomflow_capture_service.get_room(workspace_id=workspace_id, job_id=job_id, room_id=room_id)
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
+
+
+@app.post("/office/api/roomflow/jobs/{job_id}/capture/rooms")
+async def create_roomflow_capture_room_api(job_id: str, request: Request) -> dict[str, Any]:
+    actor = _require("estimates.manage")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    payload = await _capture_json(request)
+    room = payload.get("room") if isinstance(payload.get("room"), dict) else payload
+    try:
+        return roomflow_capture_service.apply(
+            action="CREATE",
+            operation_id=str(payload.get("operationId") or ""),
+            workspace_id=workspace_id,
+            job_id=job_id,
+            actor_id=str(actor.get("id") or ""),
+            room_id=str(payload.get("roomId") or room.get("roomId") or room.get("id") or ""),
+            expected_revision=int(payload.get("expectedRevision") or 0),
+            room=room,
+        )
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
+
+
+@app.put("/office/api/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+async def update_roomflow_capture_room_api(job_id: str, room_id: str, request: Request) -> dict[str, Any]:
+    actor = _require("estimates.manage")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    payload = await _capture_json(request)
+    room = payload.get("room") if isinstance(payload.get("room"), dict) else payload
+    try:
+        return roomflow_capture_service.apply(
+            action="UPDATE",
+            operation_id=str(payload.get("operationId") or ""),
+            workspace_id=workspace_id,
+            job_id=job_id,
+            actor_id=str(actor.get("id") or ""),
+            room_id=room_id,
+            expected_revision=int(payload.get("expectedRevision") or 0),
+            room=room,
+        )
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
+
+
+@app.delete("/office/api/roomflow/jobs/{job_id}/capture/rooms/{room_id}")
+def delete_roomflow_capture_room_api(job_id: str, room_id: str, operation_id: str, expected_revision: int) -> dict[str, Any]:
+    actor = _require("estimates.manage")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    try:
+        return roomflow_capture_service.apply(
+            action="DELETE",
+            operation_id=operation_id,
+            workspace_id=workspace_id,
+            job_id=job_id,
+            actor_id=str(actor.get("id") or ""),
+            room_id=room_id,
+            expected_revision=expected_revision,
+        )
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
+
+
+@app.post("/office/api/roomflow/jobs/{job_id}/capture/operations")
+async def replay_roomflow_capture_operations_api(job_id: str, request: Request) -> dict[str, Any]:
+    actor = _require("estimates.manage")
+    _, workspace_id, _ = _browser_roomflow_workspace_context(actor)
+    payload = await _capture_json(request)
+    try:
+        return roomflow_capture_service.apply_batch(
+            workspace_id=workspace_id,
+            job_id=job_id,
+            actor_id=str(actor.get("id") or ""),
+            operations=payload.get("operations") if isinstance(payload.get("operations"), list) else [],
+        )
+    except (CaptureValidationError, CaptureOperationConflict, CaptureOperationNotFound, ValueError, TypeError) as exc:
+        _capture_error(exc)
 
 
 @app.post("/office/api/roomflow/estimates/sync")
