@@ -63,6 +63,7 @@ require(
 with (APP / "Info.plist").open("rb") as handle:
     info = plistlib.load(handle)
 require(info.get("CFBundleDisplayName") == "Floodman Operations", "Info.plist display name changed")
+require(info.get("CFBundleExecutable") == "$(EXECUTABLE_NAME)", "Info.plist does not declare the application executable")
 require(info.get("FLOODMAN_API_BASE_URL") == "$(FLOODMAN_API_BASE_URL)", "Info.plist does not consume the API build setting")
 ats = info.get("NSAppTransportSecurity") or {}
 require(ats.get("NSAllowsArbitraryLoads") is not True, "Info.plist enables arbitrary network loads")

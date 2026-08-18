@@ -5,7 +5,7 @@ path,size_bytes,lines,sha256,extension
 .github/workflows/build-android.yml,2446,66,a237480201171b8d4b93be70d5fa827e560a82159dd0ede2b5b12a7d540d4def,.yml
 .github/workflows/build-ios-simulator.yml,6367,156,c1a4cda9a1306ecf0132435682fc825787f950b664c6e8b0c1f6febed8318698,.yml
 .github/workflows/build-ios-testflight.yml,10279,212,2e0d9dcad687d4bcd9420b308982a9902fc967cf2dd7ffac22438790b25476a8,.yml
-.github/workflows/build-server-image.yml,2309,66,8b6932407511ed217b8cbe78b0b87845ba1d38ef972d8faddc1c65ca801e4831,.yml
+.github/workflows/build-server-image.yml,2271,66,a0a2955690212eaaaac6e6cc67cb767f0a9be6acb1cfd2fcd0a522bde18f722a,.yml
 .github/workflows/verify-source.yml,625,24,aeffc5f0bcafa6d859377eab21f84d8abc4a4e7dc4cb2b1709970c40f6d02dc6,.yml
 .gitignore,1804,,ce775a1d4b99140d9bfda1d3b82200efd6ad2e08301f53cce78696dd4af6f4d5,.gitignore
 .vscode/extensions.json,276,13,e5fd41e67b776b2b9463b031510e5ed0aa178e1d89cd00b39f01556cf46d54d2,.json
@@ -101,7 +101,7 @@ apps/ios/FloodmanOperations/Assets.xcassets/AppIcon.appiconset/AppIcon-87.png,36
 apps/ios/FloodmanOperations/Assets.xcassets/AppIcon.appiconset/Contents.json,2187,116,1f5a9b04c62a79b6489d3d4952e78e2f5f9e0ef03bad17d2a82b7dd9250c06ec,.json
 apps/ios/FloodmanOperations/Assets.xcassets/Contents.json,59,6,a3393322cd7b4c1e0aa93bebe09abaa91ad891290d1225b0b5d10b5c6f216025,.json
 apps/ios/FloodmanOperations/FloodmanOperationsApp.swift,280,11,0ff2dd9cf92f861f99bf892c077f4ef8700a0c76af22abdbd17472e1b566aa86,.swift
-apps/ios/FloodmanOperations/Info.plist,1733,18,eb6ea9db5d81de99282b8b30282098ead02f1cc39f4d96b871427a516ef2d3b1,.plist
+apps/ios/FloodmanOperations/Info.plist,1798,19,44b8e82e180306e62478114761e34724eabd7ef09ba426d4d4aa83e408d471f7,.plist
 apps/ios/FloodmanOperations/Networking/APIClient.swift,10293,184,4c1d62b94c0531a803d2cc4f58fc99bf04418ac836f49eae7af13d0d2afd7e7d,.swift
 apps/ios/FloodmanOperations/Resources/RoomFlow/floodman-ios-bridge.js,17255,363,4c686274d744556479b7dcfa519330e6795d6ed9a33a182e70a88a3d192ad1c3,.js
 apps/ios/FloodmanOperations/RoomFlow/ARKitCaptureViewController.swift,15159,319,95f46c798e268fff8cdf02d3cc30937e488b147d58f9de842f61f7de274e95a7,.swift
@@ -117,7 +117,7 @@ apps/ios/FloodmanOperationsTests/RoomFlowCaptureGeometryTests.swift,4363,83,553a
 apps/ios/project.yml,1289,46,f8294c668a82355eb99184e92f1e36800a5267dbb4c0ee0b997ab6f9f78ac3cf,.yml
 apps/ios/README.md,1561,11,00124d14159b1992f638622122f4ac6d8e0f7e4e4b96eee3e57ebf16f110c801,.md
 apps/ios/scripts/prepare-roomflow-assets.sh,4682,67,91927007475498d9a891a9c5f041301df766f9f05b0baa56dc7e778f6eb484f7,.sh
-apps/ios/SOURCE-MANIFEST.sha256,4671,,ad9fa0107d0ad27d5f34cc13cd44611b6f6f32ab0fe48428f29d45561be9e4d1,.sha256
+apps/ios/SOURCE-MANIFEST.sha256,4671,,64bb3bc9150239ea98b65a5b14731aca754017f09375d2e99e27ba2b62ddb9b6,.sha256
 apps/ios/VERSION,14,1,13c5dafcf81a4f7bb58c5e6f915255efae689b437264a4061650305cc74a3f35,VERSION
 CHANGELOG.md,6952,100,1cf02e9b8ada6cd3141cde093b3b1cf027c11278189b8f12ebaa042171c917eb,.md
 containers/base-aio/Dockerfile,3797,41,9557de97f938693cb5eecb4b44201a4ef7d728c1a2fad6dede755e145c51062c,Dockerfile
@@ -406,7 +406,7 @@ scripts/run_server_smoke_tests.sh,321,9,4548c7dba275fc14685d39f3b27f4cadf6a1a0e7
 scripts/validate_roomflow_web.py,2995,97,c29328c6ec6c434bb7c37a74991b6ed717e143c46d9d00c9e5855d93269884ad,.py
 scripts/verify-all.ps1,212,,9e987f323750be95d85617e5a6dc24452b95585cbb8aaab7049ca002ce38b7e2,.ps1
 scripts/verify_container_inputs.py,6086,104,9d7111b7da6c4c844b55e19331524bdf70e3733e4be123b12ec13ff961f2cb51,.py
-scripts/verify_ios_readiness.py,11643,284,30296fc3d902fff4b2ef56802825d1ce62d152637f9de2b1fdb9e6d19d43790f,.py
+scripts/verify_ios_readiness.py,11765,285,4074785a68cb3645d44585f288f7b27a832d0c46c7eb67f3cb4b7c98609ec36b,.py
 scripts/verify_pterodactyl_release.py,6222,134,85dc5e9995746030b60d181bb9c2d231083fc8fa86f09974cdd11cfe6444a405,.py
 scripts/verify_repo.py,9796,215,a82d8c88c09000752949193e65582a3d46242b1e5bd5306b11423b6dcc8174c0,.py
 scripts/verify_roomflow_pin.py,5951,116,c955e8041b02b88404fbf7704c759fa11246d4281c4b83feb30a30394e723e11,.py
