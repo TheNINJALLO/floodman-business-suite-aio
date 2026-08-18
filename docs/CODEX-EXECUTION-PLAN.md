@@ -25,6 +25,16 @@
 - Passed 35 upstream Node tests, 9 upstream Edge smoke pages, the prepared-bundle Edge test, server/native RoomFlow smoke tests, and source/server/native package validation without advancing the pin.
 - Proved authenticated, RLS-scoped original Supabase reads and stable repeat updates with fictional/mock fixtures; credentials and access tokens are not persisted.
 
+## Phase 2A — integrated RoomFlow Capture
+
+- **In progress (2026-08-18).** Work on `feature/roomflow-capture` in reviewable milestones without reopening completed RoomFlow import or login work.
+- Define one versioned room/capture schema and geometry contract, deterministic migrations/fixtures, explicit units and coordinate frames, quality signals, provenance, review state, affected-area scope, openings, and estimate derivation inputs.
+- Add authenticated, workspace/job-scoped server persistence with revisions, stable identifiers, idempotent offline replay, conflict responses, redacted audit records, and no raw camera/depth retention.
+- Embed a low-training manual/review/correction workflow in the existing authenticated RoomFlow surface with close/Escape/focus/mobile behavior and a versioned native bridge.
+- Implement actual Android ARCore capture with optional Depth and Apple RoomPlan capture with ARKit fallback. Keep deterministic fakes for automated testing and report device/Xcode gates honestly.
+- Remove production runtime network preparation by packaging a checksum-verified snapshot of the unchanged pinned RoomFlow commit; retain the existing non-root Pterodactyl paths and persistent-data contract.
+- Run the server/browser/Android gates and all Windows-available Apple checks, then refresh inventory, manifests, checksums, release notes, packages, and control ledgers. Do not bump a release identity until its required gates are satisfied.
+
 ## Phase 3 — Android
 
 - **Complete (2026-08-13).** Fixed the build to JDK 17, Gradle 8.13, Android SDK 36, AGP 8.13.2, and Kotlin 2.3.20, using a short ignored Gradle cache to avoid Windows long-path atomic-move failures.

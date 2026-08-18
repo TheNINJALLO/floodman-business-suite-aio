@@ -1,0 +1,32 @@
+{
+  "rectangle": {
+    "vertices": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 12}, {"x": 0, "y": 12}],
+    "height": 8,
+    "area": 120,
+    "perimeter": 44,
+    "grossWallArea": 352,
+    "openings": [
+      {"id": "door-1", "type": "door", "wallSegmentIndex": 0, "offset": 2, "width": 3, "height": 6.8, "sillHeight": 0, "confidence": 1, "source": "manual"},
+      {"id": "window-1", "type": "window", "wallSegmentIndex": 2, "offset": 3, "width": 4, "height": 4, "sillHeight": 3, "confidence": 1, "source": "manual"}
+    ],
+    "netWallArea": 315.6
+  },
+  "lShape": {
+    "vertices": [{"x": 0, "y": 0}, {"x": 10, "y": 0}, {"x": 10, "y": 5}, {"x": 5, "y": 5}, {"x": 5, "y": 10}, {"x": 0, "y": 10}],
+    "area": 75,
+    "perimeter": 40
+  },
+  "captureMetadata": {
+    "captureMode": "android-arcore-depth",
+    "platform": "android",
+    "startedAt": "2026-08-18T14:00:00Z",
+    "completedAt": "2026-08-18T14:01:20Z",
+    "pointCount": 4,
+    "averageConfidence": 0.95,
+    "depthValidatedPointCount": 4,
+    "automaticCorrectionCount": 1,
+    "manualCorrectionCount": 2,
+    "verificationRequired": true,
+    "rawCaptureRetained": false
+  }
+}

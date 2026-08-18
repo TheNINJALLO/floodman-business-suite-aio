@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://floodman.com/schemas/roomflow-capture-v2.json",
+  "title": "Floodman RoomFlow Capture Room v2",
+  "description": "Reviewed room geometry in decimal feet. Vertices use a right-handed local floor plane, are counter-clockwise, and omit the duplicate closing vertex.",
+  "type": "object",
+  "required": ["schemaVersion", "sessionId", "jobId", "workspaceId", "levelId", "roomId", "name", "roomType", "units", "height", "vertices", "openings", "affectedAreas", "scanMetadata"],
+  "properties": {
+    "schemaVersion": {"const": 2},
+    "sessionId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "jobId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "workspaceId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "levelId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "roomId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "name": {"type": "string", "minLength": 1, "maxLength": 160},
+    "roomType": {"type": "string", "minLength": 1, "maxLength": 80},
+    "units": {"const": "ft"},
+    "height": {"type": "number", "exclusiveMinimum": 0, "maximum": 40},
+    "w": {"type": "number", "exclusiveMinimum": 0},
+    "l": {"type": "number", "exclusiveMinimum": 0},
+    "h": {"type": "number", "exclusiveMinimum": 0},
+    "vertices": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 128,
+      "items": {"$ref": "#/$defs/vertex"}
+    },
+    "openings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"$ref": "#/$defs/opening"}
+    },
+    "affectedAreas": {
+      "type": "array",
+      "maxItems": 512,
+      "items": {"$ref": "#/$defs/affectedArea"}
+    },
+    "scanMetadata": {"$ref": "#/$defs/scanMetadata"},
+    "measurements": {"$ref": "#/$defs/measurements"}
+  },
+  "$defs": {
+    "vertex": {
+      "type": "object",
+      "required": ["id", "x", "y", "confidence", "depthValidated", "source"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "depthValidated": {"type": "boolean"},
+        "source": {"type": "string", "minLength": 1, "maxLength": 80}
+      },
+      "additionalProperties": true
+    },
+    "opening": {
+      "type": "object",
+      "required": ["id", "type", "wallSegmentIndex", "offset", "width", "height", "sillHeight", "confidence", "source"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "type": {"enum": ["door", "window", "open-wall", "opening"]},
+        "wallSegmentIndex": {"type": "integer", "minimum": 0},
+        "offset": {"type": "number", "minimum": 0},
+        "width": {"type": "number", "exclusiveMinimum": 0},
+        "height": {"type": "number", "exclusiveMinimum": 0},
+        "sillHeight": {"type": "number", "minimum": 0},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "source": {"type": "string", "minLength": 1, "maxLength": 80}
+      },
+      "additionalProperties": true
+    },
+    "affectedArea": {
+      "type": "object",
+      "required": ["surface", "scope"],
+      "properties": {
+        "surface": {"enum": ["floor", "ceiling", "wall", "opening"]},
+        "scope": {"type": "string", "minLength": 1, "maxLength": 80},
+        "wallSegmentIndex": {"type": "integer", "minimum": 0},
+        "openingId": {"type": "string", "maxLength": 128},
+        "percent": {"type": "number", "minimum": 0, "maximum": 100},
+        "area": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "scanMetadata": {
+      "type": "object",
+      "required": ["captureMode", "platform", "pointCount", "averageConfidence", "depthValidatedPointCount", "automaticCorrectionCount", "manualCorrectionCount", "verificationRequired", "rawCaptureRetained"],
+      "properties": {
+        "captureMode": {"type": "string", "minLength": 1, "maxLength": 80},
+        "platform": {"enum": ["web", "android", "ios", "import"]},
+        "startedAt": {"type": ["string", "null"], "format": "date-time"},
+        "completedAt": {"type": ["string", "null"], "format": "date-time"},
+        "pointCount": {"type": "integer", "minimum": 3, "maximum": 128},
+        "averageConfidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "depthValidatedPointCount": {"type": "integer", "minimum": 0},
+        "automaticCorrectionCount": {"type": "integer", "minimum": 0},
+        "manualCorrectionCount": {"type": "integer", "minimum": 0},
+        "verificationRequired": {"type": "boolean"},
+        "rawCaptureRetained": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "measurements": {
+      "type": "object",
+      "required": ["floorArea", "ceilingArea", "perimeter", "grossWallArea", "openingDeductions", "netWallArea"],
+      "properties": {
+        "floorArea": {"type": "number", "minimum": 0},
+        "ceilingArea": {"type": "number", "minimum": 0},
+        "perimeter": {"type": "number", "minimum": 0},
+        "grossWallArea": {"type": "number", "minimum": 0},
+        "openingDeductions": {"type": "number", "minimum": 0},
+        "netWallArea": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}
