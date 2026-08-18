@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -32,6 +33,28 @@ archive_root = f"floodman-operations-v{version}"
 runtime = package.RELEASES / f"floodman-operations-runtime-v{version}.zip"
 release_launcher = package.RELEASES / f"mobile-start-v{version}.sh"
 launcher_bytes = package.LAUNCHER.read_bytes()
+launcher_text = package.LAUNCHER.read_text(encoding="utf-8")
+
+# Every fixed-string preflight against the packaged overlay must match the
+# corresponding tracked source. This catches stale launcher assertions before
+# they can turn an otherwise valid Pterodactyl update into a restart loop.
+overlay_check = re.compile(
+    r'''^grep -Fq (?P<quote>['"])(?P<marker>.*?)(?P=quote) "\$overlay_root/(?P<relative>[^"]+)"'''
+)
+overlay_preflight_count = 0
+for number, line in enumerate(launcher_text.splitlines(), 1):
+    match = overlay_check.match(line)
+    if not match:
+        continue
+    overlay_preflight_count += 1
+    relative = match.group("relative")
+    source = package.SERVER / relative
+    require(source.is_file(), f"Launcher overlay preflight line {number} targets missing server/{relative}")
+    if source.is_file():
+        require(
+            match.group("marker") in source.read_text(encoding="utf-8"),
+            f"Launcher overlay preflight line {number} is stale for server/{relative}: {match.group('marker')!r}",
+        )
 
 require(runtime.is_file(), f"Missing {runtime.relative_to(ROOT)}")
 require(release_launcher.is_file(), f"Missing {release_launcher.relative_to(ROOT)}")
@@ -69,7 +92,7 @@ if runtime.is_file():
 egg = json.loads(package.EGG.read_text(encoding="utf-8"))
 require(egg.get("startup") == "bash ./mobile-start.sh", "Pterodactyl egg startup is not the reviewed launcher")
 require(list(egg.get("docker_images", {}).values()) == [package.BASE_IMAGE], "Pterodactyl egg image is not the reviewed immutable base")
-expected_installer = package.build_installer_script(package.LAUNCHER.read_text(encoding="utf-8"), version)
+expected_installer = package.build_installer_script(launcher_text, version)
 require(egg.get("scripts", {}).get("installation", {}).get("script") == expected_installer, "Pterodactyl egg embeds a stale launcher")
 variables = {value.get("env_variable"): value for value in egg.get("variables", [])}
 require(not (set(variables) & package.OBSOLETE_EGG_VARIABLES), "Pterodactyl egg retains obsolete source/public URL variables")
@@ -106,5 +129,6 @@ if PROBLEMS:
 
 print(
     f"Pterodactyl release verified: current v{version} launcher, pinned base egg, "
-    f"{len(files)} runtime files, internal manifest, and 2 deployable checksums."
+    f"{len(files)} runtime files, {overlay_preflight_count} overlay preflights, "
+    "internal manifest, and 2 deployable checksums."
 )

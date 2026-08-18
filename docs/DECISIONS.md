@@ -184,3 +184,11 @@
 - Evidence: Require fresh local Android compile/unit/lint/APK/AAB results, package metadata/signature inspection, two byte-identical Pterodactyl builds, internal hashes, portable package smokes, source manifests, checksums, release notes, inventory, and repository verification before the release commit.
 - Boundary: This exception authorizes local unsigned Android and Pterodactyl upload artifacts plus a release commit. It does not authorize live deployment, database changes/imports, production provider access, signing/store upload, or claims for Xcode, physical devices, staging, container builds/scans, clean install/upgrade/restart, or backup/restore.
 - Publication: Push only to a configured intended remote. This checkout has no remote and no GitHub CLI, so the local commit can be completed but external publication remains BLK-010 until the owner configures the repository target.
+
+## DEC-027 — Repair the failed v4.7.0 launcher without relabeling the unchanged runtime
+
+- Date: 2026-08-18
+- Evidence: The supplied Wings log shows the uploaded v4.7.0 runtime passed its checksum, RoomFlow prepared successfully, and Office overlay import passed before the launcher aborted solely because `floodman-panel.js` no longer contained the retired `Estimate headers & line items` heading. No out-of-memory or database failure occurred.
+- Decision: Replace that brittle assertion with the stable editor element `fm-rf-estimate-scope`, and make release verification validate every fixed-string `$overlay_root` launcher assertion against the exact tracked runtime source.
+- Identity: Keep server/runtime v4.7.0 because the runtime ZIP is byte-identical and only the separately uploaded launcher/embedded egg installer changes. Assigning v4.7.1 remains a release-version safety boundary requiring explicit approval.
+- Safety: Do not alter live data, automatically change the server image, or claim restart/staging acceptance. The log reveals AIO 3.2.0 rather than the reviewed pinned 3.2.2 image; reconcile that separately after backup under BLK-012.

@@ -1445,7 +1445,7 @@ grep -Fq "event.key === 'Enter'" "$overlay_root/office-console/app/ui.py" || die
 grep -Fq "import/bundled-roomflow" "$overlay_root/office-console/app/main.py" || die 'Could not install the bundled RoomFlow catalog importer.'
 grep -Fq "data-add-estimate-section" "$overlay_root/office-console/app/ui.py" || die 'Could not install multiple estimate headers.'
 grep -Fq "Add & save to catalog" "$overlay_root/office-console/app/ui.py" || die 'Could not install custom line-item auto-save.'
-grep -Fq "Estimate headers & line items" "$overlay_root/roomflow/floodman-panel.js" || die 'Could not install the integrated RoomFlow section editor.'
+grep -Fq 'id="fm-rf-estimate-scope"' "$overlay_root/roomflow/floodman-panel.js" || die 'Could not install the integrated RoomFlow section editor.'
 grep -Fq '@app.post("/office/api/roomflow/workspaces")' "$overlay_root/office-console/app/main.py" || die 'Could not install ERP-session RoomFlow company creation.'
 grep -Fq '@app.post("/office/api/roomflow/workspaces/{workspace_id}/select")' "$overlay_root/office-console/app/main.py" || die 'Could not install ERP-session RoomFlow company selection.'
 grep -Fq "authOverlay.style.display = 'none'" "$overlay_root/roomflow/floodman-panel.js" || die 'Could not neutralize the legacy RoomFlow account overlay.'

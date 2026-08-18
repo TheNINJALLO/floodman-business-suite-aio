@@ -17,9 +17,11 @@ Current deployable SHA-256 values:
 
 ```text
 733514138066eab31940c771918dddaf18204c4d26a071daf9a063965f7e967a  floodman-operations-runtime-v4.7.0.zip
-f2704055b3d9046b6a403fb886dbdb4cdf3efa769fb4d60a6d50a510dcb17056  mobile-start-v4.7.0.sh
-1067346d705862648fc58da7b505213c6c74034fac93db905d56e9ac0f2f8206  egg-floodman-operations-mobile-v4.7.0.json
+38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4  mobile-start-v4.7.0.sh
+a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b  egg-floodman-operations-mobile-v4.7.0.json
 ```
+
+The launcher checksum above includes the 2026-08-18 startup repair. The first uploaded launcher aborted after RoomFlow preparation because it searched the current panel for the retired heading `Estimate headers & line items`. The runtime ZIP was already correct and its checksum is unchanged. If that exact error appears, leave the ZIP in place and replace only `mobile-start.sh` with the launcher above. The release verifier now checks every fixed `$overlay_root` launcher assertion against the exact source packaged in the ZIP.
 
 Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.
 

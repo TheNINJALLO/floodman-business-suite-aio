@@ -39,3 +39,7 @@ The distinct identities prevent an installed v4.6.10/alpha12 system from treatin
 - production deployment approval and a configured Git remote for publishing the release commit.
 
 The v4.7.0 Pterodactyl files are locally deployable test artifacts and Android packages are local pre-signing artifacts. Apple, device, staging, signing/store, container/advisory, backup/restore, and production acceptance are not claimed.
+
+## Pterodactyl launcher repair — 2026-08-18
+
+The first observed Wings startup stopped before Supervisor with `Could not install the integrated RoomFlow section editor`. The v4.7.0 runtime already contained the editor under its new low-training label; the launcher alone still asserted the retired pre-capture heading. The corrected same-release launcher checks the stable `fm-rf-estimate-scope` element. The runtime ZIP remains byte-identical, while the launcher and egg receive new checksums. Package verification now validates all 87 fixed overlay preflight markers against the exact tracked source before release.

@@ -10,6 +10,7 @@ This changelog summarizes the major cumulative milestones reconstructed from the
 - Prepared Apple RoomPlan/ARKit/LiDAR capture source without claiming the unavailable Xcode or device gates; the Apple identity remains 0.1.0-alpha03.
 - Packaged checksum-verified offline assets from the unchanged RoomFlow pin and produced deterministic v4.7.0 Pterodactyl runtime, launcher, egg, manifests, and checksums.
 - Kept Mobile API `0.3.0-alpha11` and minimum-client floors unchanged. Physical-device, staging, container, signing/store, backup/restore, and production gates remain external.
+- Corrected the v4.7.0 launcher after the first Wings attempt exposed a stale RoomFlow section-editor heading assertion; the runtime ZIP remains unchanged and package verification now checks launcher overlay assertions against packaged source.
 
 ## 4.6.10
 

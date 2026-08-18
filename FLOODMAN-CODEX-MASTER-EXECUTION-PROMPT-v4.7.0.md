@@ -23,6 +23,10 @@ On 2026-08-15 the user explicitly requested a version bump so the web system can
 
 On 2026-08-18 the user explicitly requested that the completed Android and web systems be committed for release and that new Pterodactyl upload files be produced. This authorizes distinct local server/Pterodactyl `4.7.0` and Android `0.4.0-alpha01`/build 13 identities, deterministic local Pterodactyl artifacts, unsigned Android artifacts, documentation, checksums, and release commits. Mobile API remains additive at `0.3.0-alpha11`; iOS remains `0.1.0-alpha03`; minimum Android/iOS versions and the RoomFlow pin do not advance. The exception does not claim Apple/Xcode, physical-device, signing, staging, backup/restore, container, store, or production deployment acceptance and does not authorize live data or credentials. Git push may occur only when a configured authenticated remote exists.
 
+### Scoped v4.7.0 failed-start launcher repair
+
+On 2026-08-18 the user supplied the first Wings startup log and asked Codex to act on it. This authorizes diagnosis and a same-release local launcher/package repair for the observed pre-Supervisor failure. The runtime ZIP, server identity, Mobile API, native identities, minimum clients, and RoomFlow pin remain unchanged. It does not authorize a v4.7.1 identity, automatic image change, live-data access, or a claim that the corrected launcher completed restart/staging acceptance.
+
 ## Task selection and evidence
 
 1. Read `AGENTS.md`, this file, `docs/TASK-STATUS.md`, `docs/CODEX-EXECUTION-PLAN.md`, `docs/BLOCKERS.md`, `docs/TEST-MATRIX.md`, and `docs/DECISIONS.md` before editing.

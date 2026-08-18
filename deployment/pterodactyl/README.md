@@ -27,6 +27,10 @@ floodman-operations-runtime-v4.7.0.zip (do not extract)
 
 The egg installs the same current launcher automatically on a fresh server. The ZIP remains a separate upload so its SHA-256 can be verified before startup. Set a non-placeholder Owner password and create `config/tailscale-auth-key.txt` with a one-off non-ephemeral auth key before the first start.
 
+### 2026-08-18 launcher repair
+
+If startup stops at `ERROR: Could not install the integrated RoomFlow section editor.`, the runtime ZIP is not the problem. Keep the existing `floodman-operations-runtime-v4.7.0.zip`, upload the corrected `mobile-start-v4.7.0.sh` as `mobile-start.sh`, and restart. Its SHA-256 is `38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4`. The failed log also showed the server pulling AIO `3.2.0`; the reviewed egg specifies the pinned `3.2.2` digest, so reconcile that image setting during a backed-up maintenance window.
+
 ## Allocations
 
 ```text
