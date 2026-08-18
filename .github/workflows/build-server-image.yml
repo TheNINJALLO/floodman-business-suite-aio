@@ -39,8 +39,8 @@ jobs:
           no-cache: true
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/floodman-operations:4.7.0
-            ghcr.io/${{ github.repository_owner }}/floodman-operations:4.7.0-${{ github.sha }}
+            ghcr.io/theninjallo/floodman-operations:4.7.0
+            ghcr.io/theninjallo/floodman-operations:4.7.0-${{ github.sha }}
           labels: |
             org.opencontainers.image.version=4.7.0
             org.opencontainers.image.revision=${{ github.sha }}
