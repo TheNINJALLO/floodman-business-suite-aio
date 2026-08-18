@@ -23,7 +23,7 @@
 - [ ] Build the derivative server image from a clean runner.
 - [ ] Build the complete AIO image for comparison.
 - [ ] Generate SBOMs and vulnerability reports.
-- [x] Build Android alpha12 locally without release signing.
+- [x] Build Android 0.4.0-alpha01/build 13 locally without release signing.
 - [ ] Build Apple alpha03 simulator on macOS/Xcode.
 - [ ] Record checksums and runner/tool versions.
 

@@ -1,10 +1,10 @@
-# Floodman Android 0.3.0-alpha12 acceptance checklist
+# Floodman Android 0.4.0-alpha01 (build 13) acceptance checklist
 
 ## Matched deployment
 
 1. Install the current Floodman Operations runtime v4.6.9 and wait for `FLOODMAN_SUITE_READY` (v4.6.3 remains the minimum capability baseline, not the current release).
 2. With Tailscale disabled on the phone, open `/mobile-api/v1/health` and confirm API version `0.3.0-alpha11`.
-3. Install the alpha12 debug APK and sign in.
+3. Install the 0.4.0-alpha01/build-13 debug APK and sign in.
 4. Confirm an older server is rejected with the matched-server message rather than opening JSON as a document.
 
 

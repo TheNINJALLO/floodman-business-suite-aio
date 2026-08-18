@@ -5,7 +5,7 @@
   if (!window.location.pathname.startsWith('/roomflow/') && params.get('floodmanPanel') !== '1') return;
   window.__FLOODMAN_ROOMFLOW_PANEL__ = true;
 
-  const RELEASE = '4.6.10';
+  const RELEASE = '4.7.0';
   const LINK_KEY = 'floodman_roomflow_links_v2';
   const ESTIMATE_KEY = 'floodman_roomflow_estimate_ids_v1';
   const GUIDE_KEY = 'floodman_roomflow_quick_start_dismissed_v1';

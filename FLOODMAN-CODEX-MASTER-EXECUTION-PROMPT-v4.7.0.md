@@ -1,4 +1,4 @@
-# Floodman Codex master execution prompt v4.6.10
+# Floodman Codex master execution prompt v4.7.0
 
 ## Mission
 
@@ -6,9 +6,9 @@ Continue the checked-in Floodman Operations handoff without restarting completed
 
 The active release identities are:
 
-- server `4.6.10`
+- server `4.7.0`
 - Mobile API `0.3.0-alpha11`
-- Android `0.3.0-alpha12`
+- Android `0.4.0-alpha01`
 - iOS `0.1.0-alpha03`
 - RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`
 - business time zone `America/Detroit`, with persisted timestamps in UTC
@@ -18,6 +18,10 @@ The active release identities are:
 ### Scoped v4.6.10 web-update authorization
 
 On 2026-08-15 the user explicitly requested a version bump so the web system can recognize and install the completed CRM/RoomFlow usability update. This authorizes the distinct server/Pterodactyl `4.6.10` identity and local test artifacts only. Mobile API remains additive at `0.3.0-alpha11`, Android remains `0.3.0-alpha12`, iOS remains `0.1.0-alpha03`, and the minimum-client versions and RoomFlow pin do not advance. The previously recorded Android build and iOS source-readiness evidence remain historical evidence for those unchanged native candidates; this web-only bump does not claim a new native compile. It does not authorize production deployment, signing, Play/TestFlight upload, live-data access, or a claim that device/macOS/staging gates passed.
+
+### Scoped v4.7.0 Android/web release authorization
+
+On 2026-08-18 the user explicitly requested that the completed Android and web systems be committed for release and that new Pterodactyl upload files be produced. This authorizes distinct local server/Pterodactyl `4.7.0` and Android `0.4.0-alpha01`/build 13 identities, deterministic local Pterodactyl artifacts, unsigned Android artifacts, documentation, checksums, and release commits. Mobile API remains additive at `0.3.0-alpha11`; iOS remains `0.1.0-alpha03`; minimum Android/iOS versions and the RoomFlow pin do not advance. The exception does not claim Apple/Xcode, physical-device, signing, staging, backup/restore, container, store, or production deployment acceptance and does not authorize live data or credentials. Git push may occur only when a configured authenticated remote exists.
 
 ## Task selection and evidence
 

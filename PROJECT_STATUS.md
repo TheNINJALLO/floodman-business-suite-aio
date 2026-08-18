@@ -4,9 +4,9 @@
 
 | Component | Version | Source status | Live validation status |
 |---|---:|---|---|
-| Floodman custom server | 4.6.10 | Guided CRM/RoomFlow update packaged; 10/10 source smokes pass | Live v4.6.10 upgrade and Full ERP/RoomFlow route validation not yet performed |
-| Pterodactyl launcher | 4.6.10 | Two deterministic launcher/egg/163-file runtime builds matched and checksummed | Must be tested on Wings after backup |
-| Android app | 0.3.0-alpha12 | JDK 17/Gradle 8.13 compile, test, lint, APK and AAB gate passed | Debug APK is ready for local testing; release outputs are unsigned and device/store gates remain external |
+| Floodman custom server | 4.7.0 | Integrated RoomFlow Capture release packaged; 12/12 source smokes pass | Live v4.7.0 upgrade and Full ERP/RoomFlow route validation not yet performed |
+| Pterodactyl launcher | 4.7.0 | Two deterministic launcher/egg/203-file runtime builds matched and checksummed | Must be tested on Wings after backup |
+| Android app | 0.4.0-alpha01 (build 13) | JDK 17/Gradle 8.13 compile, test, lint, APK and AAB gate passed | Debug APK is ready for local testing; release outputs are unsigned and device/store gates remain external |
 | Apple app | 0.1.0-alpha03 | All Windows-available source/project/asset/workflow readiness gates pass | Xcode simulator compilation remains BLK-004; signing/TestFlight remain external |
 | RoomFlow | pinned commit | Fetch metadata and native bridges included | Separate repository source must be fetched |
 | Gauzy | upstream image | Composed, not vendored | Existing live ERP had intermittent browser/server-down routing issues |
@@ -33,16 +33,16 @@
 2. Move all secrets and the RoomFlow Supabase defaults to environment configuration.
 3. Build the derivative server image from a clean CI runner.
 4. Restore a sanitized copy of live data into a staging Pterodactyl server.
-5. Validate the v4.6.7-to-v4.6.10 test upgrade, Full ERP login, desktop, mobile, signing, payments, PDFs, RoomFlow import, restart, backup, and restore behavior.
-6. Install Android alpha12 on an approved test device and run the complete acceptance checklist against staging HTTPS.
+5. Validate a clean v4.7.0 install and the v4.6.10-to-v4.7.0 test upgrade, Full ERP login, desktop, mobile, signing, payments, PDFs, RoomFlow import/capture, restart, backup, and restore behavior.
+6. Install Android 0.4.0-alpha01 on approved Depth-capable and guided-mode test devices and run the complete acceptance checklist against staging HTTPS.
 7. Run the Apple alpha03 unsigned simulator workflow on macOS/Xcode, then complete device acceptance before TestFlight.
 8. Replace JSON Office state with a transactional relational database before multi-user production scale.
 9. Split the AIO container into independent deployable services when moving to the dedicated server.
 
 ## Do not assume
 
-- Do not assume the latest v4.6.10 runtime was installed successfully.
-- Do not assume the locally built Android alpha12 artifact has passed physical-device or staging acceptance.
+- Do not assume the latest v4.7.0 runtime was installed successfully.
+- Do not assume the locally built Android 0.4.0-alpha01 artifact has passed physical-device or staging acceptance.
 - Do not assume Full ERP browser routing is fixed until it is tested through the actual Tailscale `:8443` URL.
 - Do not assume Apple signing is ready merely because source and workflows exist.
 - Do not assume payment, email, Twilio, OpenAI, APNs or FCM credentials are configured.

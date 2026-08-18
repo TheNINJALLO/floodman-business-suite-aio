@@ -75,7 +75,7 @@ Original RoomFlow Supabase migration was added later. It authenticates using the
 
 The Android app became a native Kotlin and Jetpack Compose shell with encrypted API access, device enrollment, biometric/device-PIN unlock, and a bundled RoomFlow workspace. Build iterations corrected SDK licensing, Kotlin compiler DSL changes, Square callback overloads, biometric host types, Compose context usage, camera-feature lint, setter collisions, and Android predictive back behavior.
 
-The latest Android source is alpha12. It retains RoomFlow workspaces and Supabase import, scopes native customer/property lookup to the selected Floodman company, and passed the local JDK 17/Gradle 8.13 compiler, unit, lint, APK, and AAB gate. External CI dispatch and physical-device acceptance remain outstanding.
+The latest Android source is 0.4.0-alpha01/build 13. It retains RoomFlow workspaces and Supabase import, scopes native customer/property lookup to the selected Floodman company, adds real ARCore capture with optional Depth and guided fallback, and passed the local JDK 17/Gradle 8.13 compiler, unit, lint, APK, and AAB gate. External CI dispatch and physical-device acceptance remain outstanding.
 
 ## Phase 8: Apple app
 

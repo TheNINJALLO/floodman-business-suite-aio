@@ -2,7 +2,7 @@
 
 RoomFlow Capture is the authenticated, room-by-room measurement workflow inside Floodman RoomFlow. It uses the existing Floodman user, workspace, customer, property, job, estimate, audit, and synchronization records. It does not have a separate login or database.
 
-Current source identity remains Floodman `4.6.10`, Mobile API `0.3.0-alpha11`, Android `0.3.0-alpha12`, iOS `0.1.0-alpha03`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`. These identities have not been advanced because Xcode, physical-device, staging, container, and signing gates are still external.
+Current source identity is Floodman `4.7.0`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01` (build 13), iOS `0.1.0-alpha03`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`. The server/web and Android identities were advanced under a scoped local-test release exception; Xcode, physical-device, staging, container, signing/store, and production gates remain external.
 
 ## Staff field guide
 
@@ -180,4 +180,4 @@ The authoritative workflows are `.github/workflows/build-android.yml` and `.gith
 - **Sync pending:** keep the app signed in and reopen the job after connectivity returns. Do not recreate the room; the stable operation ID is designed for retry.
 - **Revision conflict:** reload the newer room, compare it with the local review, then intentionally reapply corrections.
 - **Apple build unavailable locally:** run the unsigned macOS simulator workflow; a Windows static check is not an Xcode pass.
-- **Release packaging:** do not overwrite the existing v4.6.10 runtime with new contents. Complete Xcode, device, staging, container, backup/restore, and release-version gates before assigning and packaging the next identity.
+- **Release packaging:** use only the distinct v4.7.0 runtime/launcher/checksums for this capture build; never relabel or overwrite v4.6.10. Complete device, staging, container, clean upgrade/restart, backup/restore, signing/store, and production gates before wider release.

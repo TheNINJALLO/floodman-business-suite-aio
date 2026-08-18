@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Treat `server/overlay.json`, `server/VERSION`, `apps/android/VERSION`, `apps/ios/VERSION`, and `vendor/roomflow/PINNED_COMMIT` as release identity files.
-- The current server contract is Floodman v4.6.10 with Mobile API `0.3.0-alpha11`.
+- The current server contract is Floodman v4.7.0 with Mobile API `0.3.0-alpha11`.
 - Do not use historical ZIPs as the editing source. Edit the extracted folders.
 - Preserve the Floodman branding and the attribution `Created by Josh Aldrich` where attribution is displayed.
 

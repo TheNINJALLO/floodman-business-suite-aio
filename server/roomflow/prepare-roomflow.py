@@ -13,7 +13,7 @@ from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-RELEASE = "4.6.10"
+RELEASE = "4.7.0"
 ROOMFLOW_COMMIT = "1f97817a52b916875e50cc6380c0d284072b8ce8"
 ARCHIVE_URL = f"https://github.com/TheNINJALLO/roomflow/archive/{ROOMFLOW_COMMIT}.tar.gz"
 RELEASE_ASSETS = Path(__file__).resolve().with_name("release-assets")

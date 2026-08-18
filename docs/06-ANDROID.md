@@ -3,7 +3,7 @@
 ## Current release
 
 ```text
-Version: 0.3.0-alpha12
+Version: 0.4.0-alpha01 (build 13)
 Package: com.floodman.operations
 Minimum Android: API 28 / Android 9
 Compile and target SDK: 36
@@ -44,7 +44,7 @@ gradle --no-daemon :app:testDebugUnitTest :app:lintDebug
 gradle --no-daemon :app:assembleDebug :app:assembleRelease :app:bundleRelease
 ```
 
-The authoritative workflow is `.github/workflows/build-android.yml`. Local alpha12 evidence is recorded in `apps/android/docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md`.
+The authoritative workflow is `.github/workflows/build-android.yml`. Local 0.4.0-alpha01 evidence is recorded in `apps/android/docs/ANDROID_BUILD_EVIDENCE-v0.4.0-alpha01.md`.
 
 ## Required acceptance test
 
@@ -63,6 +63,6 @@ The authoritative workflow is `.github/workflows/build-android.yml`. Local alpha
 
 ## Known status
 
-The 2026-08-18 unreleased capture-source gate passes JDK 17/Gradle 8.13 debug and release compilation, 8/8 unit tests, lint with 0 error/fatal findings, debug APK, unsigned release APK, and release AAB. The APK contains capture schema v2, the exact RoomFlow pin, Floodman 4.6.10 metadata, and the checksum of the offline RoomFlow export. Evidence and current hashes are in `apps/android/docs/ANDROID_ROOMFLOW_CAPTURE_EVIDENCE-UNRELEASED.md`.
+The 2026-08-18 0.4.0-alpha01 capture gate passes JDK 17/Gradle 8.13 debug and release compilation, 8/8 unit tests, lint with 0 error/fatal findings, debug APK, unsigned release APK, and release AAB. The APK contains capture schema v2, the exact RoomFlow pin, Floodman 4.7.0 metadata, and the checksum of the offline RoomFlow export. Evidence and current hashes are in `apps/android/docs/ANDROID_BUILD_EVIDENCE-v0.4.0-alpha01.md`.
 
-No physical ARCore/Depth device, release signature, Play upload, or GitHub workflow run is claimed. The app version remains alpha12 until the release-version gates allow a distinct identity; these new artifacts must not replace a previously distributed alpha12 build.
+No physical ARCore/Depth device, release signature, Play upload, or GitHub workflow run is claimed. This build has a distinct 0.4.0-alpha01/build-13 identity and must complete those external gates before production distribution.

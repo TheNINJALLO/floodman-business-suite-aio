@@ -1,7 +1,7 @@
 /* Floodman Operations service worker */
 'use strict';
 
-const RELEASE = '4.6.10';
+const RELEASE = '4.7.0';
 const STATIC_CACHE = `floodman-static-${RELEASE}`;
 const OFFLINE_CACHE = `floodman-offline-${RELEASE}`;
 const MANAGED_PREFIXES = ['floodman-static-', 'floodman-offline-'];

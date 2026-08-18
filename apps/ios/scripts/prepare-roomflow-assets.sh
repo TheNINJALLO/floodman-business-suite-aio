@@ -51,7 +51,7 @@ scripts='\n'.join(('<script src="floodman-ios-bridge.js?v=3"></script>','<script
 if 'roomflow-capture.js' not in s:s=s.replace('</body>',scripts+'\n</body>')
 p.write_text(s, encoding='utf-8')
 (p.parent / 'floodman-roomflow.json').write_text(json.dumps({
-    'release': '4.6.10',
+    'release': '4.7.0',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'asset_manifest_sha256': os.environ['ROOMFLOW_ASSET_MANIFEST'],
     'prepared_by': 'Floodman Operations iOS',

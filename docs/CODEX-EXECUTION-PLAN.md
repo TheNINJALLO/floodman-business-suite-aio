@@ -33,7 +33,7 @@
 - The embedded low-training workflow includes pre-scan guidance, manual/templates/native entry, drag/numeric corrections, wall locks, compare/rotation/pan/zoom, undo/redo, openings, detailed affected-wall scope, quantities, warnings, and close/Escape/focus/mobile behavior.
 - Android local gates pass real ARCore source with optional Depth. Apple RoomPlan and ARKit fallback source plus simulator workflow are ready, but Xcode and device results remain blocked and unclaimed.
 - Server and native preparation now consume a 29-file checksum-verified export of the unchanged pin without GitHub/CDN access. Source manifests, inventory, field guide, candidate notes, and local artifacts are refreshed.
-- A new deployable identity/package is deliberately not produced: the existing v4.6.10 ZIP remains frozen. Resume at BLK-004/BLK-006/BLK-011 on macOS, physical devices, staging, and an isolated release runner.
+- **Scoped Android/web release complete locally (2026-08-18).** The user's explicit exception assigned server/web/Pterodactyl v4.7.0 and Android 0.4.0-alpha01/build 13 without changing Mobile API, minimum-client, iOS, or RoomFlow-pin identities. The v4.7.0 package is distinct from the frozen v4.6.10 release; macOS, physical-device, staging, container, signing/store, backup/restore, production deployment, and remote CI remain separate blockers.
 
 ## Phase 3 — Android
 
@@ -43,6 +43,7 @@
 - Recorded local artifact SHA-256 values and added CI checksum generation. Physical-device/public-HTTPS and release signing remain separate external gates.
 - **Alpha12 usability refresh complete locally (2026-08-15).** The selected Floodman workspace scopes RoomFlow customer/property lookups; four-step guidance, plain customer/import controls, fixed Detroit time, and installer-only connection editing are packaged with exact-pin server 4.6.9 assets. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. CI dispatch requires a repository remote under BLK-010; device/signing gates remain external.
 - **RoomFlow Capture source gate complete locally (2026-08-18).** Real ARCore/Depth and guided fallback, lifecycle/permission handling, bridge v2, bounded atomic outbox, and deterministic capture fixtures pass forced compile, 8/8 total unit tests, lint with 0 errors/fatals, and fresh debug/release APK plus AAB packaging. Physical Depth/guided testing and a distinctly versioned signed build remain external.
+- **Android 0.4.0-alpha01/build 13 package complete locally (2026-08-18).** Forced JDK 17/Gradle 8.13 compile, 8/8 tests, lint with 0 errors/fatals, debug APK, unsigned release APK, release AAB, package metadata, signature state, exact-pin capture assets, and SHA-256 evidence pass. CI dispatch remains BLK-010 and physical-device/signing acceptance remains BLK-006/BLK-007.
 
 ## Phase 4 — iOS
 
@@ -63,6 +64,7 @@
 - Completed a clean `--pull --no-cache` linux/amd64 derivative build and a network-isolated image audit: 174/174 server manifest entries, all five installed Python package sets, non-root ownership, empty inherited development-secret placeholders, and live-state exclusions passed.
 - The publishing workflow now emits the registry digest, input hashes, provenance, and SBOM. Local Docker Scout advisory output is still unavailable under BLK-008; live staging, signing, and deployment remain at their recorded safety boundaries.
 - A current derivative image rebuild remains BLK-009 because the local Docker Desktop service is stopped/manual. It was not started because DEC-016 forbids risking automatic restart of unrelated containers; use an isolated engine or clean CI runner.
+- **v4.7.0 Pterodactyl package complete locally (2026-08-18).** Two deterministic builds matched; the 203-file internal manifest, 11/11 portable package smokes, exact RoomFlow pin, launcher syntax, checksums, and release verifier pass. Upload/install, upgrade/restart, backup/restore, live routes, and container-image publication remain external gates.
 
 ## Continuous evidence
 

@@ -29,10 +29,10 @@ pterodactyl-release:
 	python3 scripts/verify_pterodactyl_release.py
 
 derivative-image:
-	docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.6.10 .
+	docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.7.0 .
 
 server-image:
-	docker build --pull --no-cache -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.6.10 .
+	docker build --pull --no-cache -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.7.0 .
 
 android:
 	cd apps/android && gradle --no-daemon :app:compileDebugKotlin :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease

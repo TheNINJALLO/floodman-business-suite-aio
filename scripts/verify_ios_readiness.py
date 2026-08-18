@@ -270,7 +270,7 @@ metadata = APP / "Resources" / "RoomFlow" / "floodman-roomflow.json"
 if metadata.is_file():
     prepared = json.loads(metadata.read_text(encoding="utf-8"))
     require(prepared.get("base_commit") == PIN, "prepared iOS RoomFlow metadata has the wrong pin")
-    require(prepared.get("release") == "4.6.10", "prepared iOS RoomFlow metadata has the wrong Floodman release")
+    require(prepared.get("release") == "4.7.0", "prepared iOS RoomFlow metadata has the wrong Floodman release")
     require(prepared.get("created_by") == "Josh Aldrich", "prepared iOS RoomFlow metadata lost attribution")
 
 if PROBLEMS:

@@ -2,7 +2,7 @@
 
 Status legend: **implemented**, **partial**, **planned**, **upstream**.
 
-| Capability | Desktop PWA | Mobile PWA | Android alpha12 | Apple alpha03 | Notes |
+| Capability | Desktop PWA | Mobile PWA | Android 0.4.0-alpha01 | Apple alpha03 | Notes |
 |---|---|---|---|---|---|
 | Floodman staff login | implemented | implemented | implemented | implemented | Local or Gauzy-linked identity paths |
 | Full Gauzy ERP | upstream via launcher | not primary | not exposed | not exposed | Private Tailscale route |

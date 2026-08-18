@@ -6,9 +6,9 @@ This repository is the source handoff for the Floodman Operations system develop
 
 | Component | Version | Status |
 |---|---:|---|
-| Floodman server overlay | 4.6.10 | Current cumulative custom source |
-| Pterodactyl launcher | 4.6.10 | Current cumulative launcher |
-| Android app | 0.3.0-alpha12 | Local compile/test/lint/APK/AAB gate passed; device/signing/CI dispatch remain external |
+| Floodman server overlay | 4.7.0 | Current cumulative custom source with integrated RoomFlow Capture |
+| Pterodactyl launcher | 4.7.0 | Current cumulative launcher and deterministic upload package |
+| Android app | 0.4.0-alpha01 | Local compile/test/lint/APK/AAB gate passed; device/signing/CI dispatch remain external |
 | iPhone/iPad app | 0.1.0-alpha03 | Windows source/workflow readiness passed; run the Xcode simulator workflow before TestFlight |
 | RoomFlow | pinned commit `1f97817a52b916875e50cc6380c0d284072b8ce8` | Checksummed offline runtime export included; standalone checkout is optional for review |
 | Time zone | America/Detroit | Project standard |
@@ -26,8 +26,8 @@ This repository is the source handoff for the Floodman Operations system develop
 
 ## What is included
 
-- Complete Floodman custom server source for v4.6.10
-- Native Android source and local build evidence for alpha12
+- Complete Floodman custom server source for v4.7.0
+- Native Android source and local build evidence for 0.4.0-alpha01
 - Native iOS source and Windows readiness evidence for alpha03
 - Original v3.1.1 AIO build source and current AIO Docker scaffolding
 - Current Pterodactyl runtime, launcher, and egg files
@@ -78,4 +78,4 @@ make derivative-image
 
 Android and iOS build commands are documented in `docs/06-ANDROID.md` and `docs/07-IOS.md`.
 
-The integrated RoomFlow Capture implementation is currently an unreleased source candidate. The existing v4.6.10 Pterodactyl ZIP remains the frozen pre-capture release and is not overwritten with different contents under the same version. See `docs/ROOMFLOW-CAPTURE-UNRELEASED.md` for gates and evidence.
+The integrated RoomFlow Capture implementation is packaged locally as the distinct v4.7.0 web/Pterodactyl release with Android 0.4.0-alpha01. Physical-device, macOS/Xcode, signing/store, staging, backup/restore, and production-deployment gates remain external. See `docs/RELEASE-NOTES-v4.7.0.md` for the exact evidence and boundaries.

@@ -40,6 +40,7 @@ The releases below are the major cumulative milestones represented by the conver
 - **v4.6.8**: Unified ERP/Office/RoomFlow login plus a distinct server-only Pterodactyl test-update identity.
 - **v4.6.9**: RoomFlow company workspaces use the existing Floodman ERP session; legacy Supabase account prompts are neutralized, native lookups are company-scoped, and Android alpha12/iOS alpha03 are prepared.
 - **v4.6.10**: Guided CRM and RoomFlow settings, server-validated safe defaults, dismissible four-step help, owner-only original RoomFlow import, and a distinct server/Pterodactyl update identity; native and Mobile API identities remain unchanged.
+- **v4.7.0**: Integrated suite-owned RoomFlow Capture with authenticated revisions, offline replay, web review/corrections, Android ARCore/Depth capture, prepared Apple RoomPlan/ARKit source, checksum-addressed exact-pin assets, and distinct Pterodactyl test artifacts.
 
 ## Android alpha compiler history
 
@@ -51,6 +52,7 @@ The releases below are the major cumulative milestones represented by the conver
 - **alpha10**: Supabase import/bootstrap and document-content validation.
 - **alpha11**: RoomFlow workspaces/company selection.
 - **alpha12**: v4.6.9 company-scoped RoomFlow lookup/save isolation and refreshed unsigned packages.
+- **0.4.0-alpha01**: build 13 adds ARCore capture with optional Depth, guided fallback, bridge v2, review/correction metadata, and bounded durable offline operations.
 
 ## Apple alpha history
 

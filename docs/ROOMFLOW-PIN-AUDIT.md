@@ -66,3 +66,7 @@ Imported geometry is not represented as an actual field-layout image. Historical
 - 2026-08-14 native candidate refresh — Android alpha12 and iOS alpha03 bundles were regenerated from the same clean pin with Floodman 4.6.9 metadata. Native customer/property lookup now sends the selected Floodman workspace, the server isolation regression passed, and Android APK/AAB inspection verified the embedded pin.
 
 Live Supabase acceptance remains an operator action because no user credential was supplied or stored. The deterministic import and HTTP contract are locally verified; a production login is not claimed.
+
+## 2026-08-18 v4.7.0 release refresh
+
+The pin remains exactly `1f97817a52b916875e50cc6380c0d284072b8ce8`. Server v4.7.0, Android 0.4.0-alpha01/build 13, and the unchanged iOS 0.1.0-alpha03 preparation all consume the same 29-file checksum-addressed offline export. `verify_roomflow_pin.py` confirms the server, Android, iOS, schema/RLS, and importer contracts agree. No upstream pin advance or live Supabase operation occurred.

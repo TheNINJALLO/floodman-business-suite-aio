@@ -63,7 +63,7 @@ settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
-app = FastAPI(title="Floodman Operations", version="4.6.10", docs_url=None, redoc_url=None)
+app = FastAPI(title="Floodman Operations", version="4.7.0", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
 
@@ -128,7 +128,7 @@ def _require(permission: str) -> dict[str, Any]:
 
 @app.get("/health/live")
 def live() -> dict[str, str]:
-    return {"status": "ok", "service": "floodman-office-console", "version": "4.6.10"}
+    return {"status": "ok", "service": "floodman-office-console", "version": "4.7.0"}
 
 
 @app.get("/health/ready")
@@ -4916,7 +4916,7 @@ def roomflow_context_api() -> dict[str, Any]:
     user = _require("estimates.view")
     workspaces, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     return {
-        "release": "4.6.10",
+        "release": "4.7.0",
         "timezone": store.profile().get("timezone") or "America/Detroit",
         "user": {"id": user.get("id"), "name": user.get("name"), "email": user.get("email")},
         "workspaces": [workspace_public(record) for record in workspaces],

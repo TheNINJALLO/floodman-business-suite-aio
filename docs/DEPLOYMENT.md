@@ -8,7 +8,7 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 `mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, Tailscale, Nginx/Supervisor configuration, upstream services, health checks and final readiness marker.
 
-The current files in `deployment/releases/` install the frozen v4.6.10 pre-capture runtime. Do not rebuild or upload different RoomFlow Capture contents under that same filename/version. The capture source uses local checksum-verified RoomFlow assets, but deployment waits for a separately versioned package after BLK-011 is cleared.
+The current files in `deployment/releases/` provide the distinct v4.7.0 RoomFlow Capture runtime and launcher for an authorized test update. Upload `floodman-operations-runtime-v4.7.0.zip` and `mobile-start-v4.7.0.sh` (renamed to `mobile-start.sh` on the panel) and use the matched v4.7.0 egg when importing a new Pterodactyl definition. Verify `SHA256SUMS` before upload. This local package result is not a claim that staging install/upgrade/restart, backup/restore, live routes, or production deployment passed.
 
 Expected terminal marker:
 

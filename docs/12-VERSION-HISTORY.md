@@ -26,6 +26,7 @@
 | 4.6.8 | Unified ERP/Office/RoomFlow login and distinct server-only Pterodactyl test-update identity |
 | 4.6.9 | ERP-session RoomFlow companies, native workspace isolation, Android alpha12, and iOS alpha03 |
 | 4.6.10 | Guided CRM/RoomFlow settings, safe validation/defaults, owner-only old-data import, and distinct web-update artifacts |
+| 4.7.0 | Integrated RoomFlow Capture, revisioned/offline synchronization, exact-pin offline assets, and distinct web/Pterodactyl test artifacts |
 
 ## Android milestones
 
@@ -44,6 +45,7 @@
 | alpha10 | Supabase migration, snapshot preservation, PDF validation, and version contract |
 | alpha11 | Persistent RoomFlow workspaces and organization selection |
 | alpha12 | v4.6.9 company-scoped native lookup/save isolation and refreshed build |
+| 0.4.0-alpha01 | ARCore capture with optional Depth, guided fallback, bridge v2, review workflow, and durable offline operations (build 13) |
 
 ## iOS milestones
 
@@ -55,4 +57,4 @@
 
 ## Status note
 
-Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.6.10; Android alpha12 and iOS alpha03 are unchanged unsigned test candidates. Android build evidence and the external iOS compiler status are recorded separately.
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.7.0; Android 0.4.0-alpha01/build 13 and iOS alpha03 are unsigned test candidates. Android local build evidence and the external iOS compiler status are recorded separately.

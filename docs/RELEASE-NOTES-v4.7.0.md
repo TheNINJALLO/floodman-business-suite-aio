@@ -1,4 +1,4 @@
-# RoomFlow Capture unreleased candidate notes
+# Floodman Operations 4.7.0 release notes
 
 Date: 2026-08-18
 
@@ -10,13 +10,13 @@ The source reuses the existing Floodman login, workspace, customer/property/job 
 
 ## Compatibility and identity
 
-- Server remains `4.6.10`; Mobile API remains `0.3.0-alpha11`.
-- Android remains `0.3.0-alpha12`; Apple remains `0.1.0-alpha03` during implementation.
+- Server/Pterodactyl advances to `4.7.0`; Mobile API remains `0.3.0-alpha11`.
+- Android advances to `0.4.0-alpha01`/build 13; Apple remains `0.1.0-alpha03`.
 - Required capabilities are additive: `roomflow.capture.v2` and `roomflow.capture.offline.v1`.
 - RoomFlow remains pinned at `1f97817a52b916875e50cc6380c0d284072b8ce8`.
 - Existing capture-less clients remain above the unchanged minimum-client floors.
 
-These identities are not a new release. In particular, the existing `deployment/releases/floodman-operations-runtime-v4.6.10.zip` is intentionally left byte-for-byte unchanged. Publishing new content under an already distributed semantic identity is prohibited.
+The distinct identities prevent an installed v4.6.10/alpha12 system from treating this new content as an already-applied update. Minimum Android/iOS client versions remain unchanged because the server changes are additive.
 
 ## Verified locally
 
@@ -27,6 +27,7 @@ These identities are not a new release. In particular, the existing `deployment/
 - Android forced compile, 8 unit tests, lint, debug/release APK, and release AAB;
 - Apple source/project/workflow readiness and six declared XCTest methods;
 - checksum-verified offline RoomFlow release assets and native preparation.
+- two byte-identical v4.7.0 Pterodactyl builds, 203 packaged runtime files, internal hashes, and 11/11 portable packaged smoke programs.
 
 ## Remaining release gates
 
@@ -35,6 +36,6 @@ These identities are not a new release. In particular, the existing `deployment/
 - clean install, upgrade, restart, staging HTTPS, backup, and restore;
 - current container build/advisory scan on an isolated engine;
 - release signing/store credentials and explicit release approval;
-- a distinct version assignment, regenerated runtime/native packages, final manifests, checksums, and release verification.
+- production deployment approval and a configured Git remote for publishing the release commit.
 
-Until those gates pass, this is reviewable source and local Android evidence—not a deployable RoomFlow Capture release.
+The v4.7.0 Pterodactyl files are locally deployable test artifacts and Android packages are local pre-signing artifacts. Apple, device, staging, signing/store, container/advisory, backup/restore, and production acceptance are not claimed.

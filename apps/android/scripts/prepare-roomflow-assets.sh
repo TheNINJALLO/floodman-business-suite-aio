@@ -59,11 +59,11 @@ for name in ('supabase-service.js','roomflow-integrations.js','townsquare-integr
 s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanNative.close()"')
 if 'roomflow-capture.css' not in s:
     s=s.replace('</head>','<link rel="stylesheet" href="roomflow-capture.css?v=2">\n</head>')
-scripts='\n'.join(('<script src="floodman-native-bridge.js?v=12"></script>','<script src="roomflow-capture-geometry.js?v=2"></script>','<script src="roomflow-capture.js?v=2"></script>'))
+scripts='\n'.join(('<script src="floodman-native-bridge.js?v=13"></script>','<script src="roomflow-capture-geometry.js?v=2"></script>','<script src="roomflow-capture.js?v=2"></script>'))
 if 'roomflow-capture.js' not in s:s=s.replace('</body>',scripts+'\n</body>')
 p.write_text(s,encoding='utf-8')
 (p.parent / 'floodman-roomflow.json').write_text(json.dumps({
-    'release': '4.6.10',
+    'release': '4.7.0',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
     'asset_manifest_sha256': os.environ['ROOMFLOW_ASSET_MANIFEST'],
     'prepared_by': 'Floodman Operations Android',

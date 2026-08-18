@@ -1,18 +1,18 @@
 {
   "schema": 1,
-  "generated_for": "Floodman Operations v4.6.10 VS Code and Codex handoff",
+  "generated_for": "Floodman Operations v4.7.0 VS Code and Codex handoff",
   "components": [
     {
       "name": "Floodman custom server source",
       "location": "server/",
-      "version": "4.6.10",
+      "version": "4.7.0",
       "included": true,
       "notes": "Complete custom overlay source included."
     },
     {
       "name": "Floodman Android",
       "location": "apps/android/",
-      "version": "0.3.0-alpha12",
+      "version": "0.4.0-alpha01",
       "included": true,
       "notes": "Native Kotlin and Jetpack Compose source included."
     },

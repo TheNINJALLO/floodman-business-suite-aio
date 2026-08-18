@@ -5,12 +5,12 @@ The live test deployment uses one Pterodactyl server allocation with Floodman's 
 ## Current matched release
 
 ```text
-Server:  Floodman Operations 4.6.10
-Android source candidate: 0.3.0-alpha12
-Apple source candidate:   0.1.0-alpha03
+Server:  Floodman Operations 4.7.0
+Android local release: 0.4.0-alpha01 / build 13
+Apple source candidate: 0.1.0-alpha03
 ```
 
-The files in `deployment/releases/` are the frozen v4.6.10 pre-capture release. The newer integrated RoomFlow Capture source is intentionally not repackaged under that existing identity. Continue using these files only to install/restore v4.6.10; wait for a separately versioned package before deploying capture.
+The files in `deployment/releases/` are the distinct v4.7.0 RoomFlow Capture release. They do not overwrite the v4.6.10 identity.
 
 ## Startup
 
@@ -18,11 +18,11 @@ The files in `deployment/releases/` are the frozen v4.6.10 pre-capture release. 
 bash ./mobile-start.sh
 ```
 
-Import `egg-floodman-operations-mobile-v4.6.10.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
+Import `egg-floodman-operations-mobile-v4.7.0.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
 
 ```text
-mobile-start-v4.6.10.sh -> mobile-start.sh
-floodman-operations-runtime-v4.6.10.zip (do not extract)
+mobile-start-v4.7.0.sh -> mobile-start.sh
+floodman-operations-runtime-v4.7.0.zip (do not extract)
 ```
 
 The egg installs the same current launcher automatically on a fresh server. The ZIP remains a separate upload so its SHA-256 can be verified before startup. Set a non-placeholder Owner password and create `config/tailscale-auth-key.txt` with a one-off non-ephemeral auth key before the first start.
@@ -48,4 +48,4 @@ The egg installs the same current launcher automatically on a fresh server. The 
 7. Verify `/mobile-api/v1/health`, `/office-health/live`, private desktop/mobile routes, signing, and one PDF.
 8. Roll back the launcher and runtime only if the matching release fails. Never delete data directories as a repair shortcut.
 
-The v4.6.10 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Historical copies under `release-artifacts/` are rollback provenance, not the current upload source.
+The v4.7.0 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Historical copies under `release-artifacts/` and Git history are rollback provenance, not the current upload source.

@@ -5,15 +5,15 @@ Native Android staff application for Floodman Operations.
 ## Release
 
 ```text
-App version: 0.3.0-alpha12
-Current server runtime: Floodman Operations v4.6.10
+App version: 0.4.0-alpha01 (build 13)
+Current server runtime: Floodman Operations v4.7.0
 Minimum capability-compatible server: Floodman Operations v4.6.3
 Android package: com.floodman.operations
 Minimum Android: Android 9 (API 28)
 Time zone: America/Detroit
 ```
 
-Android alpha12 retains the additive v4.6.3 Mobile API capability baseline while matching the current v4.6.10 server and company-workspace repair. RoomFlow customer/property searches and saves are scoped to the selected company. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
+Android 0.4.0-alpha01 retains the additive v4.6.3 Mobile API compatibility floor while matching the current v4.7.0 server. It adds real ARCore room capture with optional Depth, guided fallback, reviewed geometry, and durable offline synchronization. RoomFlow customer/property searches and saves remain scoped to the selected company. Install the server runtime first. The app checks the server capability contract during login and refuses to operate against an incompatible server instead of displaying JSON or HTML as an estimate or PDF.
 
 ## Original RoomFlow migration
 
@@ -76,4 +76,4 @@ gradle --no-daemon :app:assembleDebug :app:assembleRelease :app:bundleRelease
 
 Use the included GitHub Actions workflow for the authoritative Android SDK build and artifact packaging.
 
-Local pre-signing gate evidence and package hashes are recorded in `docs/ANDROID_BUILD_EVIDENCE-v0.3.0-alpha12.md`. Release APK/AAB outputs remain unsigned until approved production signing credentials are supplied.
+Local build-13 evidence and package hashes are recorded in `docs/ANDROID_BUILD_EVIDENCE-v0.4.0-alpha01.md`. Release APK/AAB outputs remain unsigned until approved production signing credentials are supplied.
