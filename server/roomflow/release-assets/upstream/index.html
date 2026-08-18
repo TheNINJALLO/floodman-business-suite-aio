@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>RoomFlow - Interactive 2D/3D Room Layout & Estimation</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Styling -->
+    <link rel="stylesheet" href="styles.css?v=73">
+    <!-- Supabase integration -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js?v=66"></script>
+</head>
+<body>
+    <div id="app-container" class="interface-mode-simple">
+        <!-- Top Navigation -->
+        <header class="app-header">
+            <div class="logo">
+                <i data-lucide="layout"></i>
+                <h1>RoomFlow<span>Sketcher</span></h1>
+            </div>
+            
+            <div class="view-toggles">
+                <button id="btn-view-2d" class="toggle-btn active">
+                    <i data-lucide="edit-3"></i> <span>2D Sketch</span>
+                </button>
+                <button id="btn-view-3d" class="toggle-btn">
+                    <i data-lucide="box"></i> <span>3D View</span>
+                </button>
+                <button id="btn-view-ar" class="toggle-btn">
+                    <i data-lucide="aperture"></i> <span>Camera AR</span>
+                </button>
+                <button id="btn-view-cost" class="toggle-btn">
+                    <i data-lucide="dollar-sign"></i> <span>Internal Costing</span>
+                </button>
+            </div>
+
+            <div class="level-selector-container">
+                <i data-lucide="layers" class="level-icon"></i>
+                <select id="level-select">
+                    <option value="crawlspace">Crawl Space</option>
+                    <option value="basement" selected>Basement</option>
+                    <option value="main">Main Floor</option>
+                    <option value="second">2nd Floor</option>
+                    <option value="attic">Attic</option>
+                </select>
+            </div>
+
+            <div class="project-actions">
+                <div id="sync-status-badge" style="background:#64748b; color:white; padding:0.25rem 0.65rem; border-radius:6px; font-size:0.75rem; font-weight:700; display:inline-block; vertical-align:middle; margin-right:0.5rem; text-transform:uppercase; letter-spacing:0.02em;">Offline mode</div>
+                <div class="mode-selector-container" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.25rem 0.5rem; margin-right: 0.5rem;">
+                    <label style="font-size: 0.75rem; color: #94a3b8; font-weight: 500; margin: 0; white-space: nowrap;">Interface:</label>
+                    <select id="select-app-interface-mode" style="background: transparent; border: none; color: white; font-size: 0.8rem; font-weight: bold; cursor: pointer; padding: 0; outline: none;">
+                        <option value="guided" style="background: #0f172a; color: white;">Guided Wizard</option>
+                        <option value="advanced" style="background: #0f172a; color: white;">CAD Blueprint</option>
+                    </select>
+                </div>
+                <button onclick="switchTab('more')" class="btn-tool-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem; margin-right: 0.5rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: white; border-radius: 6px; cursor: pointer;" title="Open Settings & Companies"><i data-lucide="settings" style="width:14px; height:14px;"></i> <span>Settings</span></button>
+                <button id="btn-undo" title="Undo Action" disabled><i data-lucide="undo"></i></button>
+                <button id="btn-redo" title="Redo Action" disabled><i data-lucide="redo"></i></button>
+                <button id="btn-new" title="New Project"><i data-lucide="file-plus"></i></button>
+                <button id="btn-save" title="Save Project"><i data-lucide="save"></i></button>
+                <button id="btn-load" title="Load Project"><i data-lucide="folder-open"></i></button>
+                <button id="btn-jobs" title="Job Database (Local / Share)"><i data-lucide="database"></i></button>
+                <button id="btn-diagnostics" title="Device & AR Diagnostics"><i data-lucide="settings-2"></i></button>
+                <input type="file" id="file-input" style="display: none;" accept=".json">
+                <button id="btn-open-documents" class="btn-accent btn-documents" title="Open proposal, invoice, and work-order workflow"><i data-lucide="files"></i> <span>Documents</span></button>
+                <button id="btn-create-work-order" class="document-shortcut" title="Create work order"><i data-lucide="clipboard-check"></i> <span>Work Order</span></button>
+                <button id="btn-export-proposal" class="document-shortcut" title="Create customer proposal"><i data-lucide="file-text"></i> <span>Proposal</span></button>
+                <button id="btn-create-invoice" class="document-shortcut" title="Create invoice"><i data-lucide="receipt"></i> <span>Invoice</span></button>
+                <button id="btn-export-pdf" title="Export technical estimate report"><i data-lucide="download"></i> <span>Technical Export</span></button>
+            </div>
+        </header>
+
+        <!-- Main Body Grid -->
+        <main class="app-body">
+            <aside id="desktop-nav-rail">
+                <button class="nav-rail-item active" data-tab="jobs" title="Dashboard Home">
+                    <i data-lucide="layout"></i>
+                    <span>Jobs</span>
+                </button>
+                <button class="nav-rail-item" data-tab="project" title="Current Job Wizard">
+                    <i data-lucide="edit-3"></i>
+                    <span>Project</span>
+                </button>
+                <button class="nav-rail-item" data-tab="add" title="Quick Add Rooms / Hardware">
+                    <i data-lucide="plus-circle"></i>
+                    <span>Add</span>
+                </button>
+                <button class="nav-rail-item" data-tab="review" title="Review Summary & Costs">
+                    <i data-lucide="check-square"></i>
+                    <span>Review</span>
+                </button>
+                <button class="nav-rail-item" data-tab="more" title="More Options & Settings">
+                    <i data-lucide="more-horizontal"></i>
+                    <span>More</span>
+                </button>
+                
+                <div style="margin-top: auto; display: flex; flex-direction: column; gap: 0.5rem; width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem; padding-bottom: 0.5rem;">
+                    <div style="font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.3); text-align: center; text-transform: uppercase; letter-spacing: 0.05em;">Company</div>
+                    <select id="header-company-switcher" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.35rem 0.5rem; font-size: 0.75rem; color: white; cursor: pointer; width: calc(100% - 0.75rem); margin: 0 auto; outline: none; border-color: rgba(255,255,255,0.15);">
+                        <option value="">Select...</option>
+                    </select>
+                    
+                    <button onclick="RoomFlowAuth.signOut()" class="nav-rail-item" style="padding: 0.5rem 0; width: 100%; border: none; background: transparent; cursor: pointer; color: #f87171;" title="Sign Out">
+                        <i data-lucide="log-out" style="width: 14px; height: 14px; margin: 0 auto; color: #f87171;"></i>
+                        <span style="font-size: 0.65rem; color: #f87171;">Log Out</span>
+                    </button>
+                </div>
+            </aside>
+            <!-- Left Sidebar: Toolbox -->
+            <aside id="left-sidebar" class="sidebar toolbox">
+                <div class="sidebar-header-mobile">
+                    <h3>Toolbox</h3>
+                    <button class="sidebar-close-btn" onclick="closeAllDrawers()"><i data-lucide="x"></i></button>
+                </div>
+                <div class="sidebar-section">
+                    <h3>Add Presets</h3>
+                    <div class="preset-buttons">
+                        <button class="tool-btn add-room-btn" data-type="living">
+                            <i data-lucide="sofa"></i> Living Room
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="bedroom">
+                            <i data-lucide="bed"></i> Bedroom
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="kitchen">
+                            <i data-lucide="chef-hat"></i> Kitchen
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="bathroom">
+                            <i data-lucide="bath"></i> Bathroom
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="hallway">
+                            <i data-lucide="split"></i> Hallway
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="closet">
+                            <i data-lucide="door-closed"></i> Closet
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="staircase">
+                            <i data-lucide="trending-up"></i> Staircase
+                        </button>
+                        <button class="tool-btn add-room-btn" data-type="custom">
+                            <i data-lucide="square"></i> Custom Room
+                        </button>
+                        <button class="tool-btn" id="btn-draw-walls-mode" style="grid-column: span 2; background-color: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.35);">
+                            <i data-lucide="pen-tool"></i> Draw Angled Room
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Wall Drawing Panel (Collapsible/Hidden by default) -->
+                <div class="sidebar-section hidden" id="custom-wall-drawer-panel">
+                    <h3>Angled Room Builder</h3>
+                    <p class="section-hint">Point & click on the canvas to place corners, or build wall-by-wall using the inputs below:</p>
+                    
+                    <div class="input-group">
+                        <label for="draw-wall-length">Next Wall Length (ft)</label>
+                        <input type="number" id="draw-wall-length" value="10" step="0.5" min="1">
+                    </div>
+                    <div class="input-group">
+                        <label for="draw-wall-angle">Next Wall Angle</label>
+                        <select id="draw-wall-angle">
+                            <option value="0">0° (East)</option>
+                            <option value="45">45° (South-East)</option>
+                            <option value="90">90° (South)</option>
+                            <option value="135">135° (South-West)</option>
+                            <option value="180">180° (West)</option>
+                            <option value="225">225° (North-West)</option>
+                            <option value="270">270° (North)</option>
+                            <option value="315">315° (North-East)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="preset-buttons" style="margin-top: 0.5rem; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem;">
+                        <button id="btn-draw-add-wall" class="tool-btn" style="padding: 0.4rem 0.2rem;"><i data-lucide="plus"></i> Add</button>
+                        <button id="btn-draw-undo-wall" class="tool-btn" style="padding: 0.4rem 0.2rem;"><i data-lucide="undo"></i> Undo</button>
+                        <button id="btn-draw-redo-wall" class="tool-btn" style="padding: 0.4rem 0.2rem;" disabled><i data-lucide="redo"></i> Redo</button>
+                        <button id="btn-draw-finish-room" class="tool-btn btn-accent" style="grid-column: span 3;"><i data-lucide="check"></i> Close & Create Room</button>
+                        <button id="btn-draw-cancel" class="tool-btn btn-danger" style="grid-column: span 3;"><i data-lucide="x"></i> Cancel Drawing</button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Add Structural Elements</h3>
+                    <p class="section-hint">Select a room first, then click below to add elements to walls.</p>
+                    <div class="element-buttons">
+                        <button id="btn-add-door" class="tool-btn" disabled>
+                            <i data-lucide="door-closed"></i> Standard Door
+                        </button>
+                        <button id="btn-add-window" class="tool-btn" disabled>
+                            <i data-lucide="square-dashed"></i> Standard Window
+                        </button>
+                        <button id="btn-add-crawl-door" class="tool-btn" disabled>
+                            <i data-lucide="door-open"></i> Exterior Crawl Door
+                        </button>
+                        <button id="btn-add-hatch" class="tool-btn" disabled>
+                            <i data-lucide="layout-grid"></i> Crawlspace Hatch
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Add Reinforcements</h3>
+                    <p class="section-hint">Select a room first, then click below to add reinforcements.</p>
+                    <div class="element-buttons" style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+                        <div style="display: flex; gap: 0.5rem; width: 100%;">
+                            <button id="btn-add-strap" class="tool-btn" disabled style="flex: 1; text-align: left; padding: 0.55rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; flex-direction: row; justify-content: flex-start;">
+                                <i data-lucide="align-justify" style="flex-shrink: 0;"></i> <span id="btn-add-strap-label" style="font-size: 0.75rem;">Vertical Strap (+1)</span>
+                            </button>
+                            <button id="btn-add-perimeter-strap" class="tool-btn" disabled style="flex: 1; text-align: left; padding: 0.55rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; flex-direction: row; justify-content: flex-start;">
+                                <i data-lucide="square" style="flex-shrink: 0;"></i> <span id="btn-add-perimeter-strap-label" style="font-size: 0.75rem;">Floor Perimeter</span>
+                            </button>
+                        </div>
+                        <button id="btn-add-nb1" class="tool-btn" disabled style="width: 100%; text-align: left; padding: 0.55rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; flex-direction: row; justify-content: flex-start;">
+                            <i data-lucide="layers" style="flex-shrink: 0;"></i> <span id="btn-add-nb1-label" style="font-size: 0.75rem;">NB1 Coating (Cycle Height)</span>
+                        </button>
+                        <button id="btn-add-drywall" class="tool-btn" disabled style="width: 100%; text-align: left; padding: 0.55rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; flex-direction: row; justify-content: flex-start; margin-top: 0.25rem;">
+                            <i data-lucide="scissors" style="flex-shrink: 0;"></i> <span id="btn-add-drywall-label" style="font-size: 0.75rem;">Drywall Cut (Cycle Height)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Add Utilities</h3>
+                    <p class="section-hint">Place sump pumps and trace discharge piping.</p>
+                    <div class="element-buttons">
+                        <button id="btn-add-sump" class="tool-btn">
+                            <i data-lucide="circle-dot"></i> Sump Pump
+                        </button>
+                        <button id="btn-add-dehumidifier" class="tool-btn">
+                            <i data-lucide="wind"></i> Dehumidifier
+                        </button>
+                        <button id="btn-add-discharge" class="tool-btn">
+                            <i data-lucide="git-commit"></i> Discharge Line
+                        </button>
+                        <button id="btn-add-interior-pipe" class="tool-btn">
+                            <i data-lucide="git-branch"></i> Interior Pipe
+                        </button>
+                        <button id="btn-add-stanchion" class="tool-btn">
+                            <i data-lucide="circle"></i> Stanchion
+                        </button>
+                        <button id="btn-add-beam" class="tool-btn">
+                            <i data-lucide="minus"></i> Support Beam
+                        </button>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Canvas Controls</h3>
+                    <div class="canvas-controls">
+                        <button id="btn-zoom-in" title="Zoom In"><i data-lucide="zoom-in"></i></button>
+                        <button id="btn-zoom-out" title="Zoom Out"><i data-lucide="zoom-out"></i></button>
+                        <button id="btn-zoom-reset" title="Fit to View"><i data-lucide="maximize-2"></i></button>
+                        <button id="btn-grid-toggle" class="active" title="Toggle Grid"><i data-lucide="grid"></i></button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center Viewport -->
+            <section class="viewport-container">
+                <!-- Mobile Floating Toggles -->
+                <div class="mobile-floating-toggles">
+                    <button id="mobile-toggle-tools" class="floating-toggle-btn">
+                        <i data-lucide="menu"></i>
+                        <span>Tools</span>
+                    </button>
+                    <button id="mobile-toggle-details" class="floating-toggle-btn">
+                        <i data-lucide="sliders"></i>
+                        <span>Details</span>
+                    </button>
+                    <button id="mobile-toggle-checklist" class="floating-toggle-btn">
+                        <i data-lucide="check-square"></i>
+                        <span>Checklist</span>
+                    </button>
+                </div>
+                <div id="mobile-sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+
+                <!-- Jobs Dashboard Viewport -->
+                <div id="jobs-viewport" class="viewport active" style="display: flex; flex-direction: column; gap: 2rem;">
+                    <div class="jobs-dashboard-header">
+                        <div class="guided-title-row">
+                            <div class="jobs-welcome-text">
+                                <h2>RoomFlow Dashboard</h2>
+                                <p>Create, manage, and sync job estimates directly from the field.</p>
+                            </div>
+                            <button id="btn-dashboard-help" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #cbd5e1; border-radius: 8px; padding: 0.5rem 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="help-circle"></i> Help</button>
+                        </div>
+                    </div>
+
+                    <div class="jobs-hero-block">
+                        <button id="btn-start-new-estimate" class="dashboard-btn-large">
+                            <div class="dashboard-btn-large-content">
+                                <h3>Start New Estimate</h3>
+                                <p>Set up customer info and follow the guided wizard.</p>
+                            </div>
+                            <i data-lucide="arrow-right-circle"></i>
+                        </button>
+
+                        <div id="continue-last-estimate-container" class="continue-job-card" style="display: none;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 0.85rem; text-transform: uppercase; color: var(--accent-teal); letter-spacing: 0.05em; font-weight: 700;">Unfinished Work</h4>
+                                <h3 id="continue-job-title" style="font-size: 1.15rem; font-weight: 700; color: white; margin-bottom: 0.25rem; word-break: break-all;">No recent job</h3>
+                                <p id="continue-job-meta" style="font-size: 0.75rem; color: #64748b; margin: 0;">Last edited: N/A</p>
+                            </div>
+                            <button id="btn-continue-last-estimate" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.5rem; color: white; cursor: pointer; font-weight: 600; text-align: center; margin-top: 1rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.35rem;"><i data-lucide="arrow-right"></i> Continue Estimate</button>
+                        </div>
+                    </div>
+
+                    <div class="jobs-list-section">
+                        <div class="jobs-search-bar">
+                            <div class="jobs-search-input-wrapper">
+                                <i data-lucide="search"></i>
+                                <input type="text" id="jobs-search-input" class="jobs-search-input" placeholder="Search by customer name or address...">
+                            </div>
+                            <select id="jobs-filter-status" class="jobs-filter-select">
+                                <option value="all">All Jobs</option>
+                                <option value="incomplete">In Progress</option>
+                                <option value="complete">Completed</option>
+                            </select>
+                            <button id="btn-refresh-shared-jobs" class="btn-secondary" type="button" title="Download the latest jobs and estimates from your company cloud" style="white-space:nowrap;">
+                                <i data-lucide="refresh-cw"></i> Refresh Shared
+                            </button>
+                        </div>
+
+                        <div id="recent-jobs-list" class="recent-jobs-grid">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Guided Step Wizard Viewport -->
+                <div id="guided-container" class="viewport" style="display: flex; flex-direction: column;">
+                    <div class="guided-header-block">
+                        <div class="guided-step-indicator" id="guided-step-title">Step 1 of 9: Job Information</div>
+                        <div class="guided-progress-track">
+                            <div class="guided-progress-fill" id="guided-step-progress-bar" style="width: 11.11%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="guided-step-body" id="guided-step-content-container">
+                        <!-- Dynamic Guided Step Forms gets injected here -->
+                    </div>
+
+                    <div class="guided-action-footer">
+                        <button id="btn-guided-back" class="btn-secondary" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem;"><i data-lucide="arrow-left"></i> Back</button>
+                        <button id="btn-guided-continue" class="btn-primary" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.5rem;"><span>Continue</span> <i data-lucide="arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Room-by-room estimating checklist -->
+                <div id="checklist-container" class="viewport" style="overflow-y: auto; padding: 1.5rem;">
+                    <!-- Populated dynamically by the estimating workflow -->
+                </div>
+
+                <!-- More / Settings Viewport -->
+                <div id="more-viewport" class="viewport" style="display: flex; flex-direction: column; gap: 1.5rem; padding: 2rem;">
+                    <div class="jobs-dashboard-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1rem;">
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: white;">Settings & Options</h2>
+                        <p style="font-size: 0.85rem; color: #94a3b8;">Manage workspaces, interface modes, system diagnostics, and recovery options.</p>
+                    </div>
+
+                    <!-- Company & Account Profile (Mobile Friendly) -->
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="building-2" style="color: var(--accent-blue);"></i> Active Workspaces</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Select company context or manage your account profile settings.</p>
+                        
+                        <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                                <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1;">Selected Company:</label>
+                                <select id="more-company-switcher" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.5rem 0.75rem; color:white; font-size:0.85rem; width:100%; outline:none;">
+                                    <option value="">Select...</option>
+                                </select>
+                            </div>
+                            
+                            <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+                                <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1;">Create New Company:</label>
+                                <div class="more-company-create-row" style="display:flex; gap:0.5rem;">
+                                    <input type="text" id="more-new-company-name" placeholder="Acme Contracting" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.5rem; color:white; font-size:0.8rem; flex-grow:1; outline:none;">
+                                    <button id="btn-more-create-company" class="btn-primary" style="padding:0.5rem 1rem; font-size:0.8rem; font-weight:700;">Create</button>
+                                </div>
+                            </div>
+                            
+                            <button onclick="RoomFlowAuth.signOut()" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; color: #ef4444; border-color: rgba(239, 68, 68, 0.2); width:100%; text-align:center; background:transparent; margin-top:0.5rem;"><i data-lucide="log-out" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i> Log Out from Account</button>
+                        </div>
+                    </div>
+
+                    <!-- Interface preferences -->
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="sliders" style="color: var(--accent-teal);"></i> Interface Mode Configuration</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Switch between guided step wizard workflow and full CAD toolbox sketching.</p>
+                        <div class="checklist-pill-group">
+                            <span id="pill-interface-guided" class="checklist-pill active" style="padding: 0.5rem 1rem; cursor: pointer; font-weight: 600;">Guided Mode (Field wizard)</span>
+                            <span id="pill-interface-advanced" class="checklist-pill" style="padding: 0.5rem 1rem; cursor: pointer; font-weight: 600;">Advanced Mode (CAD Blueprint)</span>
+                        </div>
+                    </div>
+
+                    <!-- Trash Bin -->
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="trash-2" style="color: #ef4444;"></i> Trash & Recovery</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Deleted estimates are kept here temporarily and can be recovered safely.</p>
+                        <div id="trash-jobs-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 150px; overflow-y: auto; background: rgba(0,0,0,0.15); padding: 0.5rem; border-radius: 8px;">
+                            <div style="text-align: center; font-size: 0.8rem; color: #64748b; padding: 1rem 0;">Trash bin is empty.</div>
+                        </div>
+                    </div>
+
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="settings-2" style="color: var(--accent-blue);"></i> System Diagnostics</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">View WebXR provider routing, orientation logs, capabilities cache, and fallback measurement history.</p>
+                        <button id="btn-show-diagnostics-modal" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i data-lucide="settings"></i> Launch Device Diagnostics</button>
+                    </div>
+
+                    <!-- Legacy Data Migration -->
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="database-backup" style="color: var(--accent-teal);"></i> Legacy Project Migration</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Migrate old local browser estimates or JSON files directly into your active Supabase company organization.</p>
+                        <button id="btn-show-migration-modal" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i data-lucide="refresh-cw"></i> Open Migration Tool</button>
+                    </div>
+
+                    <!-- Help center link -->
+                    <div class="checklist-room-card" style="padding: 1.25rem;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: white; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="help-circle" style="color: var(--accent-teal);"></i> Help Center</h3>
+                        <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Open the quick tour or the complete searchable, printable instructions for RoomFlow and Tracker.</p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <button id="btn-show-help-modal" class="btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;"><i data-lucide="help-circle"></i> Quick Help</button>
+                            <a href="user-guide.html" target="_blank" rel="noopener" class="btn-accent" style="padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 700; text-decoration: none;"><i data-lucide="book-open"></i> Complete User Guide</a>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- 2D Sketch Board -->
+                <div id="canvas-container" class="viewport">
+                    <canvas id="sketch-canvas"></canvas>
+                    <div id="canvas-placement-hint" class="canvas-placement-hint hidden" role="status"><i data-lucide="move"></i><span>Drop or tap to place</span></div>
+                    <div class="canvas-zoom-controls" style="position: absolute; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 0.5rem; z-index: 10; pointer-events: auto;">
+                        <button id="btn-2d-zoom-in" style="background: rgba(16, 22, 35, 0.85); border: 1px solid var(--border-color); color: white; width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Zoom In"><i data-lucide="zoom-in"></i></button>
+                        <button id="btn-2d-zoom-out" style="background: rgba(16, 22, 35, 0.85); border: 1px solid var(--border-color); color: white; width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Zoom Out"><i data-lucide="zoom-out"></i></button>
+                    </div>
+                    <div class="canvas-instructions">
+                        <p><kbd>Drag & drop</kbd> tools to place them. <kbd>Drag</kbd> rooms or corners to adjust the blueprint.</p>
+                    </div>
+                </div>
+
+                <!-- 3D Three.js Viewport -->
+                <div id="three-container" class="viewport">
+                    <!-- Three.js Canvas gets injected here -->
+                    <div class="three-controls">
+                        <button id="btn-3d-orbit" class="active" title="Orbit Mode"><i data-lucide="rotate-3d"></i> Orbit</button>
+                        <button id="btn-3d-roof" title="Toggle Ceilings"><i data-lucide="layers"></i> Toggle Ceilings</button>
+                        <button id="btn-3d-zoom-in" title="Zoom In"><i data-lucide="zoom-in"></i> Zoom In</button>
+                        <button id="btn-3d-zoom-out" title="Zoom Out"><i data-lucide="zoom-out"></i> Zoom Out</button>
+                    </div>
+                </div>
+
+                <!-- Camera WebAR Estimator Viewport -->
+                <div id="ar-container" class="viewport">
+                    <!-- Scanner Splash/Activation Overlay -->
+                    <div id="ar-splash" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #0d111a; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; padding: 2rem; text-align: center; pointer-events: auto;">
+                        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 50%; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;">
+                            <i data-lucide="scan" style="width: 40px; height: 40px; color: var(--accent-teal);"></i>
+                        </div>
+                        <h3 id="ar-splash-title" style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: white;">Start Camera Measurement</h3>
+                        <p id="ar-splash-desc" style="font-size: 0.85rem; color: var(--text-muted); max-width: 320px; margin-bottom: 2rem;">RoomFlow uses your camera to measure the room. Photos are not saved unless you choose to attach them to the job.</p>
+                        <button id="btn-ar-start-session" style="background: var(--accent-blue); color: white; border: none; padding: 0.85rem 2rem; border-radius: 50px; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; box-shadow: var(--shadow-lg); transition: all 0.2s;"><i data-lucide="camera"></i> Allow Camera</button>
+                    </div>
+                    <video id="ar-video" autoplay playsinline muted></video>
+                    <div class="ar-overlay">
+                        <!-- Top left return button -->
+                        <div id="ar-guided-back-bar" style="position: absolute; top: 15px; left: 15px; z-index: 200; pointer-events: auto;">
+                            <button onclick="window.returnFromScanning()" class="btn-primary" style="background: rgba(16, 22, 35, 0.85); border: 1px solid var(--border-color); padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.35rem; color: white;"><i data-lucide="arrow-left"></i> Return to Step 3</button>
+                        </div>
+                        <!-- Top status badges -->
+                        <div class="ar-status-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; pointer-events: auto; margin-bottom: auto; padding: 0.5rem 0.25rem; padding-left: 170px;">
+                            <div id="ar-tier-badge" style="background: rgba(59, 130, 246, 0.85); padding: 0.35rem 0.75rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; color: white; border: 1px solid rgba(255,255,255,0.1); letter-spacing: 0.05em; text-transform: uppercase;">CAMERA ESTIMATE</div>
+                            <div id="ar-quality-badge" style="background: rgba(16, 22, 35, 0.85); border: 1px solid var(--border-color); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Orientation Only</div>
+                            <button id="btn-ar-audio-toggle" style="background: rgba(16, 22, 35, 0.85); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.75rem; color: #e2e8f0; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;"><i data-lucide="volume-2"></i> <span>Audio</span></button>
+                        </div>
+                        <div class="ar-reticle"></div>
+                        <div class="ar-aim-point"></div>
+                        
+                        <div class="ar-stats">
+                            <div class="ar-stat-card">
+                                <label>Estimated Dist</label>
+                                <span id="ar-distance">0' 0"</span>
+                            </div>
+                            <div class="ar-stat-card">
+                                <label>Current Wall Length</label>
+                                <span id="ar-segment">0' 0"</span>
+                            </div>
+                            <div class="ar-stat-card">
+                                <label>Aim Direction</label>
+                                <span id="ar-angle">0°</span>
+                            </div>
+                        </div>
+
+                        <!-- Horizontal list of captured measurements -->
+                        <div class="ar-captures-container">
+                            <label>Captured Distances</label>
+                            <div id="ar-captures-list" class="ar-captures-pills">
+                                <span class="empty-pills">No captures yet</span>
+                            </div>
+                        </div>
+
+                        <div class="ar-controls">
+                            <div class="ar-height-selector">
+                                <label for="ar-camera-height">Device Height (inches):</label>
+                                <input type="number" id="ar-camera-height" value="60" min="20" max="100">
+                            </div>
+                             <div class="ar-buttons">
+                                <button id="btn-ar-reset" class="btn-danger"><i data-lucide="refresh-cw"></i> Clear</button>
+                                <button id="btn-ar-pin" class="btn-success"><i data-lucide="map-pin"></i> Pin Corner</button>
+                                <button id="btn-ar-capture" class="btn-success"><i data-lucide="camera"></i> Save This Measurement</button>
+                                <button id="btn-ar-finish" class="btn-accent"><i data-lucide="check"></i> Create Room</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Internal Contractor Estimating & Costing Viewport -->
+                <div id="cost-container" class="viewport">
+                    <!-- Dynamic costing layout populated by cost-ui.js -->
+                </div>
+            </section>
+
+            <!-- Right Sidebar: Properties & Estimation -->
+            <aside id="right-sidebar" class="sidebar metrics-panel">
+                <div class="sidebar-header-mobile">
+                    <h3>Details & Estimates</h3>
+                    <button class="sidebar-close-btn" onclick="closeAllDrawers()"><i data-lucide="x"></i></button>
+                </div>
+                <!-- Customer Details Section -->
+                <div class="sidebar-section">
+                    <h3>Customer & Site Info</h3>
+                    <div class="input-group">
+                        <label for="customer-name">Customer Name</label>
+                        <input type="text" id="customer-name" placeholder="John Doe">
+                    </div>
+                    <div class="input-group">
+                        <label for="customer-address">Property Address</label>
+                        <input type="text" id="customer-address" placeholder="123 Main St, City, State">
+                    </div>
+                </div>
+
+                <!-- AR Measurements Log Section -->
+                <div class="sidebar-section" id="ar-measurements-log-section">
+                    <h3>Captured AR Measures</h3>
+                    <p class="section-hint">Hover or tap a value to apply it to your active selection dimensions.</p>
+                    <div id="ar-measurements-list" class="ar-history-container">
+                        <p class="empty-state">No captured distances. Use 'Capture Dist' in camera mode.</p>
+                    </div>
+                </div>
+
+                <!-- Selection Details -->
+                <div class="sidebar-section active-selection-details">
+                    <h3>Selection Details</h3>
+                    <div id="no-selection-msg">
+                        <p class="empty-state">Select a room, sump pump, or discharge line to modify details.</p>
+                    </div>
+                    
+                    <!-- Room Edit Fields -->
+                    <div id="room-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="room-name-input">Room Name</label>
+                            <input type="text" id="room-name-input">
+                        </div>
+                        
+                        <div id="room-rect-inputs">
+                            <div class="dimensions-grid">
+                                <div class="input-group">
+                                    <label>Width (ft)</label>
+                                    <input type="number" id="room-w-input" step="0.5" min="1">
+                                </div>
+                                <div class="input-group">
+                                    <label>Length (ft)</label>
+                                    <input type="number" id="room-l-input" step="0.5" min="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dimensions-grid" style="margin-top: 0.5rem;">
+                            <div class="input-group">
+                                <label>Height (ft)</label>
+                                <input type="number" id="room-h-input" step="0.5" min="1">
+                            </div>
+                            <div class="input-group" id="room-steps-group">
+                                <label>Steps</label>
+                                <input type="number" id="room-steps-input" step="1" min="1" value="12">
+                            </div>
+                        </div>
+
+                        <!-- Custom wall segments manual list -->
+                        <div id="room-custom-walls-inputs" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                            <h4 style="font-size: 0.8rem; text-transform: uppercase; color: var(--accent-blue); margin-bottom: 0.5rem;">Wall Lengths (ft)</h4>
+                            <div id="custom-walls-list-container" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 200px; overflow-y: auto; padding-right: 0.25rem;">
+                                <!-- Will be dynamically populated with inputs for each wall segment -->
+                            </div>
+                        </div>
+                        
+                        <!-- Floor Joists Direction -->
+                        <div class="input-group" style="margin-top: 0.75rem;">
+                            <label for="room-joists-select">Floor Joists Direction</label>
+                            <select id="room-joists-select">
+                                <option value="none">None / Not Specified</option>
+                                <option value="ns">North-South (Vertical)</option>
+                                <option value="ew">East-West (Horizontal)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Perimeter Foam Board (2" XPS) -->
+                        <div class="input-group-checkbox" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start;">
+                            <input type="checkbox" id="room-foam-board-checkbox" style="width: auto; margin: 0;">
+                            <label for="room-foam-board-checkbox" style="margin-bottom: 0; font-weight: 500; font-size: 0.85rem; color: var(--text-color); cursor: pointer;">Perimeter Foam Board (2" XPS)</label>
+                        </div>
+
+                        <!-- Spray Foam Bond Pockets -->
+                        <div class="input-group-checkbox" style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start;">
+                            <input type="checkbox" id="room-foam-bond-pockets-checkbox" style="width: auto; margin: 0;">
+                            <label for="room-foam-bond-pockets-checkbox" style="margin-bottom: 0; font-weight: 500; font-size: 0.85rem; color: var(--text-color); cursor: pointer;">Spray Foam Bond Pockets</label>
+                        </div>
+
+                        <!-- Carbon Fiber Straps (Vertical) -->
+                        <div class="input-group" style="margin-top: 0.75rem;">
+                            <label for="room-carbon-straps-input">Carbon Fiber Straps (Qty)</label>
+                            <input type="number" id="room-carbon-straps-input" min="0" step="1" value="0">
+                        </div>
+                        <div class="input-group" style="margin-top: 0.5rem;">
+                            <label for="room-carbon-scope-select">Carbon Fiber Scope</label>
+                            <select id="room-carbon-scope-select">
+                                <option value="full">Full Room Perimeter</option>
+                                <option value="specific">Specific Walls</option>
+                            </select>
+                        </div>
+                        <div id="room-carbon-walls-container" class="hidden" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; display: block; font-weight: 600; text-transform: uppercase;">Reinforced Walls</label>
+                            <div id="room-carbon-walls-checkboxes" style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Manual Custom Straps Placement Container -->
+                        <div id="room-custom-straps-container" class="hidden" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 0.35rem;">
+                                <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin: 0;">Placed Straps</label>
+                                <div style="display: flex; gap: 0.35rem;">
+                                    <button type="button" id="btn-auto-space-straps" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">Auto-Space</button>
+                                    <button type="button" id="btn-add-custom-strap" style="display: none; background: var(--accent-teal); color: var(--primary-dark); border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">+ Add</button>
+                                </div>
+                            </div>
+                            <div id="room-custom-straps-list" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Floor Perimeter Carbon Fiber -->
+                        <div class="input-group-checkbox" style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start;">
+                            <input type="checkbox" id="room-floor-perimeter-strap-checkbox" style="width: auto; margin: 0;">
+                            <label for="room-floor-perimeter-strap-checkbox" style="margin-bottom: 0; font-weight: 500; font-size: 0.85rem; color: var(--text-color); cursor: pointer;">Floor Perimeter Carbon Fiber</label>
+                        </div>
+
+                        <!-- NB1 Wall Coating -->
+                        <div class="input-group" style="margin-top: 0.75rem;">
+                            <label for="room-nb1-select">NB1 Wall Coating</label>
+                            <select id="room-nb1-select">
+                                <option value="none">None / Not Applied</option>
+                                <option value="2ft">2 ft high</option>
+                                <option value="4ft">4 ft high</option>
+                                <option value="full">Floor to Ceiling</option>
+                            </select>
+                        </div>
+
+                        <!-- Drywall Cutting -->
+                        <div class="input-group" style="margin-top: 0.75rem;">
+                            <label for="room-drywall-select">Drywall Cutting</label>
+                            <select id="room-drywall-select">
+                                <option value="none">None / Not Applied</option>
+                                <option value="1ft">1 ft high</option>
+                                <option value="2ft">2 ft high</option>
+                                <option value="4ft">4 ft high</option>
+                                <option value="6ft">6 ft high</option>
+                                <option value="full">Floor to Ceiling (Full Wall)</option>
+                            </select>
+                        </div>
+
+                        <div id="room-drywall-wall-scope" class="wall-scope-editor" style="margin-top: 0.65rem;">
+                            <div class="wall-scope-heading">
+                                <div><strong>Walls to cut</strong><span>Select the exact walls highlighted on the plan.</span></div>
+                                <div><button type="button" onclick="setAllRoomDrywallWalls(true)">All</button><button type="button" onclick="setAllRoomDrywallWalls(false)">Clear</button></div>
+                            </div>
+                            <div id="room-drywall-walls-checkboxes" class="wall-scope-list"></div>
+                        </div>
+
+                        <!-- Attic Insulation removal and blowing -->
+                        <div class="input-group-checkbox" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start;">
+                            <input type="checkbox" id="room-remove-insulation-checkbox" style="width: auto; margin: 0;">
+                            <label for="room-remove-insulation-checkbox" style="margin-bottom: 0; font-weight: 500; font-size: 0.85rem; color: var(--text-color); cursor: pointer;">Remove Attic Insulation</label>
+                        </div>
+                        <div class="input-group-checkbox" style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start;">
+                            <input type="checkbox" id="room-blow-insulation-checkbox" style="width: auto; margin: 0;">
+                            <label for="room-blow-insulation-checkbox" style="margin-bottom: 0; font-weight: 500; font-size: 0.85rem; color: var(--text-color); cursor: pointer;">Blow-in Attic Insulation</label>
+                        </div>
+                        
+                        <!-- Staircase Properties -->
+                        <div id="room-staircase-properties" class="hidden" style="border-top: 1px solid var(--border-color); margin-top: 0.75rem; padding-top: 0.75rem;">
+                            <div class="input-group">
+                                <label for="stair-orientation-select">Stair Climb Direction</label>
+                                <select id="stair-orientation-select">
+                                    <option value="N">North (Climb Upwards)</option>
+                                    <option value="S">South (Climb Downwards)</option>
+                                    <option value="E">East (Climb Rightwards)</option>
+                                    <option value="W">West (Climb Leftwards)</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin-top: 0.5rem;">
+                                <label for="stair-direction-select">Stair Slope Type</label>
+                                <select id="stair-direction-select">
+                                    <option value="up">Slopes UP (Ascending)</option>
+                                    <option value="down">Slopes DOWN (Descending)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="btn-delete-room" class="btn-danger btn-full" style="margin-top: 1rem;"><i data-lucide="trash-2"></i> Delete Room</button>
+                    </div>
+
+                    <!-- Sump Pump Edit Fields -->
+                    <div id="sump-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="sump-name-input">Sump Pump Name</label>
+                            <input type="text" id="sump-name-input">
+                        </div>
+                        <button id="btn-delete-sump" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Sump Pump</button>
+                    </div>
+
+                    <!-- Dehumidifier Edit Fields -->
+                    <div id="dehumidifier-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="dehumidifier-name-input">Dehumidifier Name</label>
+                            <input type="text" id="dehumidifier-name-input">
+                        </div>
+                        <button id="btn-delete-dehumidifier" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Dehumidifier</button>
+                    </div>
+
+                    <!-- Discharge Line Edit Fields -->
+                    <div id="discharge-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="discharge-label-input">Label / Name</label>
+                            <input type="text" id="discharge-label-input">
+                        </div>
+                        <div class="input-group">
+                            <label for="discharge-len-input">Length (ft)</label>
+                            <input type="number" id="discharge-len-input" step="0.5" min="1">
+                        </div>
+                        <button id="btn-delete-discharge" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Line</button>
+                    </div>
+
+                    <!-- Interior Pipe Edit Fields -->
+                    <div id="interior-pipe-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="interior-pipe-label-input">Label / Name</label>
+                            <input type="text" id="interior-pipe-label-input">
+                        </div>
+                        <div class="input-group">
+                            <label for="interior-pipe-len-input">Length (ft)</label>
+                            <input type="number" id="interior-pipe-len-input" step="0.5" min="1">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <button id="btn-add-90-turn" class="btn-accent" style="flex: 1; font-size: 0.8rem; padding: 0.5rem;"><i data-lucide="corner-down-right"></i> + 90° Elbow</button>
+                            <button id="btn-add-45-turn" class="btn-accent" style="flex: 1; font-size: 0.8rem; padding: 0.5rem;"><i data-lucide="trending-up"></i> + 45° Elbow</button>
+                        </div>
+                        <button id="btn-delete-interior-pipe" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Pipe</button>
+                    </div>
+
+                    <!-- Stanchion Edit Fields -->
+                    <div id="stanchion-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="stanchion-name-input">Stanchion Label</label>
+                            <input type="text" id="stanchion-name-input">
+                        </div>
+                        <div class="input-group">
+                            <label for="stanchion-type-select">Post Profile Shape</label>
+                            <select id="stanchion-type-select">
+                                <option value="round">Round Column</option>
+                                <option value="square">Square Pillar</option>
+                                <option value="brick">Brick Pillar</option>
+                            </select>
+                        </div>
+                        <button id="btn-delete-stanchion" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Stanchion</button>
+                    </div>
+
+                    <!-- Support Beam Edit Fields -->
+                    <div id="beam-edit-fields" class="hidden">
+                        <div class="input-group">
+                            <label for="beam-label-input">Beam Label</label>
+                            <input type="text" id="beam-label-input">
+                        </div>
+                        <div class="input-group">
+                            <label for="beam-type-select">Material Type</label>
+                            <select id="beam-type-select">
+                                <option value="timber">Timber Wood Beam</option>
+                                <option value="steel">Steel Girder Beam</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="beam-len-input">Length (ft)</label>
+                            <input type="number" id="beam-len-input" step="0.5" min="1">
+                        </div>
+                        <button id="btn-delete-beam" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Support Beam</button>
+                    </div>
+                </div>
+
+                <!-- Floor Hatch Properties -->
+                <div class="sidebar-section hidden" id="floor-hatch-edit-fields">
+                    <h3>Hatch Properties</h3>
+                    <div class="edit-inputs">
+                        <div class="input-group">
+                            <label for="floor-hatch-name-input">Hatch Name</label>
+                            <input type="text" id="floor-hatch-name-input" value="Crawlspace Access Hatch">
+                        </div>
+                        <div class="input-group">
+                            <label for="floor-hatch-width-input">Width (ft)</label>
+                            <input type="number" id="floor-hatch-width-input" step="0.5" min="1" value="3">
+                        </div>
+                        <div class="input-group">
+                            <label for="floor-hatch-length-input">Length (ft)</label>
+                            <input type="number" id="floor-hatch-length-input" step="0.5" min="1" value="3">
+                        </div>
+                        <div class="input-group">
+                            <label for="floor-hatch-target-select">Elevation Target</label>
+                            <select id="floor-hatch-target-select">
+                                <option value="floor">Floor Level</option>
+                                <option value="ceiling">Ceiling Level</option>
+                            </select>
+                        </div>
+                        <button id="btn-delete-floor-hatch" class="btn-danger btn-full"><i data-lucide="trash-2"></i> Delete Access Hatch</button>
+                    </div>
+                </div>
+
+                <!-- Individual Room Estimation Calculations -->
+                <div class="sidebar-section estimation-details">
+                    <h3>Estimates (Selected Room)</h3>
+                    <div id="estimations-list" class="hidden">
+                        <div class="metric-row">
+                            <span class="metric-label">Floor Area</span>
+                            <span class="metric-value" id="metric-floor-area">0 sq ft</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Wall Area (Drywall/Paint)</span>
+                            <span class="metric-value" id="metric-wall-area">0 sq ft</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Ceiling Area</span>
+                            <span class="metric-value" id="metric-ceiling-area">0 sq ft</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Perimeter</span>
+                            <span class="metric-value" id="metric-perimeter">0 ft</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Volume</span>
+                            <span class="metric-value" id="metric-volume">0 cu ft</span>
+                        </div>
+                        <div class="metric-row" id="metric-bond-pockets-row" style="display: none;">
+                            <span class="metric-label" style="color: #fb7185;">Bond Pocket Foam</span>
+                            <span class="metric-value" id="metric-bond-pockets-cans" style="color: #fb7185; font-weight: 600;">0 cans</span>
+                        </div>
+                        <div class="sub-elements-list">
+                            <h4>Deductions & Openings</h4>
+                            <ul id="deductions-ul">
+                                <!-- Elements listed here -->
+                            </ul>
+                        </div>
+                    </div>
+                    <div id="no-estimates-msg">
+                        <p class="empty-state">No active room selected.</p>
+                    </div>
+                </div>
+
+                <!-- Project Totals Summary -->
+                <div class="sidebar-section totals-section">
+                    <h3>Project Totals</h3>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Total Rooms</span>
+                        <span class="metric-value" id="total-rooms-count">0</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Total Floor Area</span>
+                        <span class="metric-value" id="total-floor-area">0 sq ft</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Total Wall Area</span>
+                        <span class="metric-value" id="total-wall-area">0 sq ft</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Sump Pumps</span>
+                        <span class="metric-value" id="total-sumps-count">0</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Discharge Lines</span>
+                        <span class="metric-value" id="total-discharge-length">0 ft</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Interior Plumbing</span>
+                        <span class="metric-value" id="total-interior-pipe-length">0 ft</span>
+                    </div>
+                    <div class="metric-row summary-row" style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                        <span class="metric-label" style="font-weight:700; color:var(--accent-teal);">2" XPS Foam Board</span>
+                        <span class="metric-value" id="total-foam-sheets" style="font-weight:700; color:var(--accent-teal);">0 sheets</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">10ft PVC Sticks</span>
+                        <span class="metric-value" id="total-pvc-sticks">0 sticks</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">90° PVC Elbows</span>
+                        <span class="metric-value" id="total-pvc-90s">0</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">45° PVC Elbows</span>
+                        <span class="metric-value" id="total-pvc-45s">0</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label">Drain Tile (Discharge)</span>
+                        <span class="metric-value" id="total-drain-tile">0 ft</span>
+                    </div>
+                    <div class="metric-row summary-row" style="margin-top: 0.5rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">
+                        <span class="metric-label" style="font-weight:700; color:#c084fc;">Vapor Barrier Liner</span>
+                        <span class="metric-value" id="total-barrier-liner" style="font-weight:700; color:#c084fc;">0 sq ft</span>
+                    </div>
+                    <div class="metric-row summary-row" style="margin-top: 0.5rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">
+                        <span class="metric-label" style="font-weight:700; color:#38bdf8;">Carbon Fiber Straps</span>
+                        <span class="metric-value" id="total-carbon-fiber" style="font-weight:700; color:#38bdf8;">0 ft</span>
+                    </div>
+                    <div class="metric-row summary-row" style="margin-top: 0.5rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">
+                        <span class="metric-label" style="font-weight:700; color:#fb7185;">Spray Foam (Bond Pockets)</span>
+                        <span class="metric-value" id="total-bond-pockets-cans" style="font-weight:700; color:#fb7185;">0 cans</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label" style="font-weight:700; color:#facc15;">NB1 Coating</span>
+                        <span class="metric-value" id="total-nb1-bags" style="font-weight:700; color:#facc15;">0 bags (0 sq ft)</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label" style="font-weight:700; color:#38bdf8;">Drywall Cut</span>
+                        <span class="metric-value" id="total-drywall-cut" style="font-weight:700; color:#38bdf8;">0 sq ft</span>
+                    </div>
+                    <div class="metric-row summary-row" style="margin-top: 0.5rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem;">
+                        <span class="metric-label" style="font-weight:700; color:#10b981;">Insulation Remove</span>
+                        <span class="metric-value" id="total-insulation-remove" style="font-weight:700; color:#10b981;">0 sq ft</span>
+                    </div>
+                    <div class="metric-row summary-row">
+                        <span class="metric-label" style="font-weight:700; color:#10b981;">Insulation Blow</span>
+                        <span class="metric-value" id="total-insulation-blow" style="font-weight:700; color:#10b981;">0 sq ft</span>
+                    </div>
+                    
+                    <!-- Sump Installation Fittings Pack -->
+                    <div id="sump-fittings-group" class="hidden" style="margin-top: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
+                        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-teal); font-weight: 700; margin-bottom: 0.4rem; letter-spacing: 0.05em;">Sump Install Package</div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">3" to 2" Bushing</span>
+                            <span class="metric-value" id="total-bushing-3-2">0</span>
+                        </div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">3" x 3" x 2" T-Fitting</span>
+                            <span class="metric-value" id="total-tee-3-3-2">0</span>
+                        </div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">3" 90° PVC Elbow</span>
+                            <span class="metric-value" id="total-elbow-3-90">0</span>
+                        </div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">1-1/2" Screw Adapter</span>
+                            <span class="metric-value" id="total-screw-adapter">0</span>
+                        </div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">2" PVC Check Valve</span>
+                            <span class="metric-value" id="total-check-valve">0</span>
+                        </div>
+                        <div class="metric-row summary-row">
+                            <span class="metric-label">2" PVC Y-Fitting</span>
+                            <span class="metric-value" id="total-y-fitting">0</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Persistent Bottom Navigation Bar for Mobile Viewports -->
+        <nav id="bottom-nav-bar">
+            <button class="nav-bar-item active" data-tab="jobs">
+                <i data-lucide="layout"></i>
+                <span>Jobs</span>
+            </button>
+            <button class="nav-bar-item" data-tab="project">
+                <i data-lucide="edit-3"></i>
+                <span>Project</span>
+            </button>
+            <button class="nav-bar-item" data-tab="add">
+                <i data-lucide="plus-circle"></i>
+                <span>Add</span>
+            </button>
+            <button class="nav-bar-item" data-tab="review">
+                <i data-lucide="check-square"></i>
+                <span>Review</span>
+            </button>
+            <button class="nav-bar-item" data-tab="more">
+                <i data-lucide="more-horizontal"></i>
+                <span>More</span>
+            </button>
+        </nav>
+
+        <!-- Help Center Modal -->
+        <div id="help-center-modal" class="modal hidden" style="position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center;">
+            <div class="modal-content" style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: #f8fafc; max-height: 80vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.75rem;">
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--accent-teal); display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="help-circle"></i> Help & Guided Tour</h3>
+                    <button id="btn-close-help" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 0.25rem;"><i data-lucide="x"></i></button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.9rem; line-height: 1.5; color: #cbd5e1;">
+                    <p>Welcome to <strong>RoomFlow Guided Estimator</strong>. This app helps you quickly capture room shapes, problems, and generate professional estimates in the field.</p>
+                    
+                    <h4 style="color: white; margin: 0.5rem 0 0 0; font-size: 1rem; font-weight: 600;">Guided Workflow Overview</h4>
+                    <ol style="margin: 0; padding-left: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem;">
+                        <li><strong>Job Info</strong>: Enter property and contact details (autosaved).</li>
+                        <li><strong>Work Area</strong>: Select the foundation levels (Basement, Crawl Space, etc.).</li>
+                        <li><strong>Add/Measure Rooms</strong>: Enter sizes manually, pick presets, draw custom shapes, or scan with camera.</li>
+                        <li><strong>Work Needed</strong>: Toggle issues like water leaks, bowed walls, mold, or vapor barriers.</li>
+                        <li><strong>Equipment</strong>: Configure pumps and dehumidifiers.</li>
+                        <li><strong>Review</strong>: Verify measurements and check for missing info warnings.</li>
+                        <li><strong>Costs & Margin</strong>: Inspect materials list and set margins (private view).</li>
+                        <li><strong>Customer Proposal</strong>: Customize scope items for proposal generation.</li>
+                        <li><strong>Save / Export</strong>: Download proposal PDFs or share links.</li>
+                    </ol>
+
+                    <h4 style="color: white; margin: 0.5rem 0 0 0; font-size: 1rem; font-weight: 600;">Troubleshooting Camera Scan</h4>
+                    <p>If AR/LiDAR scanning fails or permission is denied, tap <strong>More &rarr; Diagnostics</strong> to verify device status. You can fallback to manual measurement entries anytime without losing your job data.</p>
+                    <a href="user-guide.html" target="_blank" rel="noopener" class="btn-accent" style="align-self: flex-start; padding: 0.65rem 1rem; color: #03101a; text-decoration: none; font-weight: 800;"><i data-lucide="book-open"></i> Open Complete User Guide</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jobs Manager Modal -->
+    <div id="jobs-modal" class="modal hidden" style="position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: #f8fafc;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--accent-teal); display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="database"></i> Job Database</h3>
+                <button id="btn-close-jobs" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 0.25rem;"><i data-lucide="x"></i></button>
+            </div>
+            
+            <!-- Save New Job Section -->
+            <div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 600; color: #e2e8f0;">Save Current Layout as Job</h4>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="job-name-input" placeholder="e.g. Smith Residence Crawlspace" style="flex: 1; padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                    <button id="btn-save-job-submit" class="btn-accent" style="padding: 0.5rem 1rem; font-size: 0.85rem;"><i data-lucide="plus"></i> Save</button>
+                </div>
+            </div>
+
+            <!-- Cloud Synchronization Setup -->
+            <div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <h4 style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #e2e8f0;">Cloud Sync / Backup</h4>
+                    <select id="sync-provider" style="padding: 0.25rem 0.5rem; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #ffffff; font-size: 0.8rem; cursor: pointer;">
+                        <option value="none">Disabled (Local Only)</option>
+                        <option value="github">GitHub Repository</option>
+                        <option value="kvdb">kvdb.io Bucket</option>
+                    </select>
+                </div>
+
+                <!-- GitHub Configuration Panel -->
+                <div id="panel-sync-github" class="hidden" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.3;">
+                        Sync jobs directly to a file (e.g. `jobs.json`) in your GitHub repository.
+                    </div>
+                    <input type="password" id="sync-gh-token" placeholder="GitHub Personal Access Token (PAT)" style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                    <input type="text" id="sync-gh-repo" placeholder="Repository (e.g. TheNINJALLO/roomflow)" style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                    <input type="text" id="sync-gh-path" placeholder="JSON File Path (default: jobs.json)" style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                </div>
+
+                <!-- KVDB Configuration Panel -->
+                <div id="panel-sync-kvdb" class="hidden" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.3;">
+                        To sync, create a free bucket on <a href="https://kvdb.io/" target="_blank" style="color: var(--accent-teal); text-decoration: underline; font-weight: 600;">kvdb.io</a> and click the link in your email.
+                    </div>
+                    <input type="text" id="sync-bucket-input" placeholder="Enter kvdb.io Bucket ID (e.g. KFXatW...)" style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                    <input type="text" id="sync-key-input" placeholder="Enter Custom Sync Key (e.g. smith_job)" style="padding: 0.5rem 0.75rem; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #ffffff; font-size: 0.85rem;">
+                </div>
+
+                <!-- Sync Controls -->
+                <div id="sync-controls-row" class="hidden" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem; margin-top: 0.75rem;">
+                    <span id="sync-status" style="font-size: 0.7rem; color: #94a3b8; font-style: italic;">Status: Offline/Local-only</span>
+                    <button id="btn-sync-now" class="btn-accent" style="padding: 0.4rem 0.75rem; font-size: 0.8rem; background-color: var(--accent-teal); border-color: var(--accent-teal);"><i data-lucide="refresh-cw"></i> Sync Now</button>
+                </div>
+            </div>
+            
+            <!-- Saved Jobs List -->
+            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; font-weight: 600; color: #94a3b8;">Active Jobs</h4>
+            <div id="jobs-list-container" style="max-height: 220px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; background: rgba(15, 23, 42, 0.2); padding: 0.5rem;">
+                <div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.85rem;">No jobs saved yet</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostics Modal -->
+    <div id="diagnostics-modal" class="modal hidden" style="position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center;">
+        <div class="modal-content" style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); color: #f8fafc; max-height: 85vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem;">
+                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--accent-teal); display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="settings-2"></i> Device & AR Diagnostics</h3>
+                <button id="btn-close-diagnostics" style="background: none; border: none; color: #94a3b8; cursor: pointer; padding: 0.25rem;"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em;">Selected Spatial Provider</h4>
+                <div id="diag-selected-engine" style="font-weight: 700; color: var(--accent-teal); background: rgba(0,255,209,0.1); border: 1px solid rgba(0,255,209,0.2); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.9rem;">Detecting...</div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em;">Detailed Capabilities Cache</h4>
+                <div id="diag-caps-list" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 0.75rem;">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.9rem; font-weight: 600; color: #e2e8f0; text-transform: uppercase; letter-spacing: 0.05em;">Fallback Routing History</h4>
+                <div id="diag-fallback-history" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 0.75rem; max-height: 120px; overflow-y: auto; font-family: var(--font-mono);">
+                    <!-- Filled dynamically -->
+                </div>
+            </div>
+            
+            <div style="text-align: right;">
+                <button id="btn-diagnostics-ok" style="background: var(--accent-blue); color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Job Creation Modal -->
+    <div id="new-job-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1.5rem; overflow-y: auto;">
+        <div style="background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; width: 100%; max-width: 600px; max-height: calc(100vh - 3rem); display: flex; flex-direction: column; box-shadow: var(--shadow-2xl);">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: white; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="plus-circle" style="color: var(--accent-blue);"></i> Create New Estimating Job</h3>
+                <button onclick="document.getElementById('new-job-modal').classList.add('hidden')" style="background: transparent; border: none; color: #cbd5e1; cursor: pointer; padding: 0.25rem;"><i data-lucide="x"></i></button>
+            </div>
+            
+            <form id="new-job-form" onsubmit="return false;" style="padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem;">
+                <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Job Name / Code *</label>
+                        <input type="text" id="nj-job-name" required placeholder="e.g. Job #1042 - Smith Residence" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Customer Name *</label>
+                        <input type="text" id="nj-customer-name" required placeholder="John Smith" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Inspection Date</label>
+                        <input type="date" id="nj-inspection-date" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Property Address</label>
+                    <input type="text" id="nj-property-address" placeholder="123 Maple St, Detroit, MI" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Phone Number</label>
+                        <input type="tel" id="nj-customer-phone" placeholder="555-0199" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Email Address</label>
+                        <input type="email" id="nj-customer-email" placeholder="john@example.com" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Estimator / Assigned User</label>
+                        <input type="text" id="nj-estimator" placeholder="e.g. Inspector Name" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem;">
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                        <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Initial Work Area</label>
+                        <select id="nj-initial-area" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem; outline:none;">
+                            <option value="crawlspace">Crawlspace / Foundation Area</option>
+                            <option value="basement">Basement Area</option>
+                            <option value="attic">Attic / Roof Area</option>
+                            <option value="mainfloor">Main Floor Living Area</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Optional Notes</label>
+                    <textarea id="nj-notes" placeholder="e.g. Mold treatment required. Standing water under crawlspace." style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.6rem 0.8rem; color:white; font-size:0.9rem; min-height:60px; resize:vertical;"></textarea>
+                </div>
+
+                <div style="padding-top: 0.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                    <button type="button" onclick="document.getElementById('new-job-modal').classList.add('hidden')" class="btn-secondary" style="padding: 0.6rem 1.25rem; font-size: 0.85rem;">Cancel</button>
+                    <button type="submit" id="btn-submit-new-job" class="btn-primary" style="padding: 0.6rem 1.5rem; font-size: 0.85rem; font-weight: 700; display:flex; align-items:center; gap:0.25rem;">Create Job</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Three.js Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Application Logic Scripts -->
+    <script src="spatial-engine.js?v=59"></script>
+    <script src="cost-catalog.js?v=59"></script>
+    <script src="cost-engine.js?v=66"></script>
+    <script src="app.js?v=69"></script>
+    <script src="supabase-service.js?v=63"></script>
+    <script src="roomflow-integrations.js?v=9"></script>
+    <script src="townsquare-integration.js?v=6"></script>
+    <script src="renderer3d.js?v=60"></script>
+    <script src="ar-estimator.js?v=59"></script>
+    <script src="cost-ui.js?v=66"></script>
+    <script src="work-order.js?v=66"></script>
+    <script src="document-workflow.js?v=66"></script>
+    <script src="migration.js?v=60"></script>
+    <script src="cost-tests.js?v=59"></script>
+    <!-- Beautiful Fullscreen Authentication Overlay -->
+    <div id="auth-overlay" class="hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0b0f19; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 1.5rem; overflow-y: auto;">
+        <div style="background: #111827; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; width: 100%; max-width: 440px; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 1.5rem;">
+            
+            <div style="text-align: center;">
+                <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                    <i data-lucide="shield-check" style="width: 26px; height: 26px; color: #3b82f6;"></i>
+                </div>
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.25rem;">RoomFlow Accounts</h2>
+                <p id="auth-subtitle" style="font-size: 0.85rem; color: #94a3b8;">Sign in to sync your estimating jobs with your team.</p>
+            </div>
+            
+            <div id="auth-alert-box" style="display:none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; border:1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.1); color: #fca5a5;"></div>
+
+            <!-- Email & Password Form -->
+            <form id="auth-form" style="display:flex; flex-direction:column; gap:1rem;" onsubmit="return false;">
+                <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                    <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Email Address</label>
+                    <input type="email" id="auth-email" required placeholder="name@company.com" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem 1rem; color:white; font-size:0.9rem;">
+                </div>
+                
+                <div id="auth-password-row" style="display:flex; flex-direction:column; gap:0.35rem;">
+                    <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Password</label>
+                    <input type="password" id="auth-password" placeholder="••••••••" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem 1rem; color:white; font-size:0.9rem;">
+                </div>
+
+                <div id="auth-name-row" style="display:none; flex-direction:column; gap:0.35rem;">
+                    <label style="font-size:0.75rem; font-weight:700; color:#cbd5e1; text-transform:uppercase;">Full Name</label>
+                    <input type="text" id="auth-name" placeholder="John Smith" style="background:#1f2937; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:0.75rem 1rem; color:white; font-size:0.9rem;">
+                </div>
+
+                <button id="btn-auth-submit" class="btn-primary" style="padding:0.85rem; font-weight:700; font-size:0.9rem; text-align:center; border-radius:8px;">Sign In</button>
+            </form>
+
+            <!-- Secondary Actions -->
+            <div style="display:flex; flex-direction:column; gap:0.75rem; text-align:center; font-size:0.85rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top:1.25rem;">
+                <a id="btn-auth-toggle-mode" href="#" style="color:#3b82f6; font-weight:600; text-decoration:none;">Don't have an account? Sign Up</a>
+                <a id="btn-auth-magic-link" href="#" style="color:#cbd5e1; text-decoration:none;">Email me a secure Magic Link instead</a>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>

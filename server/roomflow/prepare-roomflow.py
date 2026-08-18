@@ -8,7 +8,6 @@ import re
 import shutil
 import tarfile
 import tempfile
-import urllib.request
 import zipfile
 from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
@@ -17,6 +16,7 @@ from urllib.parse import unquote, urlsplit
 RELEASE = "4.6.10"
 ROOMFLOW_COMMIT = "1f97817a52b916875e50cc6380c0d284072b8ce8"
 ARCHIVE_URL = f"https://github.com/TheNINJALLO/roomflow/archive/{ROOMFLOW_COMMIT}.tar.gz"
+RELEASE_ASSETS = Path(__file__).resolve().with_name("release-assets")
 CORE_RUNTIME = (
     "index.html", "app.js", "ar-estimator.js", "cost-catalog.js", "cost-engine.js",
     "cost-tests.js", "cost-ui.js", "document-workflow.js", "jobs.json", "migration.js",
@@ -80,10 +80,32 @@ def validate_web_runtime(root: Path) -> None:
         raise RuntimeError("RoomFlow web runtime is incomplete: " + ", ".join(sorted(set(missing))))
 
 
-def download(url: str, destination: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "Floodman-RoomFlow/4.6.10"})
-    with urllib.request.urlopen(request, timeout=180) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+def verify_release_assets(root: Path) -> str:
+    manifest = root / "SHA256SUMS"
+    if not manifest.is_file():
+        raise RuntimeError("checksummed RoomFlow release assets are missing")
+    declared: dict[str, str] = {}
+    for line_number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+        parts = line.split("  ", 1)
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{64}", parts[0]) or not safe_member(parts[1]):
+            raise RuntimeError(f"invalid RoomFlow release asset manifest row {line_number}")
+        if parts[1] in declared:
+            raise RuntimeError(f"duplicate RoomFlow release asset path: {parts[1]}")
+        declared[parts[1]] = parts[0]
+    actual = {
+        path.relative_to(root).as_posix(): archive_sha256(path)
+        for path in root.rglob("*")
+        if path.is_file() and path != manifest
+    }
+    if set(actual) != set(declared):
+        raise RuntimeError("RoomFlow release asset manifest and packaged files differ")
+    changed = [name for name, expected in declared.items() if actual[name] != expected]
+    if changed:
+        raise RuntimeError("RoomFlow release asset checksum differs: " + ", ".join(changed))
+    if (root / "PINNED_COMMIT").read_text(encoding="utf-8").strip() != ROOMFLOW_COMMIT:
+        raise RuntimeError("RoomFlow release asset pin differs from the server contract")
+    validate_web_runtime(root / "upstream")
+    return archive_sha256(manifest)
 
 
 def extract_archive(archive: Path, destination: Path) -> Path:
@@ -162,6 +184,9 @@ def repair_job_list_renderers(target: Path) -> None:
 
 def inject_panel(target: Path, overlay: Path) -> None:
     repair_job_list_renderers(target)
+    (target / "vendor").mkdir(parents=True, exist_ok=True)
+    for name in ("lucide.min.js", "three.min.js", "OrbitControls.js"):
+        shutil.copy2(RELEASE_ASSETS / "vendor" / name, target / "vendor" / name)
     shutil.copy2(overlay / "floodman-panel.css", target / "floodman-panel.css")
     shutil.copy2(overlay / "floodman-panel.js", target / "floodman-panel.js")
     shutil.copy2(overlay / "capture" / "roomflow-capture.css", target / "roomflow-capture.css")
@@ -171,6 +196,12 @@ def inject_panel(target: Path, overlay: Path) -> None:
     index = target / "index.html"
     text = index.read_text(encoding="utf-8", errors="replace")
     text = re.sub(r"<title>.*?</title>", "<title>Floodman RoomFlow</title>", text, count=1, flags=re.I | re.S)
+    text = re.sub(r'\s*<link rel="preconnect" href="https://fonts[^>]+>', "", text)
+    text = re.sub(r'\s*<link href="https://fonts\.googleapis\.com[^>]+>', "", text)
+    text = text.replace('<script src="https://unpkg.com/lucide@latest"></script>', '<script src="vendor/lucide.min.js"></script>')
+    text = text.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>', "")
+    text = text.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>', '<script src="vendor/three.min.js"></script>')
+    text = text.replace('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>', '<script src="vendor/OrbitControls.js"></script>')
     if "name=\"viewport\"" not in text and "name='viewport'" not in text:
         text = text.replace("</head>", '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n</head>', 1)
     if "floodman-panel.css" not in text:
@@ -216,6 +247,7 @@ if (window.RoomFlowConfig) {{
         "created_by": "Josh Aldrich",
         "timezone": "America/Detroit",
         "capture_schema_version": 2,
+        "asset_manifest_sha256": verify_release_assets(RELEASE_ASSETS),
     }
     (target / ".floodman-roomflow.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     validate_web_runtime(target)
@@ -225,7 +257,7 @@ def fallback(target: Path, error: Exception) -> None:
     target.mkdir(parents=True, exist_ok=True)
     message = str(error).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     (target / "index.html").write_text(
-        f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Floodman RoomFlow</title><style>body{{margin:0;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}}main{{max-width:650px;background:#fff;border-radius:22px;padding:28px;box-shadow:0 22px 60px rgba(15,43,70,.17)}}a{{color:#146ca4}}</style></head><body><main><h1>Floodman RoomFlow needs its source download</h1><p>The Floodman suite is running, but the pinned RoomFlow source could not be prepared.</p><pre>{message}</pre><p>Restart after outbound GitHub access is available, or upload a RoomFlow source archive as <code>/home/container/roomflow-source.zip</code>.</p><p><a href='/office' target='_top'>Return to Floodman Operations</a></p></main></body></html>""",
+        f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Floodman RoomFlow</title><style>body{{margin:0;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}}main{{max-width:650px;background:#fff;border-radius:22px;padding:28px;box-shadow:0 22px 60px rgba(15,43,70,.17)}}a{{color:#146ca4}}</style></head><body><main><h1>Floodman RoomFlow package needs attention</h1><p>The Floodman suite is running, but its checksummed RoomFlow release assets could not be prepared.</p><pre>{message}</pre><p>Reinstall the matching Floodman runtime package. Do not substitute an unreviewed RoomFlow download.</p><p><a href='/office' target='_top'>Return to Floodman Operations</a></p></main></body></html>""",
         encoding="utf-8",
     )
     (target / ".floodman-roomflow-error.txt").write_text(str(error), encoding="utf-8")
@@ -253,22 +285,19 @@ def main() -> int:
                     print(f"Floodman RoomFlow upgraded in place to {RELEASE} at {target}")
                 return 0
 
-        with tempfile.TemporaryDirectory(prefix="floodman-roomflow-") as temp_name:
-            temp = Path(temp_name)
-            local_candidates = [
-                Path(args.archive) if args.archive else None,
-                Path("/home/container/roomflow-source.zip"),
-                Path("/home/container/roomflow-source.tar.gz"),
-            ]
-            archive = next((path for path in local_candidates if path and path.is_file()), None)
-            if archive is None:
-                archive = temp / "roomflow.tar.gz"
-                print(f"Downloading pinned RoomFlow source {ROOMFLOW_COMMIT[:12]}...")
-                download(ARCHIVE_URL, archive)
-            print(f"RoomFlow source archive SHA-256: {archive_sha256(archive)}")
-            extracted = extract_archive(archive, temp / "source")
-            copy_web_source(extracted, target)
-            inject_panel(target, overlay)
+        if args.archive:
+            archive = Path(args.archive)
+            if not archive.is_file():
+                raise RuntimeError(f"RoomFlow source archive does not exist: {archive}")
+            with tempfile.TemporaryDirectory(prefix="floodman-roomflow-") as temp_name:
+                print(f"RoomFlow source archive SHA-256: {archive_sha256(archive)}")
+                extracted = extract_archive(archive, Path(temp_name) / "source")
+                copy_web_source(extracted, target)
+        else:
+            manifest_hash = verify_release_assets(RELEASE_ASSETS)
+            print(f"Using checksummed RoomFlow release assets: {manifest_hash}")
+            copy_web_source(RELEASE_ASSETS / "upstream", target)
+        inject_panel(target, overlay)
         print(f"Floodman RoomFlow {RELEASE} prepared at {target}")
         return 0
     except Exception as exc:

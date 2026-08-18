@@ -222,6 +222,12 @@ class FloodmanApi(
     suspend fun updateRoomFlowJob(accessToken: String, id: String, input: RoomFlowSaveInput): RoomFlowSaveResponse =
         decode(rawRequest("/roomflow/jobs/${query(id)}", "PUT", accessToken, encode(input)))
 
+    suspend fun roomFlowCaptureRooms(accessToken: String, jobId: String): JsonObject =
+        decode(rawRequest("/roomflow/jobs/${query(jobId)}/capture/rooms", accessToken = accessToken))
+
+    suspend fun replayRoomFlowCaptureOperations(accessToken: String, jobId: String, payload: JsonObject): JsonObject =
+        decode(rawRequest("/roomflow/jobs/${query(jobId)}/capture/operations", "POST", accessToken, payload.toString()))
+
     suspend fun timeStatus(accessToken: String): TimeEntry? {
         val obj: JsonObject = decode(rawRequest("/time/status", accessToken = accessToken))
         val value = obj["clock"] ?: return null

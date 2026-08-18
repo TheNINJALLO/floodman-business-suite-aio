@@ -8,6 +8,7 @@ import com.floodman.operations.security.SecureStore
 import com.floodman.operations.security.StoredSession
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonObject
 import java.time.Instant
 import java.util.UUID
 
@@ -124,6 +125,8 @@ class SessionRepository(context: Context) {
     suspend fun saveRoomFlowJob(id: String?, input: RoomFlowSaveInput): RoomFlowSaveResponse = authorized { token ->
         if (id.isNullOrBlank()) api.createRoomFlowJob(token, input) else api.updateRoomFlowJob(token, id, input)
     }
+    suspend fun roomFlowCaptureRooms(jobId: String): JsonObject = authorized { api.roomFlowCaptureRooms(it, jobId) }
+    suspend fun replayRoomFlowCaptureOperations(jobId: String, payload: JsonObject): JsonObject = authorized { api.replayRoomFlowCaptureOperations(it, jobId, payload) }
     suspend fun timeStatus(): TimeEntry? = authorized(api::timeStatus)
     suspend fun clockIn(jobReference: String, note: String): TimeEntry = authorized { api.clockIn(it, jobReference, note) }
     suspend fun clockOut(note: String): TimeEntry = authorized { api.clockOut(it, note) }

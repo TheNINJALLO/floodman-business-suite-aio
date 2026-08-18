@@ -8,6 +8,8 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+    <uses-feature android:name="com.google.ar.core.depth" android:required="false" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -26,6 +28,9 @@
         <meta-data
             android:name="sqip.SQUARE_APPLICATION_ID"
             android:value="${squareApplicationId}" />
+        <meta-data
+            android:name="com.google.ar.core"
+            android:value="optional" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -39,6 +44,11 @@
         <activity
             android:name=".roomflow.RoomFlowActivity"
             android:exported="false" />
+        <activity
+            android:name=".roomflow.capture.RoomCaptureActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"
+            android:exported="false"
+            android:screenOrientation="fullSensor" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

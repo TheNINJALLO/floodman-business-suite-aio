@@ -6,7 +6,8 @@ on:
     paths:
       - 'apps/android/**'
       - 'vendor/roomflow/**'
-      - 'scripts/fetch-roomflow.sh'
+      - 'server/roomflow/release-assets/**'
+      - 'scripts/verify_roomflow_release_assets.py'
       - 'scripts/patch_roomflow_bundle.py'
       - 'scripts/validate_roomflow_web.py'
       - '.github/workflows/build-android.yml'
@@ -33,7 +34,9 @@ jobs:
           gradle-version: '8.13'
       - name: Prepare bundled RoomFlow
         working-directory: apps/android
-        run: bash scripts/prepare-roomflow-assets.sh
+        run: |
+          python3 ../../scripts/verify_roomflow_release_assets.py
+          bash scripts/prepare-roomflow-assets.sh
       - name: Configure build
         working-directory: apps/android
         run: |

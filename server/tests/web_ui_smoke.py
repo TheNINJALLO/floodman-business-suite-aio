@@ -309,7 +309,10 @@ def static_overlay_contracts() -> None:
     assert "btn-more-create-company" in sources["panel_js"] and "changeWorkspace" in sources["panel_js"]
     assert "/office/api/roomflow/workspaces" in sources["office"]
     assert ":not(.fm-rf-panel-dismissed)" in sources["panel_css"]
-    assert "RoomFlowCaptureBridgeV2" in sources["capture_js"] and "bridgeVersion: 2" in sources["capture_js"]
+    assert "RoomFlowCaptureBridgeV2" in sources["capture_js"] and "version: 2, sessionId, type, requestId" in sources["capture_js"]
+    assert "encoded.count <= 256 * 1024" not in sources["capture_js"] and "serialized.length > 262144" in sources["capture_js"]
+    assert "Start from a room template" in sources["capture_js"] and "Compare captured plan" in sources["capture_js"]
+    assert "data-plan-vertex" in sources["capture_js"] and "data-lock-wall" in sources["capture_js"]
     assert "Camera-derived dimensions are estimates" in sources["capture_js"]
     assert "dialog.addEventListener('cancel'" in sources["capture_js"] and "closeDialog" in sources["capture_js"]
     assert "@media (max-width: 720px)" in sources["capture_css"] and "100dvh" in sources["capture_css"]
@@ -502,7 +505,8 @@ def browser_smoke(main: Any) -> None:
             cost = page.evaluate("window.RoomFlowCapture.calculateCost(window.RoomFlowCapture.state.room,{floorPerSquareFoot:2.5,wallPerSquareFoot:1.25})")
             assert cost["total"] > 0 and cost["lines"][0]["unit"] == "SF"
             page.locator("#fm-capture-next").click()
-            page.get_by_text("is saved.").wait_for(state="visible")
+            page.wait_for_timeout(750)
+            assert page.get_by_text("is saved.").is_visible(), f"capture save did not complete: {capture_dialog.inner_text()}; browser errors: {errors}"
             page.get_by_role("button", name="Done").click()
             assert capture_dialog.is_hidden()
 
@@ -512,17 +516,42 @@ def browser_smoke(main: Any) -> None:
             page.get_by_text("Basement Recreation Room").wait_for(state="visible")
             page.locator("#fm-capture-close").click()
 
+            page.evaluate("""window.__captureBridgeMessages=[]; window.RoomFlowNativeBridge={postMessage(message){const envelope=typeof message==='string'?JSON.parse(message):message; window.__captureBridgeMessages.push(envelope); let payload={}; let type='sessionCompleted'; if(envelope.type==='capabilitiesRequested'){type='capabilitiesReported';payload={supported:true,modes:['android-arcore-guided','manual'],preferredMode:'android-arcore-guided',depthSupported:false,provider:'test'};} if(envelope.type==='captureRoomsRequested'){type='captureRoomsReported';payload={items:[]};} if(envelope.type==='captureOutboxReplayRequested'){type='captureOutboxReplayed';payload={complete:true,results:[]};} if(envelope.type==='roomCaptureStarted'){type='roomCaptureCompleted';payload={schemaVersion:2,sessionId:envelope.sessionId,jobId:envelope.payload.jobId,workspaceId:envelope.payload.workspaceId,levelId:envelope.payload.levelId,roomId:'bridge-room',name:envelope.payload.name,roomType:envelope.payload.roomType,units:'ft',height:8,vertices:[{id:'1',x:0,y:0,confidence:.8,depthValidated:false,source:'android-arcore-guided'},{id:'2',x:8,y:0,confidence:.8,depthValidated:false,source:'android-arcore-guided'},{id:'3',x:8,y:5,confidence:.8,depthValidated:false,source:'android-arcore-guided'},{id:'4',x:0,y:5,confidence:.8,depthValidated:false,source:'android-arcore-guided'}],openings:[],affectedAreas:[],scanMetadata:{captureMode:'android-arcore-guided',platform:'android',pointCount:4,averageConfidence:.8,depthValidatedPointCount:0,automaticCorrectionCount:0,manualCorrectionCount:0,verificationRequired:true,rawCaptureRetained:false}};} setTimeout(()=>window.RoomFlowCaptureBridgeV2.receive({version:2,sessionId:envelope.sessionId,type,requestId:envelope.requestId,ok:true,payload}),0);}}""")
+            page.locator("#fm-capture-launch").click()
+            page.get_by_role("button", name="Scan room with this device").wait_for(state="visible")
+            page.get_by_role("button", name="Scan room with this device").click()
+            page.locator("#fm-capture-prescan-form input[name='name']").fill("Bridge Capture Room")
+            page.get_by_role("button", name="Start scanner").click()
+            page.get_by_text("40 sq ft").first.wait_for(state="visible")
+            bridge_envelope = page.evaluate("window.__captureBridgeMessages.find(value=>value.type==='roomCaptureStarted')")
+            assert bridge_envelope["version"] == 2 and bridge_envelope["sessionId"] and bridge_envelope["payload"]["jobId"] == "browser-capture-job"
+            page.locator("#fm-capture-close").click()
+            page.evaluate("delete window.RoomFlowNativeBridge; localStorage.removeItem('floodman_roomflow_capture_draft_v2')")
+
             page.locator("#fm-capture-launch").click()
             page.evaluate("""window.RoomFlowCapture.acceptNativeResult({captureMode:'simulated-native',room:{units:'ft',roomId:'simulated-native-room',name:'Simulated Native Room',roomType:'bedroom',levelId:'main',height:8,vertices:[{x:0,y:0,confidence:.9},{x:6,y:0,confidence:.9},{x:6,y:6,confidence:.9},{x:0,y:6,confidence:.9}],openings:[],affectedAreas:[],scanMetadata:{captureMode:'simulated-native',platform:'android',pointCount:4,averageConfidence:.9,depthValidatedPointCount:0,automaticCorrectionCount:0,manualCorrectionCount:0,verificationRequired:true,rawCaptureRetained:false}}})""")
-            page.get_by_text("36 sq ft").wait_for(state="visible")
+            page.get_by_text("36 sq ft").first.wait_for(state="visible")
+            page.get_by_role("button", name="Compare captured plan").click()
+            assert page.locator(".fm-capture-plan polygon.original").count() == 1
+            page.locator("[data-lock-wall='0']").check()
+            assert page.locator("[data-wall-length='0']").is_disabled()
+            page.locator("[data-lock-wall='0']").uncheck()
+            page.locator("[data-add-vertex='0']").click()
+            assert page.locator("[data-plan-vertex]").count() == 5
+            page.get_by_role("button", name="Undo").click()
+            assert page.locator("[data-plan-vertex]").count() == 4
             page.locator("#fm-capture-close").click()
 
+            page.locator("#fm-capture-launch").click()
+            page.get_by_text("Recovered an unsaved room from this device").wait_for(state="visible")
+            page.locator("#fm-capture-close").click()
+            page.evaluate("localStorage.removeItem('floodman_roomflow_capture_draft_v2')")
             page.locator("#fm-capture-launch").click()
             page.get_by_role("button", name="Enter room manually").click()
             page.locator("#fm-capture-shape").select_option("l-shape")
             page.locator("#fm-capture-manual-form input[name='length']").fill("10")
             page.locator("#fm-capture-next").click()
-            page.get_by_text("75 sq ft").wait_for(state="visible")
+            page.get_by_text("75 sq ft").first.wait_for(state="visible")
             page.locator("#fm-capture-close").click()
 
             page.locator("#more-new-company-name").fill("Browser RoomFlow Company")

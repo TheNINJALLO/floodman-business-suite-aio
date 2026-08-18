@@ -10,10 +10,12 @@ import sys
 from pathlib import Path
 
 from validate_roomflow_web import CLOUD_RUNTIME, CORE_RUNTIME, validate
+from verify_roomflow_release_assets import main as verify_release_assets
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "vendor" / "roomflow" / "source"
 PIN_FILE = ROOT / "vendor" / "roomflow" / "PINNED_COMMIT"
+RELEASE_SOURCE = ROOT / "server" / "roomflow" / "release-assets" / "upstream"
 
 
 def require(condition: bool, message: str, problems: list[str]) -> None:
@@ -42,24 +44,25 @@ def main() -> int:
     problems: list[str] = []
     pin = PIN_FILE.read_text(encoding="utf-8").strip()
     require(bool(re.fullmatch(r"[0-9a-f]{40}", pin)), "PINNED_COMMIT is not a full SHA-1", problems)
-    require((SOURCE / ".git").exists(), "ignored RoomFlow source checkout is absent", problems)
+    require(verify_release_assets() == 0, "network-independent RoomFlow release assets failed verification", problems)
     if (SOURCE / ".git").exists():
         try:
             require(git("rev-parse", "HEAD") == pin, "RoomFlow checkout does not match PINNED_COMMIT", problems)
-            require(not git("status", "--porcelain"), "RoomFlow checkout has uncommitted changes", problems)
-            require(not git("ls-files", "--deleted"), "RoomFlow checkout is missing tracked files", problems)
+            reviewed = (*CORE_RUNTIME, *CLOUD_RUNTIME, "supabase_schema.sql", "supabase_phase1_email_tracker_catalog.sql", "supabase/migrations/20260803020000_shared_job_snapshots.sql")
+            require(not git("diff", "--name-only", "HEAD", "--", *reviewed), "reviewed RoomFlow packaging inputs have local changes", problems)
         except RuntimeError as exc:
             problems.append(f"RoomFlow Git verification failed: {exc}")
-
-    problems.extend(validate(SOURCE, "source", []))
+    problems.extend(validate(RELEASE_SOURCE, "server", []))
 
     server_prepare = (ROOT / "server" / "roomflow" / "prepare-roomflow.py").read_text(encoding="utf-8")
     require(f'ROOMFLOW_COMMIT = "{pin}"' in server_prepare, "server RoomFlow preparation pin differs", problems)
+    require("RELEASE_ASSETS" in server_prepare and "download(" not in server_prepare, "server RoomFlow preparation is not release-asset-only", problems)
     for platform in ("android", "ios"):
         script_path = ROOT / "apps" / platform / "scripts" / "prepare-roomflow-assets.sh"
         script = script_path.read_text(encoding="utf-8")
         normalized_script = script.replace("\\", "")
         require("vendor/roomflow/PINNED_COMMIT" in script, f"{platform} preparation does not read the shared pin", problems)
+        require("server/roomflow/release-assets" in script and "curl " not in script, f"{platform} preparation is not network-independent", problems)
         for runtime_file in CORE_RUNTIME:
             if "/" not in runtime_file:
                 require(runtime_file in script, f"{platform} preparation omits {runtime_file}", problems)
@@ -73,9 +76,9 @@ def main() -> int:
     lock_text = json.dumps(lock, sort_keys=True)
     require(pin in lock_text, "UPSTREAMS.lock.json does not contain the RoomFlow pin", problems)
 
-    schema = (SOURCE / "supabase_schema.sql").read_text(encoding="utf-8", errors="replace").lower()
-    phase = (SOURCE / "supabase_phase1_email_tracker_catalog.sql").read_text(encoding="utf-8", errors="replace").lower()
-    snapshots = (SOURCE / "supabase" / "migrations" / "20260803020000_shared_job_snapshots.sql").read_text(
+    schema = (RELEASE_SOURCE / "supabase_schema.sql").read_text(encoding="utf-8", errors="replace").lower()
+    phase = (RELEASE_SOURCE / "supabase_phase1_email_tracker_catalog.sql").read_text(encoding="utf-8", errors="replace").lower()
+    snapshots = (RELEASE_SOURCE / "supabase" / "migrations" / "20260803020000_shared_job_snapshots.sql").read_text(
         encoding="utf-8", errors="replace"
     ).lower()
     schema_by_table = {
@@ -104,7 +107,7 @@ def main() -> int:
             print(f"ERROR: {problem}", file=sys.stderr)
         return 1
     print(f"RoomFlow pin verified: {pin}")
-    print(f"RoomFlow source files verified: {len(git('ls-files').splitlines())}")
+    print(f"RoomFlow bundled runtime files verified: {len(list(RELEASE_SOURCE.rglob('*')))}")
     print("Server, Android, iOS, upstream schema, RLS, and importer contracts agree.")
     return 0
 

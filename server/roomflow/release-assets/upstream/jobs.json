@@ -1,0 +1,160 @@
+{
+  "David Cowart": {
+    "rooms": [
+      {
+        "id": "id_lv79diopa",
+        "levelId": "basement",
+        "name": "Basment",
+        "type": "custom",
+        "w": 27,
+        "l": 25,
+        "h": 8,
+        "x": -14.5,
+        "y": -19.5,
+        "color": "#ec4899",
+        "openings": [],
+        "foamBoard": false,
+        "foamBondPockets": false,
+        "carbonStraps": 0,
+        "carbonFiberScope": "full",
+        "carbonFiberWalls": [],
+        "customCarbonStraps": [],
+        "floorPerimeterStrap": true,
+        "nb1Height": "2ft",
+        "joists": "ns"
+      },
+      {
+        "id": "id_6zh5upc6d",
+        "levelId": "basement",
+        "name": "Staircase",
+        "type": "staircase",
+        "w": 3.5,
+        "l": 12,
+        "h": 8,
+        "x": -14.5,
+        "y": -10.5,
+        "color": "#f43f5e",
+        "openings": [],
+        "foamBoard": false,
+        "foamBondPockets": false,
+        "carbonStraps": 0,
+        "carbonFiberScope": "full",
+        "carbonFiberWalls": [],
+        "customCarbonStraps": [],
+        "floorPerimeterStrap": false,
+        "nb1Height": "none",
+        "steps": 12,
+        "stairOrientation": "N",
+        "stairDirection": "up"
+      },
+      {
+        "id": "id_wb13dneek",
+        "levelId": "basement",
+        "name": "Staircase",
+        "type": "staircase",
+        "w": 2,
+        "l": 3.5,
+        "h": 1,
+        "x": -11,
+        "y": 1.5,
+        "color": "#f43f5e",
+        "openings": [],
+        "foamBoard": false,
+        "foamBondPockets": false,
+        "carbonStraps": 0,
+        "carbonFiberScope": "full",
+        "carbonFiberWalls": [],
+        "customCarbonStraps": [],
+        "floorPerimeterStrap": false,
+        "nb1Height": "none",
+        "steps": 2,
+        "stairOrientation": "W",
+        "stairDirection": "up",
+        "joists": "ew"
+      }
+    ],
+    "sumpPumps": [],
+    "dehumidifiers": [],
+    "dischargeLines": [],
+    "floorHatches": [],
+    "interiorPipes": [],
+    "stanchions": [],
+    "mainBeams": [],
+    "currentLevelId": "basement",
+    "capturedMeasurements": [],
+    "costing": {
+      "version": "1.0",
+      "settings": {
+        "taxRate": 6,
+        "generalWaste": 10,
+        "overhead": 20,
+        "markup": 30,
+        "loadedLaborRate": 65,
+        "hoursPerWorkday": 8,
+        "tapeCoveragePerRoll": 0,
+        "benefectSqFtPerGallon": 0,
+        "rmrSqFtPerGallon": 0,
+        "masksPerPack": 0,
+        "nb1SqFtPerBag": 8,
+        "masksMode": "manual",
+        "crewSize": 1,
+        "workdays": 1,
+        "masksPerWorkerPerDay": 1,
+        "pricingMode": "markup",
+        "targetGrossMargin": 40,
+        "useVaporBarrier": false
+      },
+      "catalogOverrides": {},
+      "projectOverrides": {
+        "standsDisabledCount": 1,
+        "permanentDehumQty": 0
+      },
+      "labor": {
+        "mode": "project",
+        "projectCrewSize": 3,
+        "projectWorkdays": 3,
+        "projectHoursPerDay": 8,
+        "projectLaborRate": 86,
+        "projectNotes": "",
+        "detailedLines": []
+      },
+      "rentals": {
+        "dehumidifierUnits": 0,
+        "dehumidifierDays": 0,
+        "dehumidifierTaxable": true,
+        "dehumidifierNotes": "",
+        "airMoverUnits": 0,
+        "airMoverDays": 0,
+        "airMoverTaxable": true,
+        "airMoverNotes": "",
+        "optionalCharges": []
+      },
+      "customItems": [],
+      "treatmentSelections": {},
+      "manualQuantityOverrides": {
+        "waterstop": {
+          "overrideQuantity": 1,
+          "overrideEnabled": true
+        },
+        "floor_epoxy": {
+          "overrideQuantity": 3,
+          "overrideEnabled": true
+        }
+      },
+      "excludedItems": {
+        "dehumidifier_stands": true,
+        "sump_basin_drain_stone": true,
+        "garbage_bags": true,
+        "permanent_dehumidifier": true,
+        "wifi_sump_float": true,
+        "sump_pump_half_hp": true,
+        "n95_masks": true,
+        "rmr": true,
+        "benefect": true,
+        "spray_foam": true,
+        "vapor_barrier_tape": true,
+        "vapor_barrier": true
+      }
+    }
+  }
+}

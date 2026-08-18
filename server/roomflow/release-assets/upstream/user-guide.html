@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>RoomFlow Complete User Guide</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07101d;
+      --panel: #101b2d;
+      --panel-2: #15243a;
+      --line: rgba(148, 163, 184, .2);
+      --text: #f8fafc;
+      --muted: #a9b7ca;
+      --blue: #38bdf8;
+      --teal: #2dd4bf;
+      --amber: #fbbf24;
+      --red: #fb7185;
+      --green: #4ade80;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 100px; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: radial-gradient(circle at 10% 0, #153052 0, transparent 34rem), var(--bg);
+      font: 16px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: #7dd3fc; }
+    button, input { font: inherit; }
+    button, .button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: .65rem .9rem;
+      color: var(--text);
+      background: var(--panel-2);
+      font-weight: 750;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
+    }
+    button:hover, .button:hover { border-color: var(--blue); }
+    .button.primary { color: #03101a; background: linear-gradient(135deg, var(--blue), var(--teal)); border: 0; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--line);
+      background: rgba(7, 16, 29, .92);
+      backdrop-filter: blur(16px);
+    }
+    .topbar-inner {
+      width: min(1440px, 100%);
+      margin: auto;
+      padding: .8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: .8rem;
+    }
+    .brand { display: flex; align-items: center; gap: .7rem; margin-right: auto; min-width: 0; }
+    .mark {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: #03101a;
+      font-weight: 950;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+    }
+    .brand strong, .brand span { display: block; }
+    .brand span { color: var(--muted); font-size: .74rem; white-space: nowrap; }
+    .actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+    .search-wrap {
+      width: min(1440px, 100%);
+      margin: auto;
+      padding: 0 1rem .8rem;
+    }
+    #guide-search {
+      width: 100%;
+      min-height: 46px;
+      color: var(--text);
+      background: #0b1627;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: .75rem 1rem;
+      outline: none;
+    }
+    #guide-search:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, .14); }
+    #search-status { margin: .35rem 0 0; color: var(--muted); font-size: .78rem; }
+    .layout {
+      width: min(1440px, 100%);
+      margin: auto;
+      padding: 1.25rem 1rem 5rem;
+      display: grid;
+      grid-template-columns: 255px minmax(0, 1fr);
+      gap: 1.4rem;
+      align-items: start;
+    }
+    .toc {
+      position: sticky;
+      top: 154px;
+      max-height: calc(100vh - 174px);
+      overflow: auto;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(16, 27, 45, .88);
+    }
+    .toc strong { display: block; margin-bottom: .55rem; }
+    .toc a { display: block; padding: .38rem .48rem; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: .86rem; }
+    .toc a:hover { color: var(--text); background: rgba(56, 189, 248, .1); }
+    main { min-width: 0; }
+    .hero, .guide-section {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(16, 27, 45, .9);
+      box-shadow: 0 20px 55px rgba(0, 0, 0, .15);
+    }
+    .hero { padding: clamp(1.35rem, 4vw, 2.5rem); margin-bottom: 1rem; }
+    .hero h1 { font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1.08; margin: 0 0 .7rem; }
+    .hero p { max-width: 850px; color: #cbd5e1; margin: .5rem 0; }
+    .quick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; margin-top: 1.25rem; }
+    .quick-card { padding: 1rem; border-radius: 12px; background: #0b1627; border: 1px solid var(--line); }
+    .quick-card strong { display: block; color: var(--teal); }
+    .quick-card span { color: var(--muted); font-size: .88rem; }
+    .guide-section { padding: clamp(1.1rem, 3vw, 2rem); margin: 0 0 1rem; }
+    .guide-section h2 { margin: 0 0 .3rem; font-size: clamp(1.4rem, 3vw, 2rem); }
+    .guide-section h3 { margin: 1.5rem 0 .45rem; font-size: 1.08rem; color: #e2e8f0; }
+    .guide-section h4 { margin: 1.15rem 0 .35rem; color: #dbeafe; }
+    .section-intro { color: var(--muted); margin: 0 0 1rem; }
+    ol, ul { padding-left: 1.35rem; }
+    li { margin: .38rem 0; }
+    .steps { counter-reset: guide-step; list-style: none; padding: 0; }
+    .steps > li { position: relative; padding: .8rem .8rem .8rem 3.25rem; margin: .55rem 0; background: #0b1627; border: 1px solid var(--line); border-radius: 12px; }
+    .steps > li::before {
+      counter-increment: guide-step;
+      content: counter(guide-step);
+      position: absolute;
+      left: .8rem;
+      top: .78rem;
+      width: 1.75rem;
+      height: 1.75rem;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #03101a;
+      background: var(--teal);
+      font-weight: 900;
+    }
+    .note, .warning, .success {
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      padding: .85rem 1rem;
+      margin: 1rem 0;
+      background: rgba(56, 189, 248, .08);
+    }
+    .warning { border-color: var(--amber); background: rgba(251, 191, 36, .08); }
+    .success { border-color: var(--green); background: rgba(74, 222, 128, .08); }
+    .label { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: .08rem .5rem; color: #dbeafe; background: var(--panel-2); font-size: .8rem; font-weight: 750; }
+    .compare { width: 100%; border-collapse: collapse; margin: .7rem 0; }
+    .compare th, .compare td { text-align: left; vertical-align: top; padding: .75rem; border: 1px solid var(--line); }
+    .compare th { background: #0b1627; color: #dbeafe; }
+    details { margin: .65rem 0; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: 10px; background: #0b1627; }
+    summary { cursor: pointer; color: #e2e8f0; font-weight: 800; }
+    kbd { border: 1px solid #526077; border-bottom-width: 2px; border-radius: 5px; padding: .05rem .35rem; background: #1e293b; font-size: .8rem; }
+    .checklist { list-style: none; padding: 0; }
+    .checklist li { padding-left: 1.8rem; position: relative; }
+    .checklist li::before { content: "\2713"; position: absolute; left: .25rem; color: var(--green); font-weight: 900; }
+    .is-hidden { display: none !important; }
+    .footer { color: var(--muted); text-align: center; padding: 1rem; font-size: .82rem; }
+    @media (max-width: 900px) {
+      html { scroll-padding-top: 145px; }
+      .topbar-inner { align-items: flex-start; }
+      .brand span { white-space: normal; }
+      .layout { grid-template-columns: 1fr; }
+      .toc { position: static; max-height: none; display: flex; align-items: center; gap: .25rem; overflow-x: auto; white-space: nowrap; }
+      .toc strong, .toc a { flex: 0 0 auto; margin: 0; }
+      .quick-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      body { font-size: 15px; }
+      .topbar-inner { display: block; }
+      .brand { margin-bottom: .65rem; }
+      .actions { display: grid; grid-template-columns: repeat(2, 1fr); }
+      .actions .primary { grid-column: 1 / -1; }
+      .actions .button, .actions button { padding: .55rem .3rem; font-size: .78rem; }
+      .compare { display: block; overflow-x: auto; white-space: normal; }
+      .steps > li { padding-left: 3rem; }
+    }
+    @media print {
+      :root { color-scheme: light; }
+      body { color: #111827; background: #fff; font-size: 11pt; }
+      .topbar, .toc, .footer { display: none !important; }
+      .layout { display: block; width: 100%; padding: 0; }
+      .hero, .guide-section { color: #111827; background: #fff; box-shadow: none; border-color: #d1d5db; break-inside: avoid; }
+      .hero { break-after: page; }
+      .guide-section { break-inside: auto; }
+      .guide-section h2, .guide-section h3, .guide-section h4, .quick-card strong, summary { color: #111827; }
+      .hero p, .section-intro, .quick-card span { color: #374151; }
+      .quick-card, .steps > li, details, .compare th { background: #f8fafc; border-color: #d1d5db; }
+      .note, .warning, .success { background: #f8fafc; }
+      a { color: #111827; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><div class="mark">RF</div><div><strong>RoomFlow User Guide</strong><span>Field estimating, documents, Tracker, and email intake</span></div></div>
+      <div class="actions">
+        <a class="button primary" href="index.html">Open RoomFlow</a>
+        <a class="button" href="#tracker">Tracker Guide</a>
+        <button id="print-guide" type="button">Print / PDF</button>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <label for="guide-search" style="position:absolute;left:-9999px">Search this guide</label>
+      <input id="guide-search" type="search" placeholder="Search: angled room, invoice, delete job, Zapier, Townsquare…" autocomplete="off">
+      <p id="search-status" aria-live="polite">Search all instructions.</p>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Guide contents">
+      <strong>Contents</strong>
+      <a href="#quick-start">1. Quick start</a>
+      <a href="#account">2. Account & company</a>
+      <a href="#navigation">3. Navigation</a>
+      <a href="#jobs">4. Start or open a job</a>
+      <a href="#guided">5. Guided workflow</a>
+      <a href="#rooms">6. Rooms & odd shapes</a>
+      <a href="#cad">7. CAD Blueprint</a>
+      <a href="#wall-work">8. Work by wall</a>
+      <a href="#pricing">9. Pricing & costs</a>
+      <a href="#documents">10. Documents</a>
+      <a href="#saving">11. Save, export & trash</a>
+      <a href="#tracker">12. Tracker</a>
+      <a href="#zapier">13. Zapier email intake</a>
+      <a href="#mobile">14. Phone and tablet</a>
+      <a href="#townsquare">15. Townsquare drafts</a>
+      <a href="#troubleshooting">16. Troubleshooting</a>
+      <a href="#closeout">17. Final checklist</a>
+    </nav>
+
+    <main id="guide-content">
+      <section class="hero searchable" id="quick-start" data-search="quick start first job estimate proposal work order">
+        <span class="label">Complete field guide</span>
+        <h1>From the first call to the crew work order.</h1>
+        <p>RoomFlow keeps the customer, drawing, room-by-room work, pricing, proposal, invoice, and crew instructions in one job. The safest workflow is linear: complete each guided step, review the shared scope once, and then generate every document from that same scope.</p>
+        <div class="quick-grid">
+          <div class="quick-card"><strong>Estimator</strong><span>Create the job, draw rooms, assign work, review cost, and prepare documents.</span></div>
+          <div class="quick-card"><strong>Office</strong><span>Open the saved job, update customer scope, issue proposal/invoice, and monitor status.</span></div>
+          <div class="quick-card"><strong>Crew</strong><span>Use the work order for selected rooms, wall-specific work, dimensions, equipment, and notes.</span></div>
+        </div>
+        <h3>Fastest correct workflow</h3>
+        <ol class="steps">
+          <li>Sign in and select the correct company.</li>
+          <li>Choose <strong>Start New Estimate</strong>, or open an inbound email lead.</li>
+          <li>Complete Guided Steps 1–6 in order. Use CAD Blueprint when the layout needs direct drawing.</li>
+          <li>Review materials and private cost in Step 7.</li>
+          <li>Open <strong>Documents</strong>, verify the shared scope, and choose which rows belong on the customer documents and work order.</li>
+          <li>Generate the proposal, invoice, and crew work order. Save/export the job before leaving the site.</li>
+        </ol>
+        <div class="success"><strong>One source of truth:</strong> change quantities, customer prices, and document inclusion in the shared Documents scope. Proposal, invoice, and work order then use the same approved information.</div>
+      </section>
+
+      <section class="guide-section searchable" id="account" data-search="sign in sign up account workspace company organization permissions log out">
+        <h2>2. Sign in and select a company</h2>
+        <p class="section-intro">Your company controls which cloud jobs, permissions, equipment, and inbound leads you can see.</p>
+        <ol class="steps">
+          <li>Open RoomFlow and choose <strong>Sign In</strong>. New users can choose <strong>Sign Up</strong> when account creation is enabled.</li>
+          <li>Enter your email and password. Do not share accounts; deletion and document actions are tied to permissions.</li>
+          <li>Open <strong>More</strong> and confirm the <strong>Active workspace/company</strong>. Switch it before opening or creating a job if you work in more than one company.</li>
+          <li>If your company is missing, use the company creation/join options available to your account or ask a company administrator.</li>
+          <li>Use <strong>Log Out</strong> on shared devices when work is finished.</li>
+        </ol>
+        <div class="warning"><strong>Wrong company?</strong> Stop before entering information. A job saved under one company will not appear when another company is selected.</div>
+      </section>
+
+      <section class="guide-section searchable" id="navigation" data-search="jobs project add review more header buttons undo redo level documents diagnostics interface guided cad">
+        <h2>3. Know the controls</h2>
+        <p class="section-intro">The bottom navigation is designed for phones. The top controls expose drawing, file, document, and diagnostic tools.</p>
+        <table class="compare">
+          <thead><tr><th>Area</th><th>Use it for</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Jobs</strong></td><td>Start, search, continue, recover, or open jobs and inbound leads.</td></tr>
+            <tr><td><strong>Project</strong></td><td>Customer information, property details, estimator notes, and photos.</td></tr>
+            <tr><td><strong>Add</strong></td><td>Add rooms, openings, equipment, structural items, and work scope.</td></tr>
+            <tr><td><strong>Review</strong></td><td>Check measurements, warnings, materials, costs, and documents.</td></tr>
+            <tr><td><strong>More</strong></td><td>Company, interface mode, Trash & Recovery, Diagnostics, integrations, migration, and Help.</td></tr>
+          </tbody>
+        </table>
+        <h3>Top controls</h3>
+        <ul>
+          <li><strong>Guided Wizard / CAD Blueprint:</strong> switch between step-by-step entry and the full drawing workspace without creating a second job.</li>
+          <li><strong>Undo / Redo:</strong> reverse or restore recent drawing changes.</li>
+          <li><strong>New Project:</strong> clear the current working project and begin a new one. Save first.</li>
+          <li><strong>Save Project / Load Project:</strong> export or import a RoomFlow job JSON file.</li>
+          <li><strong>Job Database:</strong> open saved jobs.</li>
+          <li><strong>Diagnostics:</strong> check browser/device capability and integration status.</li>
+          <li><strong>Documents, Work Order, Proposal, Invoice:</strong> review or generate the project paperwork.</li>
+          <li><strong>Level:</strong> set the active floor—crawlspace, basement, main, second, or attic—before adding rooms.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section searchable" id="jobs" data-search="new estimate continue job inbound email lead open roomflow search delete trash refresh shared cloud another pc mobile">
+        <h2>4. Start or open a job</h2>
+        <h3>Start a new estimate</h3>
+        <ol class="steps">
+          <li>Open <strong>Jobs</strong> and tap <strong>Start New Estimate</strong>.</li>
+          <li>Confirm that the new project is blank and that the correct company is active.</li>
+          <li>Begin with Guided Step 1. A customer name and address make the job easier to identify later.</li>
+        </ol>
+        <h3>Continue an existing job</h3>
+        <ol class="steps">
+          <li>Sign in, select the same company used on the other device, and open <strong>Jobs</strong>.</li>
+          <li>Choose <strong>Refresh Shared</strong> to upload pending edits from this device and download the newest company jobs and saved estimates.</li>
+          <li>Search by customer, address, or job name. A <strong>Cloud Shared</strong> badge identifies records available to other signed-in company devices.</li>
+          <li>Choose <strong>Continue Estimate</strong> on the correct card.</li>
+          <li>Confirm the customer name and latest room count before editing.</li>
+        </ol>
+        <div class="note"><strong>Cross-device rule:</strong> users do not need the Townsquare browser extension just to share RoomFlow jobs. They do need a RoomFlow sign-in, the same active company, internet access, and permission to view the job. Only estimate drafts saved to the cloud are available on another device.</div>
+        <h3>Open a lead</h3>
+        <ol class="steps">
+          <li>In the <strong>Leads</strong> panel, tap <strong>Refresh</strong> if the newest inquiry is not visible.</li>
+          <li>Review every available field: name, phone, email, complete service address, appointment, estimator, source, email details, and issue.</li>
+          <li>Tap <strong>Open in RoomFlow</strong>. The parsed contact and issue fields become the starting job information.</li>
+          <li>For a fake or spam inquiry, tap <strong>Remove Lead</strong> and type <strong>REMOVE</strong>. This requires the <code>delete_jobs</code> permission and permanently removes the shared lead job.</li>
+          <li>Correct any field that the email did not state clearly, then continue through the guide.</li>
+        </ol>
+        <div class="note">Email intake should assist data entry, not replace review. Confirm phone, service address, appointment, and issue with the caller.</div>
+      </section>
+
+      <section class="guide-section searchable" id="guided" data-search="guided wizard nine steps job information work areas floors rooms layout work needed equipment measurement review materials costing documents save finish">
+        <h2>5. Complete the nine Guided Wizard steps</h2>
+        <p class="section-intro">Use <strong>Next</strong> only after reviewing the current step. You can return to an earlier step without losing the drawing.</p>
+        <h3>Step 1 — Job Information</h3>
+        <ol class="steps">
+          <li>Enter customer name, address, city, state, postal code, phone, and email.</li>
+          <li>Set the estimator and appointment/date information.</li>
+          <li>Add notes that belong to the overall project, not only one room.</li>
+          <li>Add property or issue photos when available.</li>
+          <li>Check spelling because these fields appear on customer documents.</li>
+        </ol>
+        <h3>Step 2 — Work Areas and Floors</h3>
+        <ol class="steps">
+          <li>Select every level being inspected: crawlspace, basement, main, second, attic, or multiple areas.</li>
+          <li>Set the active level before drawing its rooms.</li>
+          <li>For multi-level work, finish one level at a time and switch levels from the top selector.</li>
+        </ol>
+        <h3>Step 3 — Rooms and Layout</h3>
+        <ol class="steps">
+          <li>Add the first room as the anchor room. Enter measured width and length or draw a custom outline.</li>
+          <li>Add connected rooms and place them against the correct shared wall.</li>
+          <li>Add doors, windows, crawl doors, and hatches in their real locations.</li>
+          <li>Open the 2D plan and check that rooms do not overlap or float away from the building.</li>
+          <li>Use 3D as a review view; keep precise edits in 2D/CAD.</li>
+        </ol>
+        <h3>Step 4 — Work Needed</h3>
+        <ol class="steps">
+          <li>Select a room, then enable only the work performed in that room.</li>
+          <li>Set vapor barrier, drainage, wall, structural, cleaning, demolition, or insulation choices as applicable.</li>
+          <li>For drywall removal, enter cut height and select the exact walls. Do not use a whole-room quantity when only one wall is cut.</li>
+          <li>Add carbon straps or other wall work with automatic spacing or a verified custom quantity.</li>
+          <li>Repeat for every room. Never assume a setting automatically applies to adjacent rooms.</li>
+        </ol>
+        <h3>Step 5 — Equipment and Structural Items</h3>
+        <ol class="steps">
+          <li>Add sump systems, pumps, dehumidifiers, discharge paths, beams, posts, or stanchions.</li>
+          <li>Place each item in the correct room on the blueprint.</li>
+          <li>Open its details and enter model, capacity, quantity, or notes when required.</li>
+          <li>Confirm access and discharge routes for the crew.</li>
+        </ol>
+        <h3>Step 6 — Measurement Review</h3>
+        <ol class="steps">
+          <li>Compare every room dimension with field measurements.</li>
+          <li>Review perimeter, floor area, wall quantities, openings, and equipment.</li>
+          <li>Resolve overlap, detached-room, missing-dimension, or missing-scope warnings.</li>
+          <li>Return to the affected room, correct it, and review again.</li>
+        </ol>
+        <h3>Step 7 — Materials and Internal Costing</h3>
+        <ol class="steps">
+          <li>Review calculated materials and quantities.</li>
+          <li>Choose margin or markup mode according to company policy.</li>
+          <li>Set target margin, labor, rentals, custom items, and tax.</li>
+          <li>Keep this screen private when a customer is viewing the device.</li>
+        </ol>
+        <h3>Step 8 — Project Documents</h3>
+        <ol class="steps">
+          <li>Open the shared document scope.</li>
+          <li>Review each description, quantity, customer price, and document checkbox.</li>
+          <li>Add custom scope rows only when the calculated scope does not cover the work.</li>
+          <li>Generate and inspect proposal, invoice, and work order before sending.</li>
+        </ol>
+        <h3>Step 9 — Save and Finish</h3>
+        <ol class="steps">
+          <li>Save the job and wait for the save confirmation.</li>
+          <li>Export a job JSON backup when the project is important or will be moved to another device.</li>
+          <li>Print or save the required PDF documents.</li>
+          <li>Return to Jobs and confirm the job card shows the latest customer and status.</li>
+        </ol>
+      </section>
+
+      <section class="guide-section searchable" id="rooms" data-search="room anchor center viewport angled odd non square polygon connected corner move drag custom shape overlap detached">
+        <h2>6. Draw rooms, including angled and odd shapes</h2>
+        <h3>Rectangular room</h3>
+        <ol class="steps">
+          <li>Select the correct level.</li>
+          <li>Choose a room type such as living room, bedroom, kitchen, bathroom, hallway, closet, staircase, or custom.</li>
+          <li>On desktop, drag the room tool onto the canvas. On a phone, tap the tool and then tap where the room should be placed.</li>
+          <li>Select the room and enter its measured dimensions in <strong>Details</strong>.</li>
+          <li>Drag the room to connect it to the building. Zoom in to align shared walls.</li>
+        </ol>
+        <h3>Angled or non-rectangular room</h3>
+        <ol class="steps">
+          <li>Choose <strong>Draw Angled Room</strong>.</li>
+          <li>Tap or click the actual starting location on the blueprint. The first point is placed where you choose, not forced to the center.</li>
+          <li>Add one point at each real corner, moving around the room in order.</li>
+          <li>Finish/close the outline using the on-screen instruction. Avoid crossing one wall line over another.</li>
+          <li>Select the completed room and drag individual corner handles to match field measurements.</li>
+          <li>Zoom out and confirm the shape is attached to the correct neighboring wall and remains inside the intended floor plan.</li>
+        </ol>
+        <div class="note"><strong>Best practice:</strong> place the first two points on the wall that connects to the existing building. That makes the unusual room easier to position and adjust.</div>
+        <h3>Fix a misplaced room</h3>
+        <ol class="steps">
+          <li>Use <strong>Undo</strong> immediately if the shape was just created.</li>
+          <li>Otherwise select the room, then drag the room body to move it or a corner handle to reshape it.</li>
+          <li>Use zoom and grid alignment for small corrections.</li>
+          <li>Delete and redraw only if the point order is wrong or walls cross.</li>
+        </ol>
+      </section>
+
+      <section class="guide-section searchable" id="cad" data-search="cad blueprint canvas drag drop room doors windows openings sump dehumidifier pipe discharge stanchion beam zoom grid select delete desktop phone">
+        <h2>7. Use the CAD Blueprint workspace</h2>
+        <p class="section-intro">CAD Blueprint is the direct-edit workspace for complex layouts and precise equipment placement.</p>
+        <h3>Add and place items</h3>
+        <table class="compare">
+          <thead><tr><th>Tool group</th><th>Available items</th><th>How to use</th></tr></thead>
+          <tbody>
+            <tr><td>Rooms</td><td>Living, bedroom, kitchen, bathroom, hallway, closet, staircase, custom, angled room</td><td>Drag to the canvas on desktop, or tap the tool then tap the canvas on touch devices.</td></tr>
+            <tr><td>Openings</td><td>Door, window, exterior crawl door, hatch</td><td>Place on the intended wall, then use Details to verify type and measurements.</td></tr>
+            <tr><td>Work</td><td>Floor perimeter and drywall wall selection</td><td>Select the room first, then select the wall segment being treated.</td></tr>
+            <tr><td>Equipment</td><td>Sump, dehumidifier, discharge, interior pipe, stanchion, beam</td><td>Place in the real room and drag to the planned installation point.</td></tr>
+          </tbody>
+        </table>
+        <h3>Select, move, and edit</h3>
+        <ol class="steps">
+          <li>Tap/click an item on the canvas. Its settings open in <strong>Details</strong>.</li>
+          <li>Drag the item to move it. For polygon rooms, drag a corner handle to reshape it.</li>
+          <li>Use Details for exact dimensions, quantities, room scope, wall work, and item notes.</li>
+          <li>Use the delete control in Details only after confirming the correct object is selected.</li>
+          <li>Use Undo if the result is wrong; use Redo if you reversed a correct edit.</li>
+        </ol>
+        <h3>Blueprint review</h3>
+        <ul class="checklist">
+          <li>Rooms are on the correct level.</li>
+          <li>Shared walls touch without large gaps or overlaps.</li>
+          <li>Doors and windows are on the correct wall.</li>
+          <li>Equipment and discharge paths are visible where crews expect them.</li>
+          <li>Wall-specific work highlights only the intended walls.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section searchable" id="wall-work" data-search="drywall wall cut cut height visual representation per wall per room carbon straps insulation bond pocket foam work order crew">
+        <h2>8. Record work by room and by wall</h2>
+        <p class="section-intro">Wall-specific selection is what turns a general estimate into useful crew instructions.</p>
+        <h3>Drywall cutting</h3>
+        <ol class="steps">
+          <li>Select the room receiving drywall work.</li>
+          <li>Enable drywall removal/cutting and enter the cut height.</li>
+          <li>Choose the wall-selection control, then tap each affected wall on the blueprint.</li>
+          <li>Confirm the selected walls have the active visual highlight. Tap a wrong wall again to remove it.</li>
+          <li>Review the calculated wall length/area and repeat for the next room.</li>
+          <li>Open the work order preview and confirm the room, cut height, and selected wall information are present.</li>
+        </ol>
+        <h3>Other wall work</h3>
+        <ul>
+          <li><strong>Carbon straps:</strong> use automatic spacing when appropriate; use a custom count only after field verification.</li>
+          <li><strong>Insulation:</strong> distinguish removal from new/blown insulation and set the affected room or wall scope.</li>
+          <li><strong>Foam and bond pockets:</strong> enter room-specific quantity and location notes.</li>
+          <li><strong>Structural work:</strong> place beams/posts on the drawing and add installation notes for the crew.</li>
+        </ul>
+        <div class="warning"><strong>Do not rely on notes alone.</strong> Select the affected room and wall whenever the tool supports it; then use notes for exceptions and field details.</div>
+      </section>
+
+      <section class="guide-section searchable" id="pricing" data-search="materials private cost customer price margin markup target tax labor rental catalog custom item dehumidifier air mover scrubber">
+        <h2>9. Review materials, labor, rentals, and pricing</h2>
+        <ol class="steps">
+          <li>Finish the room and scope review before pricing. A changed measurement can change quantities.</li>
+          <li>Open <strong>Materials and Internal Costing</strong>.</li>
+          <li>Review automatic materials against the actual scope. Correct the room/work selection that produced a wrong quantity.</li>
+          <li>Select <strong>Margin</strong> or <strong>Markup</strong> according to company rules, then set the target value.</li>
+          <li>Add labor using the company’s project, detailed, or combined method.</li>
+          <li>Add rentals such as dehumidifiers, air movers, scrubbers, and any approved delivery/handling charges.</li>
+          <li>Use catalog items where possible. Add a custom item with a clear customer description when no catalog item fits.</li>
+          <li>Set tax and verify the subtotal, tax, deposit, and total.</li>
+        </ol>
+        <div class="warning"><strong>Private screen:</strong> internal cost, margin, and markup may be restricted by permission and should not be shown in customer-facing mode.</div>
+      </section>
+
+      <section class="guide-section searchable" id="documents" data-search="documents shared scope proposal invoice work order customer price quantity checkbox status sent paid due date deposit payment terms crew print save pdf">
+        <h2>10. Build the proposal, invoice, and work order</h2>
+        <p class="section-intro">All three documents begin with one shared scope table. Review it before generating anything.</p>
+        <h3>Review the shared document scope</h3>
+        <ol class="steps">
+          <li>Tap <strong>Documents</strong>.</li>
+          <li>Read every scope description and confirm its quantity and customer price.</li>
+          <li>Use the <strong>Proposal/Invoice</strong> checkbox for customer-facing rows.</li>
+          <li>Use the <strong>Work Order</strong> checkbox for rows the crew must perform or know about.</li>
+          <li>Add a custom scope item only once; then choose which documents include it.</li>
+          <li>Remove duplicate or internal-only wording from customer rows.</li>
+        </ol>
+        <h3>Customer proposal</h3>
+        <ol class="steps">
+          <li>Enter/confirm proposal number, customer details, and the selected scope.</li>
+          <li>Choose whether to display blueprint, detailed pricing, totals, and terms.</li>
+          <li>Preview the proposal and check page breaks, customer spelling, scope, exclusions, total, and payment terms.</li>
+          <li>Use the browser print dialog to print or <strong>Save as PDF</strong>.</li>
+        </ol>
+        <h3>Invoice</h3>
+        <ol class="steps">
+          <li>Enter invoice number, due date, deposit/payment information, and payment terms.</li>
+          <li>Set status to Draft, Sent, Partially paid, or Paid as the invoice progresses.</li>
+          <li>Confirm that only billable customer rows are selected.</li>
+          <li>Preview, then print or save as PDF. Reopen the saved job after payment updates and change the status.</li>
+        </ol>
+        <h3>Crew work order</h3>
+        <ol class="steps">
+          <li>Open <strong>Work Order</strong> and select the assigned crew.</li>
+          <li>Select the rooms and tasks included in this visit.</li>
+          <li>Add instructions for access, protection, sequencing, disposal, equipment, and customer restrictions.</li>
+          <li>Confirm that room dimensions, wall-specific cuts, equipment, and selected scope are visible.</li>
+          <li>Choose <strong>Generate & Print</strong> and save or distribute the packet according to company policy.</li>
+        </ol>
+        <div class="success"><strong>Consistency check:</strong> proposal and invoice should agree on customer scope and price; the work order can include extra non-priced crew instructions.</div>
+      </section>
+
+      <section class="guide-section searchable" id="saving" data-search="autosave cloud local save project load project json backup trash recovery delete undo dashboard restore">
+        <h2>11. Save, export, recover, or remove a job</h2>
+        <h3>Normal saving</h3>
+        <ul>
+          <li>RoomFlow autosaves working data locally and syncs cloud jobs when you are signed in and connected. Wait for <strong>Cloud Online</strong> before closing the source device.</li>
+          <li>On another PC or mobile device, sign in to the same company and choose <strong>Jobs â†’ Refresh Shared</strong>. Cloud jobs restore the layout; permitted financial users also receive protected costing, and saved estimate drafts restore their lines.</li>
+          <li><strong>Save Project</strong> downloads a <code>roomflow_project.json</code> backup.</li>
+          <li><strong>Load Project</strong> imports a previously exported RoomFlow JSON file.</li>
+          <li>Before closing a device in weak service, export a JSON backup and confirm the job card exists.</li>
+        </ul>
+        <h3>Remove a job from the RoomFlow Jobs dashboard</h3>
+        <ol class="steps">
+          <li>Open <strong>Jobs</strong> and find the correct card.</li>
+          <li>Use its delete/remove action and confirm.</li>
+          <li>The dashboard sends the job to <strong>More → Trash & Recovery</strong> when recovery is supported.</li>
+          <li>Use <strong>Undo</strong> immediately or open Trash & Recovery to restore it.</li>
+        </ol>
+        <div class="warning"><strong>Dashboard removal and Tracker deletion are different.</strong> Dashboard trash is recoverable. Tracker deletion removes the shared cloud job permanently after permission, safety, and typed-confirmation checks.</div>
+      </section>
+
+      <section class="guide-section searchable" id="tracker" data-search="tracker jobs equipment dropoffs delete permanent delete_jobs type DELETE deployed add edit status search filter refresh carousel zapier health">
+        <h2>12. Use RoomFlow Tracker</h2>
+        <p class="section-intro">Tracker uses the same RoomFlow sign-in and company. It is the office/TV view for jobs, shared equipment, drop-offs, and intake health.</p>
+        <h3>Jobs</h3>
+        <ol class="steps">
+          <li>Open Tracker, sign in, and choose the correct company.</li>
+          <li>Search by customer, address, or phone, or filter by job status.</li>
+          <li>Use <strong>Add Job</strong> for a manual job, or edit an existing card to update contact, issue, appointment, notes, or status.</li>
+          <li>Use <strong>Refresh</strong> to request the newest cloud data. The board may rotate pages automatically; pause rotation when editing or reading.</li>
+          <li>Watch the <strong>Zapier intake</strong> health strip for the latest delivery status.</li>
+        </ol>
+        <h3>Permanently delete a Tracker job</h3>
+        <ol class="steps">
+          <li>Open the job card and choose <strong>Delete</strong>.</li>
+          <li>Read the customer/job name in the confirmation screen.</li>
+          <li>If equipment is actively dropped off to that job, pick it up or reassign it first. Tracker blocks deletion to protect inventory records.</li>
+          <li>Type <strong>DELETE</strong> exactly and confirm permanent deletion.</li>
+          <li>If Delete is unavailable, an administrator must grant your role the <code>delete_jobs</code> capability.</li>
+        </ol>
+        <div class="warning"><strong>Permanent means permanent:</strong> Tracker cloud deletion does not move the job to RoomFlow Trash. Export anything you must retain before confirming.</div>
+        <h3>Equipment Inventory</h3>
+        <ol class="steps">
+          <li>Open <strong>Equipment</strong> and choose <strong>Add Equipment Type</strong>.</li>
+          <li>Enter a clear equipment name and total owned quantity.</li>
+          <li>Edit the item when inventory changes. Tracker calculates deployed and available counts from active drop-offs.</li>
+        </ol>
+        <h3>Drop-offs</h3>
+        <ol class="steps">
+          <li>Open <strong>Drop-offs</strong> and choose <strong>New Drop-off</strong>.</li>
+          <li>Select the job, equipment/items, quantity, drop-off time, expected pickup, location, and notes.</li>
+          <li>Confirm the drop-off; available inventory updates.</li>
+          <li>When equipment returns, open the deployment and mark it picked up. Verify available quantity increased.</li>
+        </ol>
+      </section>
+
+      <section class="guide-section searchable" id="zapier" data-search="zapier gmail outreachgenius email webhook intake secret endpoint floodman caller message id body plain html refresh activity deployment edge function rotate secret">
+        <h2>13. Connect Gmail/OutreachGenius through Zapier</h2>
+        <p class="section-intro">The Zap watches caller emails, sends the original email data to RoomFlow’s protected intake endpoint, and RoomFlow parses it into a job/lead.</p>
+        <div class="warning"><strong>Security first:</strong> a webhook secret is a password. If it was pasted in chat, email, screenshots, or another public location, rotate it in RoomFlow/Supabase and replace it in Zapier. Never place it in the JSON body.</div>
+        <h3>Before building the Zap</h3>
+        <ol class="steps">
+          <li>Have an administrator deploy the current Supabase <strong>intake-lead</strong> Edge Function and database migrations.</li>
+          <li>In RoomFlow, open <strong>Settings → Email Intake / Zapier</strong>.</li>
+          <li>Create or rotate the endpoint secret and copy the full POST URL and secret immediately.</li>
+          <li>Store the secret in Zapier’s request header. RoomFlow cannot display the secret again.</li>
+        </ol>
+        <h3>Build the Zap</h3>
+        <ol class="steps">
+          <li>Trigger app: <strong>Gmail</strong>. Event: <strong>New Email Matching Search</strong>.</li>
+          <li>Set a narrow Gmail search for the caller-notification sender/subject so unrelated email is never sent.</li>
+          <li>Test the trigger with a real OutreachGenius/caller email.</li>
+          <li>Action app: <strong>Webhooks by Zapier</strong>. Event: <strong>POST</strong>.</li>
+          <li>Paste the RoomFlow POST URL.</li>
+          <li>Set payload type to JSON and send Gmail’s stable message ID, sender, subject, body plain, and body HTML. Include the lead source when available.</li>
+          <li>Add request header <code>x-roomflow-webhook-secret</code> with the secret and <code>Content-Type: application/json</code>.</li>
+          <li>Test the action. A successful result reports <code>ok: true</code>, a job ID, normalized fields, and any parsing warnings.</li>
+          <li>Publish the Zap, send one new test caller email, and verify it in both RoomFlow inbound leads and Tracker.</li>
+        </ol>
+        <h3>Recommended JSON mapping</h3>
+        <pre style="overflow:auto;padding:1rem;border:1px solid var(--line);border-radius:10px;background:#07101d;color:#dbeafe"><code>{
+  "source_message_id": "{{Gmail Message ID}}",
+  "source_sender": "{{From Email}}",
+  "source_subject": "{{Subject}}",
+  "body_plain": "{{Body Plain}}",
+  "body_html": "{{Body HTML}}",
+  "lead_source": "OutreachGenius"
+}</code></pre>
+        <div class="note">The repository includes <strong>ZAPIER_COPILOT_OUTREACHGENIUS.md</strong>, which can be supplied to Zapier Copilot as build instructions, plus <strong>ZAPIER_SETUP.md</strong> for deployment and error details.</div>
+        <h3>Verify and diagnose</h3>
+        <ol class="steps">
+          <li>RoomFlow: open Email Intake settings and choose <strong>Refresh Activity</strong>.</li>
+          <li>Tracker: inspect the <strong>Zapier intake</strong> health strip.</li>
+          <li>If a lead is missing, open Zapier Task History and inspect the HTTP status/response.</li>
+          <li><strong>401/403:</strong> replace the URL/secret, confirm the header name, and check endpoint permissions.</li>
+          <li><strong>400/422:</strong> map subject and original body fields; do not send only a formatted summary.</li>
+          <li><strong>Duplicate jobs:</strong> map Gmail’s stable Message ID so retries update the same intake record.</li>
+        </ol>
+      </section>
+
+      <section class="guide-section searchable" id="mobile" data-search="mobile phone tablet touch responsive tap drag landscape zoom keyboard safe phone workflow">
+        <h2>14. Work efficiently on a phone or tablet</h2>
+        <table class="compare">
+          <thead><tr><th>Task</th><th>Desktop</th><th>Phone/tablet</th></tr></thead>
+          <tbody>
+            <tr><td>Add an item</td><td>Drag the tool onto the canvas.</td><td>Tap the tool, then tap the desired canvas location.</td></tr>
+            <tr><td>Move an item</td><td>Click and drag.</td><td>Tap to select, then drag with one finger.</td></tr>
+            <tr><td>Precise drawing</td><td>Mouse plus zoom/grid.</td><td>Use landscape orientation, zoom in, and place one corner at a time.</td></tr>
+            <tr><td>Navigate</td><td>Top and side controls.</td><td>Use the bottom Jobs/Project/Add/Review/More navigation.</td></tr>
+          </tbody>
+        </table>
+        <ul class="checklist">
+          <li>Use landscape orientation for CAD and odd-shaped rooms.</li>
+          <li>The top controls collapse on phones and wrap into a second row on narrower desktops; use the bottom navigation for the full guided workflow.</li>
+          <li>Close the phone keyboard after entering dimensions so the canvas has more space.</li>
+          <li>Zoom in before selecting a short wall or small opening.</li>
+          <li>Wait for save/sync confirmation before changing networks or closing the browser.</li>
+          <li>Use a JSON export when working in an area with unreliable cellular service.</li>
+          <li>Preview documents before sharing; phone print dialogs can change page scaling.</li>
+        </ul>
+      </section>
+
+      <section class="guide-section searchable" id="townsquare" data-search="townsquare draft estimate create update browser bridge extension chrome edge api mapping customer property manual send android queue">
+        <h2>15. Create or update a Townsquare draft</h2>
+        <div class="warning"><strong>Draft only:</strong> RoomFlow never sends, issues, approves, emails, accepts, or charges a Townsquare estimate. Review and send it manually inside Townsquare.</div>
+        <h3>One-time company setup</h3>
+        <ol class="steps">
+          <li>An integration manager opens <strong>More → Townsquare Interactive</strong>.</li>
+          <li>Turn on the integration and choose <strong>Auto</strong> or <strong>Browser Bridge</strong>. Current official API documentation does not include a separate service-property endpoint, so Auto uses Browser Bridge for the complete workflow.</li>
+          <li>Enter the HTTPS Townsquare business-management destination and save.</li>
+          <li>On desktop Chrome or Edge, install the unpacked extension from <code>townsquare-bridge-extension</code>.</li>
+          <li>Open the extension popup, save the same Townsquare URL, and grant access to that site.</li>
+          <li>Sign in to Townsquare normally. The extension does not read your password or export cookies.</li>
+          <li>Choose <strong>Start Guided Mapping</strong>. Click each requested Townsquare control, then finish the mapping.</li>
+        </ol>
+        <h3>Create the first draft</h3>
+        <ol class="steps">
+          <li>Finish the RoomFlow customer and complete service address.</li>
+          <li>Add at least one estimate item. Verify quantity, unit price, discount, tax, and total.</li>
+          <li>Save the RoomFlow draft.</li>
+          <li>Press <strong>Create Townsquare Draft</strong>.</li>
+          <li>Watch the progress dialog. If several customers or properties match, select the correct record; RoomFlow never merges them automatically.</li>
+          <li>Townsquare opens in the authenticated desktop browser. Do not close the tab while the bridge is working.</li>
+          <li>RoomFlow shows <strong>Draft Created</strong> only after Townsquare confirms a draft ID, DRAFT status, and the same total.</li>
+          <li>Choose <strong>Review in Townsquare</strong>. Make the final review and send manually when ready.</li>
+        </ol>
+        <h3>Update an existing draft</h3>
+        <ol class="steps">
+          <li>Change and save the RoomFlow estimate.</li>
+          <li>Press <strong>Update Townsquare Draft</strong>.</li>
+          <li>RoomFlow uses the saved Townsquare estimate ID. If the mapped draft cannot be found, the workflow stops instead of creating a duplicate.</li>
+          <li>If Townsquare says the estimate is issued, accepted, rejected, paid, cancelled, expired, or otherwise finalized, RoomFlow will not overwrite it.</li>
+        </ol>
+        <h3>Android</h3>
+        <p>Desktop extensions do not run inside Android apps or normal Android WebViews. When an always-on Sync Station is paired, Android queues the Townsquare draft directly to that station. Without a paired station, open the same estimate in desktop RoomFlow with Chrome or Edge and run the draft action there.</p>
+        <div class="note">If Townsquare changes its page, open RoomFlow Settings and choose <strong>Test / Reset Mapping</strong>. Only selector settings are saved; customer and estimate payloads remain temporary.</div>
+      </section>
+
+      <section class="guide-section searchable" id="troubleshooting" data-search="troubleshooting missing job item not appear proposal invoice work order cannot delete room centered sync offline camera lidar login blank stale cache">
+        <h2>16. Troubleshooting</h2>
+        <details open>
+          <summary>I added an item, but it is missing from a proposal, invoice, or work order.</summary>
+          <ol>
+            <li>Open <strong>Documents</strong> and find the row in the shared scope.</li>
+            <li>Check <strong>Proposal/Invoice</strong> and/or <strong>Work Order</strong> for that row.</li>
+            <li>Confirm quantity is above zero and customer price is set when needed.</li>
+            <li>Regenerate the document; do not rely on an older preview/PDF.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>I cannot delete a job in Tracker.</summary>
+          <ol>
+            <li>Confirm the current deployed version includes permanent job deletion.</li>
+            <li>Make sure your role has <code>delete_jobs</code>.</li>
+            <li>Pick up/reassign any active equipment deployment for the job.</li>
+            <li>Type <strong>DELETE</strong> exactly in the confirmation.</li>
+            <li>If it still fails, capture the displayed error and ask an administrator to review Supabase permissions/logs.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>An angled room starts or appears in the wrong place.</summary>
+          <ol>
+            <li>Use the current RoomFlow version, select <strong>Draw Angled Room</strong>, and tap the intended first point.</li>
+            <li>Finish the polygon, select it, and drag the whole room or individual corners.</li>
+            <li>If point order is wrong or lines cross, use Undo and redraw the outline in order.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>A Zapier caller email did not arrive.</summary>
+          <ol>
+            <li>Refresh RoomFlow intake activity and Tracker.</li>
+            <li>Check Zapier Task History and read the response.</li>
+            <li>Confirm the Gmail trigger matched the email and the action sent the original subject/body.</li>
+            <li>For 401/403, update the secret header. For parsing warnings, add body plain/body HTML.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>A job is missing or seems out of date.</summary>
+          <ol>
+            <li>Confirm that both devices use a RoomFlow sign-in and the exact same active company.</li>
+            <li>On the source device, reconnect and wait for <strong>Cloud Online</strong>.</li>
+            <li>On the receiving device, open Jobs, choose <strong>Refresh Shared</strong>, and remove search filters.</li>
+            <li>Look for the <strong>Cloud Shared</strong> badge. A <strong>Local</strong> badge means that copy has not completed cloud sync.</li>
+            <li>Check <strong>More → Trash & Recovery</strong>.</li>
+            <li>If offline, reconnect and allow sync to finish. Use Load Project if you exported a JSON backup.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>A Townsquare draft did not complete.</summary>
+          <ol>
+            <li>Confirm the desktop extension is installed and its popup shows the correct Townsquare destination.</li>
+            <li>Sign in to Townsquare normally, then retry from RoomFlow.</li>
+            <li>If a required control is missing, run <strong>Test / Reset Mapping</strong> and map the named control.</li>
+            <li>If totals differ, compare tax, discount, quantities, and prices in both systems. RoomFlow stops before claiming success.</li>
+            <li>If the existing estimate is finalized, review it in Townsquare; RoomFlow will not overwrite it.</li>
+            <li>An integration manager can open <strong>View Diagnostics</strong>. Logs are sanitized and do not contain credentials or cookies.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Camera/AR/LiDAR scanning is unavailable.</summary>
+          <ol>
+            <li>Open <strong>More → Diagnostics</strong> and check device/browser support and permission.</li>
+            <li>Allow camera access in browser/device settings and use a secure HTTPS site.</li>
+            <li>Reload RoomFlow. If scanning remains unavailable, use manual dimensions or CAD drawing; job data is not lost.</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="guide-section searchable" id="closeout" data-search="final checklist finish quality control customer crew office">
+        <h2>17. Final quality-control checklist</h2>
+        <ul class="checklist">
+          <li>Correct customer, address, phone, email, estimator, and company.</li>
+          <li>Every work level and room is present with verified dimensions.</li>
+          <li>Odd-shaped rooms do not overlap and are attached correctly.</li>
+          <li>Doors, windows, equipment, and structural items are placed correctly.</li>
+          <li>Drywall and other wall work identifies the exact room, walls, and cut height.</li>
+          <li>Materials, labor, rentals, custom items, margin/markup, and tax are reviewed.</li>
+          <li>The shared Documents scope has correct quantities, prices, and inclusion checkboxes.</li>
+          <li>Proposal and invoice customer scope/pricing agree.</li>
+          <li>If Townsquare is used, the draft status and total are confirmed and the final send remains manual.</li>
+          <li>Work order contains crew, rooms, dimensions, wall work, equipment, and access notes.</li>
+          <li>Job is saved, cloud sync is confirmed, and an export/PDF backup exists when required.</li>
+        </ul>
+        <p class="success"><strong>Done:</strong> once every item above is checked, the estimate is ready for customer and crew use.</p>
+      </section>
+      <p class="footer">RoomFlow Complete User Guide · Use the search box to find any workflow · Print / PDF creates an offline copy.</p>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      var input = document.getElementById('guide-search');
+      var status = document.getElementById('search-status');
+      var sections = Array.prototype.slice.call(document.querySelectorAll('.searchable'));
+      document.getElementById('print-guide').addEventListener('click', function () { window.print(); });
+      input.addEventListener('input', function () {
+        var query = input.value.trim().toLowerCase();
+        var visible = 0;
+        sections.forEach(function (section) {
+          var haystack = ((section.getAttribute('data-search') || '') + ' ' + section.textContent).toLowerCase();
+          var terms = query.split(/\s+/).filter(Boolean);
+          var matches = !query || terms.every(function (term) { return haystack.indexOf(term) !== -1; });
+          section.classList.toggle('is-hidden', !matches);
+          if (matches) visible += 1;
+        });
+        status.textContent = query ? visible + ' guide section' + (visible === 1 ? '' : 's') + ' found.' : 'Search all instructions.';
+      });
+    }());
+  </script>
+</body>
+</html>
