@@ -347,6 +347,54 @@ def validate_openings(
     return result
 
 
+def validate_affected_areas(
+    affected_areas: Iterable[Mapping[str, Any]],
+    vertices: Iterable[Mapping[str, Any] | Sequence[float] | Point],
+    height_feet: float,
+    openings: Iterable[Mapping[str, Any]] = (),
+) -> list[dict[str, Any]]:
+    polygon = validate_polygon(vertices)
+    lengths = segment_lengths(polygon)
+    height = _finite(height_feet, "room height")
+    normalized_openings = validate_openings(openings, polygon, height)
+    opening_ids = {value["id"] for value in normalized_openings}
+    result: list[dict[str, Any]] = []
+    for index, source in enumerate(affected_areas):
+        value = dict(source)
+        surface = str(value.get("surface") or "").strip().lower()
+        if surface not in {"floor", "ceiling", "wall", "opening"}:
+            raise CaptureValidationError(f"affected area {index + 1} has an unsupported surface")
+        scope = str(value.get("scope") or "").strip()
+        if not scope or len(scope) > 80:
+            raise CaptureValidationError(f"affected area {index + 1} requires a scope")
+        percent = _finite(value.get("percent", 100), f"affected area {index + 1} percent")
+        if percent < 0 or percent > 100:
+            raise CaptureValidationError(f"affected area {index + 1} percent must be between 0 and 100")
+        value.update({"surface": surface, "scope": scope, "percent": percent})
+        if surface == "wall":
+            wall_index = int(value.get("wallSegmentIndex", -1))
+            if wall_index < 0 or wall_index >= len(lengths):
+                raise CaptureValidationError(f"affected area {index + 1} must reference an existing wall")
+            value["wallSegmentIndex"] = wall_index
+            maximum_area = lengths[wall_index] * height
+        elif surface == "opening":
+            opening_id = str(value.get("openingId") or "")
+            if opening_id not in opening_ids:
+                raise CaptureValidationError(f"affected area {index + 1} must reference an existing opening")
+            value["openingId"] = opening_id
+            opening = next(item for item in normalized_openings if item["id"] == opening_id)
+            maximum_area = opening["width"] * opening["height"]
+        else:
+            maximum_area = polygon_area(polygon)
+        if "area" in value:
+            area = _finite(value["area"], f"affected area {index + 1} area")
+            if area < 0 or area > maximum_area + POINT_EPSILON:
+                raise CaptureValidationError(f"affected area {index + 1} exceeds its surface")
+            value["area"] = area
+        result.append(value)
+    return result
+
+
 def surface_measurements(
     vertices: Iterable[Mapping[str, Any] | Sequence[float] | Point], height_feet: float, openings: Iterable[Mapping[str, Any]] = ()
 ) -> dict[str, float]:
@@ -457,7 +505,7 @@ def migrate_capture_room(room: Mapping[str, Any]) -> dict[str, Any]:
             "height": height,
             "vertices": normalized_vertices,
             "openings": normalized_openings,
-            "affectedAreas": deepcopy(result.get("affectedAreas") or []),
+            "affectedAreas": validate_affected_areas(result.get("affectedAreas") or [], normalized_points, height, normalized_openings),
             "scanMetadata": metadata,
             "w": bounds["width"],
             "l": bounds["length"],

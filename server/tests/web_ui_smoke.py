@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import re
 import shutil
 import socket
@@ -63,6 +64,7 @@ class FakeProviders:
 
 def seed(main: Any) -> dict[str, Any]:
     owner = main.store.create_owner("UI Smoke Owner", "owner@example.test", "Floodman-Test-2026!")
+    workspace = main.ensure_roomflow_workspaces(main.store, actor_id=str(owner["id"]))[0]
     contact = main.store.create_record(
         "contacts",
         {
@@ -160,7 +162,22 @@ def seed(main: Any) -> dict[str, Any]:
     )
     estimate = main._ensure_public_document("estimate", estimate, actor_id=owner["id"])
     invoice = main._ensure_public_document("invoice", invoice, actor_id=owner["id"])
-    return {"owner": owner, "contact": contact, "property": property_record, "estimate": estimate, "invoice": invoice, "payment": payment}
+    roomflow_job = main.store.create_record(
+        "roomflow_jobs",
+        {
+            "id": "browser-capture-job",
+            "roomflow_job_id": "browser-upstream-job",
+            "workspace_id": workspace["id"],
+            "contact_id": contact["id"],
+            "property_id": property_record["id"],
+            "estimate_id": estimate["id"],
+            "job_name": "Browser Capture Job",
+            "snapshot": {"rooms": [], "costing": {"customItems": []}},
+            "source": "TEST_FIXTURE",
+        },
+        actor_id=owner["id"],
+    )
+    return {"owner": owner, "contact": contact, "property": property_record, "estimate": estimate, "invoice": invoice, "payment": payment, "workspace": workspace, "roomflow_job": roomflow_job}
 
 
 def route_smoke(main: Any, records: dict[str, Any]) -> None:
@@ -270,6 +287,8 @@ def static_overlay_contracts() -> None:
         "pwa_css": (ROOT / "pwa" / "floodman-pwa.css").read_text(encoding="utf-8"),
         "panel_js": (ROOT / "roomflow" / "floodman-panel.js").read_text(encoding="utf-8"),
         "panel_css": (ROOT / "roomflow" / "floodman-panel.css").read_text(encoding="utf-8"),
+        "capture_js": (ROOT / "roomflow" / "capture" / "roomflow-capture.js").read_text(encoding="utf-8"),
+        "capture_css": (ROOT / "roomflow" / "capture" / "roomflow-capture.css").read_text(encoding="utf-8"),
         "legacy_js": (ROOT / "roomflow" / "floodman-roomflow.js").read_text(encoding="utf-8"),
         "legacy_css": (ROOT / "roomflow" / "floodman-roomflow.css").read_text(encoding="utf-8"),
         "hub_js": (ROOT / "hub" / "hub.js").read_text(encoding="utf-8"),
@@ -290,6 +309,10 @@ def static_overlay_contracts() -> None:
     assert "btn-more-create-company" in sources["panel_js"] and "changeWorkspace" in sources["panel_js"]
     assert "/office/api/roomflow/workspaces" in sources["office"]
     assert ":not(.fm-rf-panel-dismissed)" in sources["panel_css"]
+    assert "RoomFlowCaptureBridgeV2" in sources["capture_js"] and "bridgeVersion: 2" in sources["capture_js"]
+    assert "Camera-derived dimensions are estimates" in sources["capture_js"]
+    assert "dialog.addEventListener('cancel'" in sources["capture_js"] and "closeDialog" in sources["capture_js"]
+    assert "@media (max-width: 720px)" in sources["capture_css"] and "100dvh" in sources["capture_css"]
     assert "fmrf-close-icon" in sources["legacy_js"] and "aria-label','Close save dialog" in sources["legacy_js"]
     assert "e.key === 'Escape'" in sources["legacy_js"] and "fmrf-modal-open" in sources["legacy_css"]
     assert "aria-modal" in sources["hub_js"] and "Back to Floodman" in sources["hub_js"]
@@ -331,6 +354,9 @@ def build_browser_app(main: Any) -> Any:
         "/hub.js": ROOT / "hub" / "hub.js",
         "/roomflow/floodman-panel.css": ROOT / "roomflow" / "floodman-panel.css",
         "/roomflow/floodman-panel.js": ROOT / "roomflow" / "floodman-panel.js",
+        "/roomflow/roomflow-capture.css": ROOT / "roomflow" / "capture" / "roomflow-capture.css",
+        "/roomflow/roomflow-capture-geometry.js": ROOT / "roomflow" / "capture" / "roomflow-capture-geometry.js",
+        "/roomflow/roomflow-capture.js": ROOT / "roomflow" / "capture" / "roomflow-capture.js",
         "/legacy-roomflow.css": ROOT / "roomflow" / "floodman-roomflow.css",
         "/legacy-roomflow.js": ROOT / "roomflow" / "floodman-roomflow.js",
     }
@@ -357,7 +383,9 @@ def build_browser_app(main: Any) -> Any:
 
     @app.get("/roomflow/")
     def roomflow_fixture() -> HTMLResponse:
-        return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link rel='stylesheet' href='/roomflow/floodman-panel.css'></head><body><main><h1>RoomFlow fixture</h1><canvas id='sketch-canvas' width='320' height='240'></canvas><div class='checklist-room-card'><h3>Active Workspaces</h3><p>Legacy account controls</p><select id='more-company-switcher'><option value=''>Select...</option></select><input id='more-new-company-name'><button id='btn-more-create-company'>Create</button><button onclick='RoomFlowAuth.signOut()'>Log Out from Account</button></div><button id='btn-refresh-shared-jobs'>Refresh Shared Jobs</button></main><div id='auth-overlay' class='hidden' style='display:none'>Separate RoomFlow account required</div><script>window.state={currentJobName:'UI Fixture',costing:{customItems:[]}};window.switchTab=function(){};window.RoomFlowAuth={signOut:function(){}};window.__legacyAccountPrompted=false;document.addEventListener('DOMContentLoaded',function(){document.getElementById('btn-more-create-company').addEventListener('click',function(){window.__legacyAccountPrompted=true;document.getElementById('auth-overlay').style.display='flex';});});</script><script src='/roomflow/floodman-panel.js'></script></body></html>""")
+        workspace = main.store.records("roomflow_workspaces")[0]
+        fixture_state = json.dumps({"currentJobName": "UI Fixture", "jobId": "browser-upstream-job", "floodmanRoomFlowJobId": "browser-capture-job", "workspaceId": workspace["id"], "organizationId": workspace["id"], "currentLevelId": "basement", "costing": {"customItems": []}})
+        return HTMLResponse(f"""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><link rel='stylesheet' href='/roomflow/floodman-panel.css'><link rel='stylesheet' href='/roomflow/roomflow-capture.css'></head><body><main><h1>RoomFlow fixture</h1><canvas id='sketch-canvas' width='320' height='240'></canvas><div class='checklist-room-card'><h3>Active Workspaces</h3><p>Legacy account controls</p><select id='more-company-switcher'><option value=''>Select...</option></select><input id='more-new-company-name'><button id='btn-more-create-company'>Create</button><button onclick='RoomFlowAuth.signOut()'>Log Out from Account</button></div><button id='btn-refresh-shared-jobs'>Refresh Shared Jobs</button></main><div id='auth-overlay' class='hidden' style='display:none'>Separate RoomFlow account required</div><script>window.state={fixture_state};window.switchTab=function(){{}};window.RoomFlowAuth={{signOut:function(){{}}}};window.__legacyAccountPrompted=false;window.autosaveJob=function(){{}};window.draw=function(){{}};document.addEventListener('DOMContentLoaded',function(){{document.getElementById('btn-more-create-company').addEventListener('click',function(){{window.__legacyAccountPrompted=true;document.getElementById('auth-overlay').style.display='flex';}});}});</script><script src='/roomflow/floodman-panel.js'></script><script src='/roomflow/roomflow-capture-geometry.js'></script><script src='/roomflow/roomflow-capture.js'></script></body></html>""")
 
     @app.get("/legacy-roomflow")
     def legacy_roomflow_fixture() -> HTMLResponse:
@@ -442,6 +470,61 @@ def browser_smoke(main: Any) -> None:
             page.goto(base + "/roomflow/", wait_until="domcontentloaded")
             panel = page.locator("#fm-roomflow-panel")
             panel.wait_for(state="visible")
+            capture_launch = page.locator("#fm-capture-launch")
+            capture_launch.wait_for(state="visible")
+            capture_launch.click()
+            capture_dialog = page.locator("#fm-capture-dialog")
+            capture_dialog.wait_for(state="visible")
+            page.get_by_role("button", name="Enter room manually").click()
+            page.locator("#fm-capture-manual-form input[name='name']").fill("Basement Recreation Room")
+            page.locator("#fm-capture-next").click()
+            assert "120 sq ft" in capture_dialog.inner_text()
+            assert "44 ft" in capture_dialog.inner_text()
+            first_wall = page.locator("[data-wall-length='0']")
+            first_wall.fill("11")
+            first_wall.press("Tab")
+            page.get_by_role("button", name="Undo").click()
+            assert "120 sq ft" in capture_dialog.inner_text()
+            page.get_by_role("button", name="Redo").click()
+            page.locator("#fm-capture-opening-form button[type='submit']").click()
+            assert "door · wall 1" in capture_dialog.inner_text().lower()
+            page.locator("#fm-capture-opening-form select[name='type']").select_option("window")
+            page.locator("#fm-capture-opening-form input[name='width']").fill("2")
+            page.locator("#fm-capture-opening-form input[name='openingHeight']").fill("2")
+            page.locator("#fm-capture-opening-form input[name='sillHeight']").fill("3")
+            page.locator("#fm-capture-opening-form button[type='submit']").click()
+            assert "window · wall 1" in capture_dialog.inner_text().lower()
+            page.locator("#fm-capture-next").click()
+            page.locator("#fm-capture-affected-form input[name='floor']").check()
+            page.locator("#fm-capture-affected-form input[name='wall']").first.check()
+            quantities = page.evaluate("window.RoomFlowCapture.estimateQuantities(window.RoomFlowCapture.state.room)")
+            assert quantities["floorSquareFeet"] > 0 and quantities["wallSquareFeet"] > 0
+            cost = page.evaluate("window.RoomFlowCapture.calculateCost(window.RoomFlowCapture.state.room,{floorPerSquareFoot:2.5,wallPerSquareFoot:1.25})")
+            assert cost["total"] > 0 and cost["lines"][0]["unit"] == "SF"
+            page.locator("#fm-capture-next").click()
+            page.get_by_text("is saved.").wait_for(state="visible")
+            page.get_by_role("button", name="Done").click()
+            assert capture_dialog.is_hidden()
+
+            page.reload(wait_until="domcontentloaded")
+            page.locator("#fm-capture-launch").wait_for(state="visible")
+            page.locator("#fm-capture-launch").click()
+            page.get_by_text("Basement Recreation Room").wait_for(state="visible")
+            page.locator("#fm-capture-close").click()
+
+            page.locator("#fm-capture-launch").click()
+            page.evaluate("""window.RoomFlowCapture.acceptNativeResult({captureMode:'simulated-native',room:{units:'ft',roomId:'simulated-native-room',name:'Simulated Native Room',roomType:'bedroom',levelId:'main',height:8,vertices:[{x:0,y:0,confidence:.9},{x:6,y:0,confidence:.9},{x:6,y:6,confidence:.9},{x:0,y:6,confidence:.9}],openings:[],affectedAreas:[],scanMetadata:{captureMode:'simulated-native',platform:'android',pointCount:4,averageConfidence:.9,depthValidatedPointCount:0,automaticCorrectionCount:0,manualCorrectionCount:0,verificationRequired:true,rawCaptureRetained:false}}})""")
+            page.get_by_text("36 sq ft").wait_for(state="visible")
+            page.locator("#fm-capture-close").click()
+
+            page.locator("#fm-capture-launch").click()
+            page.get_by_role("button", name="Enter room manually").click()
+            page.locator("#fm-capture-shape").select_option("l-shape")
+            page.locator("#fm-capture-manual-form input[name='length']").fill("10")
+            page.locator("#fm-capture-next").click()
+            page.get_by_text("75 sq ft").wait_for(state="visible")
+            page.locator("#fm-capture-close").click()
+
             page.locator("#more-new-company-name").fill("Browser RoomFlow Company")
             page.locator("#btn-more-create-company").click()
             page.wait_for_function("document.querySelector('#more-company-switcher')?.value && document.querySelector('#more-company-switcher')?.selectedOptions[0]?.textContent === 'Browser RoomFlow Company'")
@@ -493,6 +576,18 @@ def browser_smoke(main: Any) -> None:
             assert not mobile_page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 2"), "mobile RoomFlow horizontal overflow"
             mobile_page.locator("#fm-rf-close-panel").click()
             assert mobile_page.locator("#fm-roomflow-panel").get_attribute("aria-hidden") == "true"
+
+            for width in (320, 360, 390, 430):
+                mobile_page.set_viewport_size({"width": width, "height": 844})
+                mobile_page.goto(base + "/roomflow/", wait_until="domcontentloaded")
+                mobile_page.locator("#fm-capture-launch").wait_for(state="visible")
+                mobile_page.locator("#fm-capture-launch").click()
+                mobile_dialog = mobile_page.locator("#fm-capture-dialog")
+                mobile_dialog.wait_for(state="visible")
+                assert mobile_page.locator("#fm-capture-close").is_visible(), f"capture close is hidden at {width}px"
+                assert mobile_dialog.evaluate("node => node.scrollWidth <= node.clientWidth + 2"), f"capture dialog overflow at {width}px"
+                mobile_page.keyboard.press("Escape")
+                assert mobile_dialog.is_hidden(), f"capture dialog did not close at {width}px"
 
             mobile_page.close()
             desktop.close()

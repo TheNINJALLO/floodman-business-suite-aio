@@ -164,6 +164,9 @@ def inject_panel(target: Path, overlay: Path) -> None:
     repair_job_list_renderers(target)
     shutil.copy2(overlay / "floodman-panel.css", target / "floodman-panel.css")
     shutil.copy2(overlay / "floodman-panel.js", target / "floodman-panel.js")
+    shutil.copy2(overlay / "capture" / "roomflow-capture.css", target / "roomflow-capture.css")
+    shutil.copy2(overlay / "capture" / "roomflow-capture-geometry.js", target / "roomflow-capture-geometry.js")
+    shutil.copy2(overlay / "capture" / "roomflow-capture.js", target / "roomflow-capture.js")
 
     index = target / "index.html"
     text = index.read_text(encoding="utf-8", errors="replace")
@@ -172,8 +175,14 @@ def inject_panel(target: Path, overlay: Path) -> None:
         text = text.replace("</head>", '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n</head>', 1)
     if "floodman-panel.css" not in text:
         text = text.replace("</head>", f'<link rel="stylesheet" href="floodman-panel.css?v={RELEASE}">\n</head>', 1)
+    if "roomflow-capture.css" not in text:
+        text = text.replace("</head>", f'<link rel="stylesheet" href="roomflow-capture.css?v={RELEASE}">\n</head>', 1)
     if "floodman-panel.js" not in text:
         text = text.replace("</body>", f'<script src="floodman-panel.js?v={RELEASE}"></script>\n</body>', 1)
+    if "roomflow-capture-geometry.js" not in text:
+        text = text.replace("</body>", f'<script src="roomflow-capture-geometry.js?v={RELEASE}"></script>\n</body>', 1)
+    if "roomflow-capture.js" not in text:
+        text = text.replace("</body>", f'<script src="roomflow-capture.js?v={RELEASE}"></script>\n</body>', 1)
     index.write_text(text, encoding="utf-8")
 
     config = target / "config.js"
@@ -206,6 +215,7 @@ if (window.RoomFlowConfig) {{
         "prepared_by": "Floodman Operations",
         "created_by": "Josh Aldrich",
         "timezone": "America/Detroit",
+        "capture_schema_version": 2,
     }
     (target / ".floodman-roomflow.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     validate_web_runtime(target)

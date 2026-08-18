@@ -23,7 +23,7 @@
     'doors','windows','openings','stairs','floorHatches','utilities','sumpPumps','dehumidifiers','dischargeLines',
     'interiorPipes','stanchions','mainBeams','capturedMeasurements','costing','createdTimestamp','updatedTimestamp',
     'revisionNumber','leadIntake','currentJobName','jobId','syncState','floodmanContactId','floodmanPropertyId',
-    'floodmanEstimateId','floodmanEstimateUrl','floodmanLink'
+    'floodmanEstimateId','floodmanEstimateUrl','floodmanLink','floodmanRoomFlowJobId','captureSchemaVersion','captureRevision'
   ];
   function roomflowSnapshot() {
     const state = appState(); const result = {};
@@ -561,7 +561,7 @@
       const data = await fetchJson(`${API}/jobs/${encodeURIComponent(jobId)}`); const job = data.job || {};
       if (job.snapshot && typeof window.loadJobData === 'function') window.loadJobData(job.snapshot);
       else if (job.snapshot) Object.assign(appState(), JSON.parse(JSON.stringify(job.snapshot)));
-      appState().jobId = job.roomflow_job_id || appState().jobId; appState().currentJobName = job.job_name || appState().currentJobName;
+      appState().jobId = job.roomflow_job_id || appState().jobId; appState().floodmanRoomFlowJobId = job.id; appState().currentJobName = job.job_name || appState().currentJobName;
       model.lastJobKey = currentJobKey();
       if (job.contact_id) await selectCustomer(job.contact_id, { silent: true });
       if (job.property_id) await selectProperty(job.property_id, { silent: true });
@@ -613,7 +613,7 @@
       };
       const data = await fetchJson(`${API}/sync`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
       const estimateUrl = data.estimate_url || data.urls?.estimate || `/office/estimates/${encodeURIComponent(data.estimate_id)}`;
-      state.floodmanEstimateId = data.estimate_id; state.floodmanEstimateUrl = estimateUrl; window.autosaveJob?.();
+      state.floodmanEstimateId = data.estimate_id; state.floodmanEstimateUrl = estimateUrl; state.floodmanRoomFlowJobId = data.roomflow_job?.id || state.floodmanRoomFlowJobId; window.autosaveJob?.();
       const result = $('#fm-rf-sync-result'); if (result) result.innerHTML = `Estimate <a class="fm-rf-link" href="${escapeHtml(estimateUrl)}" target="_top">${escapeHtml(data.estimate_number)}</a> synced. ${data.erp_synced ? 'Floodman ERP is linked.' : escapeHtml(data.warning || (data.warnings || []).join(' ') || '')}`;
       setStatus(data.created ? 'RoomFlow estimate created in Floodman.' : 'RoomFlow estimate updated in Floodman.', 'good'); await refreshJobs();
     } catch (error) { setStatus(error.message, 'bad'); }

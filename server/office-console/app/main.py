@@ -5186,7 +5186,7 @@ ROOMFLOW_SNAPSHOT_KEYS = {
     "interiorPipes", "stanchions", "mainBeams", "capturedMeasurements", "costing",
     "createdTimestamp", "updatedTimestamp", "revisionNumber", "leadIntake",
     "currentJobName", "jobId", "syncState", "floodmanContactId", "floodmanPropertyId",
-    "floodmanEstimateId", "floodmanEstimateUrl", "floodmanLink", "captureSchemaVersion", "captureRevision",
+    "floodmanEstimateId", "floodmanEstimateUrl", "floodmanLink", "floodmanRoomFlowJobId", "captureSchemaVersion", "captureRevision",
 }
 
 

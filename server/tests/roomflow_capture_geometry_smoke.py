@@ -17,6 +17,7 @@ from app.roomflow_capture import (
     stabilize_point_samples,
     surface_measurements,
     validate_openings,
+    validate_affected_areas,
     validate_polygon,
 )
 
@@ -81,6 +82,14 @@ def run() -> None:
             8,
         ),
     )
+    affected = validate_affected_areas(
+        [{"surface": "floor", "scope": "entire-surface", "percent": 100}, {"surface": "wall", "scope": "entire-wall", "wallSegmentIndex": 1, "percent": 50}],
+        rectangle["vertices"],
+        8,
+        rectangle["openings"],
+    )
+    assert affected[1]["wallSegmentIndex"] == 1 and affected[1]["percent"] == 50
+    raises("existing wall", lambda: validate_affected_areas([{"surface": "wall", "scope": "entire-wall", "wallSegmentIndex": 8}], rectangle["vertices"], 8))
 
     legacy = {"id": "legacy-room", "jobId": "job-1", "workspaceId": "workspace-1", "name": "Legacy Room", "w": 10, "l": 12, "h": 8}
     migrated = migrate_capture_room(legacy)
