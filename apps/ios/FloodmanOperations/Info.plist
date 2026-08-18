@@ -7,7 +7,7 @@
 <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 <key>UILaunchScreen</key><dict/>
-<key>NSCameraUsageDescription</key><string>Floodman RoomFlow uses the camera for field measurements and project photos.</string>
+<key>NSCameraUsageDescription</key><string>Floodman RoomFlow uses the camera and, on supported devices, LiDAR to measure real rooms. Raw camera and depth frames are not saved.</string>
 <key>NSMicrophoneUsageDescription</key><string>Floodman RoomFlow may use audio when capturing inspection media.</string>
 <key>NSFaceIDUsageDescription</key><string>Unlock Floodman Operations with Face ID.</string>
 <key>NSLocalNetworkUsageDescription</key><string>Floodman serves its bundled RoomFlow workspace on this device only.</string>

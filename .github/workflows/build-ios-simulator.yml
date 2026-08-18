@@ -7,7 +7,8 @@ on:
     paths:
       - 'apps/ios/**'
       - 'vendor/roomflow/**'
-      - 'scripts/fetch-roomflow.sh'
+      - 'server/roomflow/release-assets/**'
+      - 'scripts/verify_roomflow_release_assets.py'
       - 'scripts/patch_roomflow_bundle.py'
       - 'scripts/validate_roomflow_web.py'
       - 'scripts/verify_ios_readiness.py'
@@ -44,6 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 ../../scripts/verify_roomflow_release_assets.py
           bash scripts/prepare-roomflow-assets.sh
           python3 ../../scripts/validate_roomflow_web.py \
             --root FloodmanOperations/Resources/RoomFlow \
@@ -95,6 +97,29 @@ jobs:
             FLOODMAN_API_BASE_URL="$api_url" \
             build 2>&1 | tee ../../xcodebuild-simulator.log
 
+      - name: Run iOS capture unit tests
+        working-directory: apps/ios
+        shell: bash
+        env:
+          FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          api_url="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          simulator_id="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for values in d.values() for x in values if x["name"].startswith("iPhone") and x.get("isAvailable", False)))')"
+          xcrun simctl boot "$simulator_id" 2>/dev/null || true
+          xcrun simctl bootstatus "$simulator_id" -b
+          xcodebuild test \
+            -project FloodmanOperations.xcodeproj \
+            -scheme FloodmanOperations \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$simulator_id" \
+            -derivedDataPath "$PWD/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            FLOODMAN_API_BASE_URL="$api_url" \
+            2>&1 | tee ../../xcodebuild-tests.log
+
       - name: Package simulator application and checksums
         if: success()
         shell: bash
@@ -106,7 +131,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app_path" artifacts/FloodmanOperations-iOS-Simulator-v0.1.0-alpha03.zip
           cp apps/ios/VERSION artifacts/VERSION
           cp apps/ios/ROOMFLOW-ASSET-SHA256SUMS.txt artifacts/
-          cp xcodebuild-simulator.log xcode-build-settings.txt artifacts/
+          cp xcodebuild-simulator.log xcodebuild-tests.log xcode-build-settings.txt artifacts/
           (cd artifacts && shasum -a 256 * > SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
@@ -123,6 +148,7 @@ jobs:
           name: Floodman-Operations-iOS-0.1.0-alpha03-diagnostics
           path: |
             xcodebuild-simulator.log
+            xcodebuild-tests.log
             xcode-build-settings.txt
             apps/ios/DerivedData/Logs/
             apps/ios/ROOMFLOW-ASSET-SHA256SUMS.txt

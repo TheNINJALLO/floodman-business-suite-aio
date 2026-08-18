@@ -3,14 +3,19 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$APP_ROOT/../.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+NODE_BIN="${NODE_BIN:-node}"
+node_check() {
+  local target="$1"
+  case "$NODE_BIN" in *.exe) target="$(wslpath -w "$target")" ;; esac
+  "$NODE_BIN" --check "$target"
+}
 REF="${ROOMFLOW_REF:-$(tr -d '\r\n' < "$REPO_ROOT/vendor/roomflow/PINNED_COMMIT")}"
-TMP="$(mktemp -d)";trap 'rm -rf "$TMP"' EXIT
+BUNDLE="$REPO_ROOT/server/roomflow/release-assets"
 if [ -n "${ROOMFLOW_SOURCE_DIR:-}" ]; then
   SRC="$(cd "$ROOMFLOW_SOURCE_DIR" && pwd)"
 else
-  curl -fsSL --retry 4 -o "$TMP/roomflow.zip" "https://codeload.github.com/TheNINJALLO/roomflow/zip/$REF"
-  unzip -q "$TMP/roomflow.zip" -d "$TMP/src"
-  SRC="$(find "$TMP/src" -mindepth 1 -maxdepth 1 -type d|head -n1)"
+  "$PYTHON_BIN" "$REPO_ROOT/scripts/verify_roomflow_release_assets.py"
+  SRC="$BUNDLE/upstream"
 fi
 DEST="${ROOMFLOW_DEST:-$APP_ROOT/FloodmanOperations/Resources/RoomFlow}"
 mkdir -p "$DEST"
@@ -22,10 +27,14 @@ for f in index.html app.js ar-estimator.js cost-catalog.js cost-engine.js cost-t
 test -f "$SRC/catalog/floodman-products.json"
 rm -rf "$DEST/catalog"&&cp -a "$SRC/catalog" "$DEST/catalog"
 "$PYTHON_BIN" "$REPO_ROOT/scripts/patch_roomflow_bundle.py" --root "$DEST"
-curl -fsSL --retry 4 -o "$DEST/vendor/lucide.min.js" https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js
-curl -fsSL --retry 4 -o "$DEST/vendor/three.min.js" https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
-curl -fsSL --retry 4 -o "$DEST/vendor/OrbitControls.js" https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js
-ROOMFLOW_DEST_PATH="$DEST" ROOMFLOW_REF_VALUE="$REF" "$PYTHON_BIN" - <<'PYROOMFLOW'
+cp "$BUNDLE/vendor/lucide.min.js" "$DEST/vendor/lucide.min.js"
+cp "$BUNDLE/vendor/three.min.js" "$DEST/vendor/three.min.js"
+cp "$BUNDLE/vendor/OrbitControls.js" "$DEST/vendor/OrbitControls.js"
+cp "$REPO_ROOT/server/roomflow/capture/roomflow-capture-schema-v2.json" "$DEST/roomflow-capture-schema-v2.json"
+cp "$REPO_ROOT/server/roomflow/capture/roomflow-capture-geometry.js" "$DEST/roomflow-capture-geometry.js"
+cp "$REPO_ROOT/server/roomflow/capture/roomflow-capture.css" "$DEST/roomflow-capture.css"
+cp "$REPO_ROOT/server/roomflow/capture/roomflow-capture.js" "$DEST/roomflow-capture.js"
+ROOMFLOW_DEST_PATH="$DEST" ROOMFLOW_REF_VALUE="$REF" ROOMFLOW_ASSET_MANIFEST="$(sha256sum "$BUNDLE/SHA256SUMS" | awk '{print $1}')" "$PYTHON_BIN" - <<'PYROOMFLOW'
 from pathlib import Path
 import json
 import os
@@ -37,16 +46,22 @@ s=s.replace('<script src="https://unpkg.com/lucide@latest"></script>','<script s
 s=re.sub(r'\s*<script src="config\.js[^>]*></script>','',s).replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>','<script src="vendor/three.min.js"></script>').replace('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>','<script src="vendor/OrbitControls.js"></script>')
 for name in ('supabase-service.js','roomflow-integrations.js','townsquare-integration.js'):s=re.sub(rf'\s*<script src="{name}[^>]*></script>','',s)
 s=s.replace('onclick="RoomFlowAuth.signOut()"','onclick="FloodmanRoomFlow.close()"')
-if 'floodman-ios-bridge.js' not in s:s=s.replace('</body>','<script src="floodman-ios-bridge.js?v=3"></script>\n</body>')
+if 'roomflow-capture.css' not in s:s=s.replace('</head>','<link rel="stylesheet" href="roomflow-capture.css?v=2">\n</head>')
+scripts='\n'.join(('<script src="floodman-ios-bridge.js?v=3"></script>','<script src="roomflow-capture-geometry.js?v=2"></script>','<script src="roomflow-capture.js?v=2"></script>'))
+if 'roomflow-capture.js' not in s:s=s.replace('</body>',scripts+'\n</body>')
 p.write_text(s, encoding='utf-8')
 (p.parent / 'floodman-roomflow.json').write_text(json.dumps({
-    'release': '4.6.9',
+    'release': '4.6.10',
     'base_commit': os.environ['ROOMFLOW_REF_VALUE'],
+    'asset_manifest_sha256': os.environ['ROOMFLOW_ASSET_MANIFEST'],
     'prepared_by': 'Floodman Operations iOS',
     'created_by': 'Josh Aldrich',
     'timezone': 'America/Detroit',
+    'capture_schema_version': 2,
 }, indent=2), encoding='utf-8')
 PYROOMFLOW
-node --check "$DEST/floodman-ios-bridge.js"
-"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-ios-bridge.js --require floodman-roomflow.json
+node_check "$DEST/floodman-ios-bridge.js"
+node_check "$DEST/roomflow-capture-geometry.js"
+node_check "$DEST/roomflow-capture.js"
+"$PYTHON_BIN" "$REPO_ROOT/scripts/validate_roomflow_web.py" --root "$DEST" --mode native --require floodman-ios-bridge.js --require floodman-roomflow.json --require roomflow-capture-schema-v2.json --require roomflow-capture-geometry.js --require roomflow-capture.css --require roomflow-capture.js
 echo "Prepared pinned Floodman RoomFlow engine at $DEST"

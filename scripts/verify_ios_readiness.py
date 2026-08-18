@@ -107,6 +107,8 @@ require_tokens(
         'value["minimum_ios_version"]',
         '"mobile.compatibility.v1"',
         '"roomflow.workspaces.v1"',
+        '"roomflow.capture.v2"',
+        '"roomflow.capture.offline.v1"',
         "refreshTask",
         'contentType == "application/pdf"',
         'data.starts(with: Data("%PDF-".utf8))',
@@ -140,9 +142,70 @@ require_tokens(
         "javaScriptCanOpenWindowsAutomatically = false",
         "URLQueryItem(name: \"contact_id\"",
         "URLQueryItem(name: \"workspace_id\"",
+        'name: "RoomFlowCaptureV2"',
+        'case "roomCaptureStarted"',
+        '(envelope["version"] as? NSNumber)?.intValue == 2',
+        'let sessionID = envelope["sessionId"] as? String',
+        'encoded.count <= 256 * 1024',
+        "RoomCaptureSession.isSupported",
+        "ARWorldTrackingConfiguration.isSupported",
+        "RoomFlowCaptureOutbox()",
     ],
 )
 require("interactiveDismissDisabled" not in roomflow_view, "RoomFlow sheets can become non-dismissible")
+
+capture_models = read("apps/ios/FloodmanOperations/RoomFlow/RoomFlowCaptureModels.swift")
+require_tokens(
+    capture_models,
+    "iOS capture contract",
+    [
+        "roomFlowCaptureSchemaVersion = 2",
+        '"units": "ft"',
+        '"rawCaptureRetained": false',
+        "selfIntersects(points)",
+    ],
+)
+roomplan_capture = read("apps/ios/FloodmanOperations/RoomFlow/RoomPlanCaptureViewController.swift")
+require_tokens(
+    roomplan_capture,
+    "RoomPlan capture",
+    [
+        "RoomCaptureViewDelegate",
+        "captureView.captureSession.run",
+        "captureView.captureSession.stop()",
+        "surface.parentIdentifier",
+        'mode: "apple-roomplan"',
+        "UIApplication.didEnterBackgroundNotification",
+    ],
+)
+arkit_capture = read("apps/ios/FloodmanOperations/RoomFlow/ARKitCaptureViewController.swift")
+require_tokens(
+    arkit_capture,
+    "ARKit fallback capture",
+    [
+        "ARWorldTrackingConfiguration",
+        "raycastQuery(from: center, allowing: .estimatedPlane, alignment: .any)",
+        "stabilizedHit()",
+        '"apple-arkit-lidar"',
+        '"apple-arkit-guided"',
+        "Verify every measurement afterward",
+        "UIApplication.didEnterBackgroundNotification",
+    ],
+)
+capture_outbox = read("apps/ios/FloodmanOperations/RoomFlow/RoomFlowCaptureOutbox.swift")
+require_tokens(
+    capture_outbox,
+    "iOS capture outbox",
+    [
+        "actor RoomFlowCaptureOutbox",
+        "operationID",
+        "Array(values.suffix(200))",
+        ".completeFileProtectionUntilFirstUserAuthentication",
+    ],
+)
+capture_tests = read("apps/ios/FloodmanOperationsTests/RoomFlowCaptureGeometryTests.swift")
+require_tokens(capture_tests, "iOS capture tests", ["testRectangleGeometryAndPrivacyMetadata", "testCrossingWallsAreRejected", "testShortWallAndMissingScopeAreRejected"])
+require_tokens(project, "project.yml unit tests", ["FloodmanOperationsTests:", "type: bundle.unit-test", "testTargets:"])
 
 root_view = read("apps/ios/FloodmanOperations/Views/RootView.swift")
 require_tokens(
@@ -179,6 +242,7 @@ require_tokens(
         "xcodegen generate",
         "generic/platform=iOS Simulator",
         "CODE_SIGNING_ALLOWED=NO",
+        "xcodebuild test",
         "verify_ios_readiness.py",
         "validate_roomflow_web.py",
         "SHA256SUMS.txt",
@@ -206,7 +270,7 @@ metadata = APP / "Resources" / "RoomFlow" / "floodman-roomflow.json"
 if metadata.is_file():
     prepared = json.loads(metadata.read_text(encoding="utf-8"))
     require(prepared.get("base_commit") == PIN, "prepared iOS RoomFlow metadata has the wrong pin")
-    require(prepared.get("release") == "4.6.9", "prepared iOS RoomFlow metadata has the wrong Floodman release")
+    require(prepared.get("release") == "4.6.10", "prepared iOS RoomFlow metadata has the wrong Floodman release")
     require(prepared.get("created_by") == "Josh Aldrich", "prepared iOS RoomFlow metadata lost attribution")
 
 if PROBLEMS:

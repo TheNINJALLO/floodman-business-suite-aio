@@ -1,3 +1,7 @@
+import ARKit
+import AVFoundation
+import Foundation
+import RoomPlan
 import SwiftUI
 import WebKit
 
@@ -318,6 +322,7 @@ struct RoomFlowWebView: UIViewRepresentable {
         configuration.websiteDataStore = .default()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(context.coordinator, name: "FloodmanNative")
+        configuration.userContentController.add(context.coordinator, name: "RoomFlowCaptureV2")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -342,6 +347,7 @@ struct RoomFlowWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "FloodmanNative")
+        uiView.configuration.userContentController.removeScriptMessageHandler(forName: "RoomFlowCaptureV2")
         coordinator.server.stop()
     }
 
@@ -350,6 +356,12 @@ struct RoomFlowWebView: UIViewRepresentable {
         let server = LocalAssetServer()
         weak var webView: WKWebView?
         private var currentJobID: String?
+        private var currentWorkspaceID = ""
+        private var pendingCaptureRequestID: String?
+        private weak var captureController: UIViewController?
+        private let captureOutbox = RoomFlowCaptureOutbox()
+        private let captureRequestLock = NSLock()
+        private var captureRequests: [String: (sessionID: String, type: String)] = [:]
 
         init(_ parent: RoomFlowWebView) {
             self.parent = parent
@@ -357,12 +369,20 @@ struct RoomFlowWebView: UIViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "RoomFlowCaptureV2" {
+                handleCaptureEnvelope(message.body)
+                return
+            }
             guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
             switch type {
             case "ready":
                 Task {
                     do {
                         let bootstrap = try await parent.session.api.data(path: "v1/roomflow/bootstrap")
+                        if let value = try? JSONSerialization.jsonObject(with: bootstrap) as? [String: Any] {
+                            let active = value["active_workspace"] as? [String: Any]
+                            currentWorkspaceID = (active?["id"] as? String) ?? (value["selected_workspace_id"] as? String) ?? ""
+                        }
                         respond(function: "receiveBootstrap", data: bootstrap)
                     } catch {
                         respondString(function: "bootstrapFailed", text: error.localizedDescription)
@@ -428,6 +448,281 @@ struct RoomFlowWebView: UIViewRepresentable {
                 DispatchQueue.main.async { self.parent.isPresented = false }
             default:
                 break
+            }
+        }
+
+        private func handleCaptureEnvelope(_ message: Any) {
+            guard let envelope = message as? [String: Any],
+                  let requestID = envelope["requestId"] as? String,
+                  !requestID.isEmpty,
+                  let sessionID = envelope["sessionId"] as? String,
+                  !sessionID.isEmpty,
+                  let type = envelope["type"] as? String,
+                  !type.isEmpty else { return }
+            captureRequestLock.lock()
+            captureRequests[requestID] = (sessionID, type)
+            captureRequestLock.unlock()
+            guard JSONSerialization.isValidJSONObject(envelope),
+                  let encoded = try? JSONSerialization.data(withJSONObject: envelope),
+                  encoded.count <= 256 * 1024 else {
+                respondCaptureError(requestID: requestID, code: "CAPTURE_PAYLOAD_TOO_LARGE", message: "The room capture message cannot exceed 256 KB.")
+                return
+            }
+            guard (envelope["version"] as? NSNumber)?.intValue == 2 else {
+                respondCaptureError(requestID: requestID, code: "UNSUPPORTED_BRIDGE_VERSION", message: "This Floodman build supports RoomFlow Capture bridge version 2.")
+                return
+            }
+            let payload = envelope["payload"] as? [String: Any] ?? [:]
+            switch type {
+            case "capabilitiesRequested":
+                let roomPlan = RoomCaptureSession.isSupported
+                let arKit = ARWorldTrackingConfiguration.isSupported
+                var modes = ["manual"]
+                if arKit {
+                    modes.insert(ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) ? "apple-arkit-lidar" : "apple-arkit-guided", at: 0)
+                }
+                if roomPlan { modes.insert("apple-roomplan", at: 0) }
+                respondCapture(requestID: requestID, result: [
+                    "supported": roomPlan || arKit,
+                    "modes": modes,
+                    "preferredMode": roomPlan ? "apple-roomplan" : (arKit ? (ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) ? "apple-arkit-lidar" : "apple-arkit-guided") : "manual"),
+                    "depthSupported": roomPlan,
+                    "provider": roomPlan ? "apple-roomplan" : "apple-arkit",
+                    "reason": roomPlan || arKit ? NSNull() : "Room scanning is unavailable on this device. Manual room entry remains available.",
+                ])
+            case "roomCaptureStarted":
+                startNativeCapture(requestID: requestID, value: payload)
+            case "captureRoomsRequested":
+                listCaptureRooms(requestID: requestID, value: payload)
+            case "captureOperationQueued":
+                saveCaptureOperation(requestID: requestID, value: payload)
+            case "captureOutboxReplayRequested":
+                replayCaptureOutbox(requestID: requestID, value: payload)
+            case "roomCaptureCancelled":
+                if let activeRequestID = pendingCaptureRequestID {
+                    pendingCaptureRequestID = nil
+                    captureController?.dismiss(animated: true)
+                    respondCaptureError(requestID: activeRequestID, code: "CAPTURE_CANCELLED", message: RoomFlowCaptureError.cancelled.localizedDescription)
+                }
+                respondCapture(requestID: requestID, result: ["cancelled": true])
+            default:
+                respondCaptureError(requestID: requestID, code: "UNSUPPORTED_MESSAGE_TYPE", message: "This Floodman build does not support \(type).")
+            }
+        }
+
+        private func startNativeCapture(requestID: String, value: [String: Any]) {
+            let payload: RoomFlowCapturePayload
+            do { payload = try RoomFlowCapturePayload(value) }
+            catch { respondCaptureError(requestID: requestID, error: error); return }
+            guard validCaptureScope(requestID: requestID, jobID: payload.jobID, workspaceID: payload.workspaceID) else { return }
+            guard pendingCaptureRequestID == nil else {
+                respondCaptureError(requestID: requestID, code: "CAPTURE_BUSY", message: "Finish or close the current room scan first.")
+                return
+            }
+            Task { @MainActor in
+                let cameraAllowed: Bool
+                switch AVCaptureDevice.authorizationStatus(for: .video) {
+                case .authorized: cameraAllowed = true
+                case .notDetermined: cameraAllowed = await AVCaptureDevice.requestAccess(for: .video)
+                default: cameraAllowed = false
+                }
+                guard cameraAllowed else {
+                    respondCaptureError(requestID: requestID, code: "CAMERA_PERMISSION_DENIED", message: "Camera permission is required for room scanning. You can still enter the room manually.")
+                    return
+                }
+                presentCaptureController(requestID: requestID, payload: payload)
+            }
+        }
+
+        @MainActor
+        private func presentCaptureController(requestID: String, payload: RoomFlowCapturePayload) {
+            guard let presenter = topViewController() else {
+                respondCaptureError(requestID: requestID, code: "CAPTURE_UNAVAILABLE", message: "Floodman could not open the room scanner. Enter the room manually.")
+                return
+            }
+            pendingCaptureRequestID = requestID
+            weak var presentedController: UIViewController?
+            let completion: (Result<[String: Any], Error>) -> Void = { [weak self] outcome in
+                DispatchQueue.main.async {
+                    presentedController?.dismiss(animated: true)
+                    self?.completeNativeCapture(requestID: requestID, outcome: outcome)
+                }
+            }
+            let controller: UIViewController
+            if payload.requestedMode.hasPrefix("apple-arkit") && ARWorldTrackingConfiguration.isSupported {
+                controller = ARKitCaptureViewController(payload: payload, completion: completion)
+            } else if RoomCaptureSession.isSupported {
+                controller = RoomPlanCaptureViewController(payload: payload, completion: completion)
+            } else if ARWorldTrackingConfiguration.isSupported {
+                controller = ARKitCaptureViewController(payload: payload, completion: completion)
+            } else {
+                pendingCaptureRequestID = nil
+                respondCaptureError(requestID: requestID, code: "CAPTURE_UNSUPPORTED", message: "This device does not support RoomPlan or ARKit room scanning. Enter the room manually.")
+                return
+            }
+            presentedController = controller
+            captureController = controller
+            presenter.present(controller, animated: true)
+        }
+
+        @MainActor
+        private func completeNativeCapture(requestID: String, outcome: Result<[String: Any], Error>) {
+            guard pendingCaptureRequestID == requestID else { return }
+            pendingCaptureRequestID = nil
+            captureController = nil
+            switch outcome {
+            case .success(let room): respondCapture(requestID: requestID, result: room)
+            case .failure(let error): respondCaptureError(requestID: requestID, error: error)
+            }
+        }
+
+        private func listCaptureRooms(requestID: String, value: [String: Any]) {
+            let jobID = (value["jobId"] as? String) ?? ""
+            let workspaceID = (value["workspaceId"] as? String) ?? ""
+            guard validCaptureScope(requestID: requestID, jobID: jobID, workspaceID: workspaceID) else { return }
+            Task {
+                _ = try? await captureOutbox.flush(jobID: jobID, api: parent.session.api)
+                do {
+                    let data = try await parent.session.api.data(path: "v1/roomflow/jobs/\(pathComponent(jobID))/capture/rooms")
+                    let result = try JSONSerialization.jsonObject(with: data)
+                    respondCapture(requestID: requestID, result: result)
+                } catch {
+                    respondCaptureError(requestID: requestID, code: "CAPTURE_LOAD_FAILED", message: error.localizedDescription)
+                }
+            }
+        }
+
+        private func saveCaptureOperation(requestID: String, value: [String: Any]) {
+            let jobID = (value["jobId"] as? String) ?? ""
+            let workspaceID = (value["workspaceId"] as? String) ?? ""
+            guard validCaptureScope(requestID: requestID, jobID: jobID, workspaceID: workspaceID) else { return }
+            guard let operation = value["operation"] as? [String: Any] else {
+                respondCaptureError(requestID: requestID, code: "INVALID_CAPTURE", message: "The room change is missing its operation payload.")
+                return
+            }
+            Task {
+                do {
+                    try await captureOutbox.enqueue(jobID: jobID, workspaceID: workspaceID, operation: operation)
+                } catch {
+                    respondCaptureError(requestID: requestID, error: error)
+                    return
+                }
+                do {
+                    let response = try await captureOutbox.flush(jobID: jobID, api: parent.session.api)
+                    let results = response["results"] as? [[String: Any]] ?? []
+                    let operationID = operation["operationId"] as? String
+                    let result = results.first { ($0["operationId"] as? String) == operationID } ?? results.last
+                    if let result, result["ok"] as? Bool == true {
+                        respondCapture(requestID: requestID, result: result)
+                    } else {
+                        respondCaptureError(
+                            requestID: requestID,
+                            code: result?["code"] as? String ?? "CAPTURE_SAVE_FAILED",
+                            message: result?["message"] as? String ?? "The room could not be saved. It remains queued on this device."
+                        )
+                    }
+                } catch {
+                    let revision = (operation["expectedRevision"] as? NSNumber)?.intValue ?? 0
+                    respondCapture(requestID: requestID, result: [
+                        "queued": true,
+                        "operationId": operation["operationId"] ?? NSNull(),
+                        "revision": revision + 1,
+                        "room": operation["room"] ?? NSNull(),
+                    ])
+                }
+            }
+        }
+
+        private func replayCaptureOutbox(requestID: String, value: [String: Any]) {
+            let jobID = (value["jobId"] as? String) ?? ""
+            let workspaceID = (value["workspaceId"] as? String) ?? ""
+            guard validCaptureScope(requestID: requestID, jobID: jobID, workspaceID: workspaceID) else { return }
+            Task {
+                do {
+                    let result = try await captureOutbox.flush(jobID: jobID, api: parent.session.api)
+                    respondCapture(requestID: requestID, result: result)
+                } catch {
+                    respondCaptureError(requestID: requestID, code: "OFFLINE", message: "Room changes remain safely queued on this device.")
+                }
+            }
+        }
+
+        private func validCaptureScope(requestID: String, jobID: String, workspaceID: String) -> Bool {
+            guard !jobID.isEmpty, currentJobID == nil || currentJobID == jobID else {
+                respondCaptureError(requestID: requestID, code: "JOB_SCOPE_MISMATCH", message: "The room request does not match the open Floodman job.")
+                return false
+            }
+            guard workspaceID.isEmpty || currentWorkspaceID.isEmpty || currentWorkspaceID == workspaceID else {
+                respondCaptureError(requestID: requestID, code: "WORKSPACE_SCOPE_MISMATCH", message: "The room request does not match the selected Floodman company.")
+                return false
+            }
+            return true
+        }
+
+        private func topViewController() -> UIViewController? {
+            var controller = webView?.window?.rootViewController
+            while let presented = controller?.presentedViewController { controller = presented }
+            return controller
+        }
+
+        private func pathComponent(_ value: String) -> String {
+            value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+        }
+
+        private func respondCapture(requestID: String, result: Any) {
+            guard let context = takeCaptureRequest(requestID) else { return }
+            let envelope: [String: Any] = [
+                "version": 2,
+                "sessionId": context.sessionID,
+                "type": captureResponseType(context.type, failed: false),
+                "requestId": requestID,
+                "ok": true,
+                "payload": result,
+            ]
+            guard let data = try? JSONSerialization.data(withJSONObject: envelope),
+                  let text = String(data: data, encoding: .utf8) else { return }
+            DispatchQueue.main.async {
+                self.webView?.evaluateJavaScript("window.RoomFlowCaptureBridgeV2?.receive(\(text));", completionHandler: nil)
+            }
+        }
+
+        private func respondCaptureError(requestID: String, error: Error) {
+            let code = (error as? RoomFlowCaptureError)?.code ?? "CAPTURE_FAILED"
+            respondCaptureError(requestID: requestID, code: code, message: error.localizedDescription)
+        }
+
+        private func respondCaptureError(requestID: String, code: String, message: String) {
+            guard let context = takeCaptureRequest(requestID) else { return }
+            let envelope: [String: Any] = [
+                "version": 2,
+                "sessionId": context.sessionID,
+                "type": code == "CAPTURE_CANCELLED" ? "sessionCancelled" : captureResponseType(context.type, failed: true),
+                "requestId": requestID,
+                "ok": false,
+                "error": ["code": code, "message": message],
+            ]
+            guard let data = try? JSONSerialization.data(withJSONObject: envelope),
+                  let text = String(data: data, encoding: .utf8) else { return }
+            DispatchQueue.main.async {
+                self.webView?.evaluateJavaScript("window.RoomFlowCaptureBridgeV2?.receive(\(text));", completionHandler: nil)
+            }
+        }
+
+        private func takeCaptureRequest(_ requestID: String) -> (sessionID: String, type: String)? {
+            captureRequestLock.lock()
+            defer { captureRequestLock.unlock() }
+            return captureRequests.removeValue(forKey: requestID)
+        }
+
+        private func captureResponseType(_ requestType: String, failed: Bool) -> String {
+            switch requestType {
+            case "capabilitiesRequested": return "capabilitiesReported"
+            case "roomCaptureStarted": return failed ? "sessionFailed" : "roomCaptureCompleted"
+            case "roomCaptureCancelled": return "sessionCancelled"
+            case "captureRoomsRequested": return failed ? "captureRoomsFailed" : "captureRoomsReported"
+            case "captureOperationQueued": return failed ? "captureOperationFailed" : "captureOperationSaved"
+            case "captureOutboxReplayRequested": return failed ? "captureOutboxReplayFailed" : "captureOutboxReplayed"
+            default: return failed ? "sessionFailed" : "sessionCompleted"
             }
         }
 

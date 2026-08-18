@@ -12,7 +12,9 @@ actor APIClient {
         "roomflow.bootstrap.v1",
         "roomflow.snapshot.v1",
         "roomflow.supabase-import.v1",
-        "roomflow.workspaces.v1"
+        "roomflow.workspaces.v1",
+        "roomflow.capture.v2",
+        "roomflow.capture.offline.v1"
     ]
 
     private let keychain = KeychainStore()
