@@ -4,6 +4,7 @@
 
 ```bash
 python3 scripts/generate_inventory.py
+python3 scripts/generate_source_manifests.py
 python3 scripts/verify_repo.py
 python3 scripts/generate_checksums.py
 ```
@@ -77,7 +78,7 @@ AGP 8.13.2
 Kotlin 2.3.20
 ```
 
-The build fetches the pinned RoomFlow repository and prepares local app assets before compiling. Required repository variables:
+The build verifies `server/roomflow/release-assets/SHA256SUMS` and prepares the exact-pin local app assets without a network checkout. `scripts/package_roomflow_release_assets.py` is used only after an approved pin/source review; ordinary builds use `scripts/verify_roomflow_release_assets.py`. Required repository variables:
 
 ```text
 FLOODMAN_API_BASE_URL
@@ -101,6 +102,10 @@ APP_STORE_CONNECT_PRIVATE_KEY_BASE64
 ```
 
 Run the unsigned simulator build first. Only enable TestFlight after the simulator build and native acceptance tests are green.
+
+## Unreleased RoomFlow Capture boundary
+
+The current v4.6.10 runtime ZIP is a frozen pre-capture artifact. Do not rerun the Pterodactyl packager and publish different source under the same v4.6.10 filename. The integrated capture source can advance to a distinct release identity only after the Xcode simulator, physical-device, clean install/upgrade/restart, backup/restore, staging, container, manifest, checksum, and release-note gates are satisfied or a separately documented release exception is approved.
 
 ## Version synchronization
 

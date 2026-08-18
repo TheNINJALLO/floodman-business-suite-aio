@@ -325,9 +325,9 @@ orchestrator,POST,/webhooks/documenso,/webhooks/documenso,documenso_webhook,serv
 orchestrator,POST,/webhooks/square,/webhooks/square,square_webhook,server/orchestrator/app/main.py,403
 orchestrator,POST,/webhooks/twilio/inbound,/webhooks/twilio/inbound,twilio_inbound,server/orchestrator/app/main.py,462
 orchestrator,POST,/webhooks/twilio/status,/webhooks/twilio/status,twilio_status,server/orchestrator/app/main.py,597
-tests,GET,/floodman-brand/{name},/floodman-brand/{name},brand,server/tests/web_ui_smoke.py,367
-tests,GET,/floodman-pwa-icons/{name},/floodman-pwa-icons/{name},pwa_icon,server/tests/web_ui_smoke.py,372
-tests,GET,/hub-fixture,/hub-fixture,hub_fixture,server/tests/web_ui_smoke.py,381
-tests,GET,/legacy-roomflow,/legacy-roomflow,legacy_roomflow_fixture,server/tests/web_ui_smoke.py,391
-tests,GET,/office-health/live,/office-health/live,office_health,server/tests/web_ui_smoke.py,377
-tests,GET,/roomflow/,/roomflow/,roomflow_fixture,server/tests/web_ui_smoke.py,385
+tests,GET,/floodman-brand/{name},/floodman-brand/{name},brand,server/tests/web_ui_smoke.py,370
+tests,GET,/floodman-pwa-icons/{name},/floodman-pwa-icons/{name},pwa_icon,server/tests/web_ui_smoke.py,375
+tests,GET,/hub-fixture,/hub-fixture,hub_fixture,server/tests/web_ui_smoke.py,384
+tests,GET,/legacy-roomflow,/legacy-roomflow,legacy_roomflow_fixture,server/tests/web_ui_smoke.py,394
+tests,GET,/office-health/live,/office-health/live,office_health,server/tests/web_ui_smoke.py,380
+tests,GET,/roomflow/,/roomflow/,roomflow_fixture,server/tests/web_ui_smoke.py,388

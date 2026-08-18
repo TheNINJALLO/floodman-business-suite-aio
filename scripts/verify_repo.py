@@ -112,8 +112,15 @@ for path in sorted(ROOT.rglob("*.sh")):
     if any(part in EXCLUDED_PARTS for part in path.parts):
         continue
     run(["bash", "-n", str(path)])
+raw_roomflow_export = ROOT / "server" / "roomflow" / "release-assets" / "upstream"
 for path in sorted(ROOT.rglob("*.js")) + sorted(ROOT.rglob("*.mjs")):
     if any(part in EXCLUDED_PARTS | {"source"} for part in path.parts):
+        continue
+    # This is an immutable export of the audited upstream pin. Its known
+    # duplicate job renderer is repaired by Floodman's deterministic prepare
+    # overlay before execution; verify_roomflow_pin.py checks that exact input
+    # and both native preparation gates syntax-check the repaired output.
+    if raw_roomflow_export in path.parents:
         continue
     run(["node", "--check", str(path)], required=False)
 
@@ -182,6 +189,7 @@ def verify_manifest(base: Path, manifest: Path) -> None:
 verify_manifest(ROOT / "server", ROOT / "server" / "MANIFEST.sha256")
 verify_manifest(ROOT / "apps" / "android", ROOT / "apps" / "android" / "SOURCE-MANIFEST.sha256")
 verify_manifest(ROOT / "apps" / "ios", ROOT / "apps" / "ios" / "SOURCE-MANIFEST.sha256")
+run([sys.executable, str(ROOT / "scripts" / "verify_roomflow_pin.py")])
 run([sys.executable, str(ROOT / "scripts" / "verify_ios_readiness.py")])
 run([sys.executable, str(ROOT / "scripts" / "verify_container_inputs.py")])
 run([sys.executable, str(ROOT / "scripts" / "verify_pterodactyl_release.py")])
@@ -191,7 +199,7 @@ overlay = json.loads((ROOT / "server" / "overlay.json").read_text(encoding="utf-
 if overlay.get("version") != "4.6.10":
     error("server/overlay.json is not v4.6.10")
 mobile_api = (ROOT / "server" / "office-console" / "app" / "mobile_api.py").read_text(encoding="utf-8")
-for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "/mobile-api/v1", 'workspace_id: str = ""', 'raise HTTPException(422, "Select a valid RoomFlow workspace.")']:
+for token in ["API_VERSION = \"0.3.0-alpha11\"", "MIN_IOS_VERSION = \"0.1.0-alpha02\"", "roomflow.workspaces.v1", "roomflow.capture.v2", "roomflow.capture.offline.v1", "/mobile-api/v1", 'workspace_id: str = ""', 'raise HTTPException(422, "Select a valid RoomFlow workspace.")']:
     if token not in mobile_api:
         error(f"Mobile API contract is missing {token}")
 

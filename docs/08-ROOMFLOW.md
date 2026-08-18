@@ -7,7 +7,7 @@ Repository: https://github.com/TheNINJALLO/roomflow.git
 Commit: 1f97817a52b916875e50cc6380c0d284072b8ce8
 ```
 
-The repository is not duplicated in this source archive. Fetch it through the provided scripts. This keeps provenance clear and prevents an accidental unreviewed update.
+Floodman includes a reviewed runtime-only export of this exact commit under `server/roomflow/release-assets/`. Its manifest also pins the three browser libraries needed by the estimator. Server startup and native builds verify and consume that local export, so production preparation does not require GitHub or a mutable CDN. The ignored standalone checkout is still fetched through the provided scripts only for source review and approved pin updates.
 
 The 2026-08-12 source, feature, package, and Supabase evidence is recorded in `ROOMFLOW-PIN-AUDIT.md`.
 
@@ -49,3 +49,9 @@ The project-plan page of the estimate must use the actual captured RoomFlow layo
 - Bridge event schemas must be versioned before breaking changes.
 - Advancing the RoomFlow commit requires Android, iOS, server, snapshot restoration, catalog, layout, and estimate regression tests.
 - Android and iOS package the complete pinned estimator runtime, but replace the upstream Supabase/Townsquare browser session layers with the authenticated Floodman Mobile API.
+
+## Integrated capture
+
+RoomFlow Capture is suite-owned Floodman code layered over the unchanged pin. It uses one schema-v2 room contract and the envelope `{version, sessionId, type, requestId, payload}` across the browser, Android, and Apple shells. Android uses ARCore with optional Depth; Apple prefers RoomPlan and provides an ARKit fallback. Every native result returns to the same review/correction workflow before persistence or estimate derivation.
+
+Capture records are scoped to the authenticated Floodman workspace and job, use optimistic revisions and idempotent operation IDs, and keep a bounded offline outbox. Raw video, images, depth maps, and point clouds are neither stored nor uploaded. See `ROOMFLOW_CAPTURE.md` for the field guide, architecture, APIs, acceptance checklist, and troubleshooting.

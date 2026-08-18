@@ -27,13 +27,13 @@
 
 ## Phase 2A — integrated RoomFlow Capture
 
-- **In progress (2026-08-18).** Work on `feature/roomflow-capture` in reviewable milestones without reopening completed RoomFlow import or login work.
-- Define one versioned room/capture schema and geometry contract, deterministic migrations/fixtures, explicit units and coordinate frames, quality signals, provenance, review state, affected-area scope, openings, and estimate derivation inputs.
-- Add authenticated, workspace/job-scoped server persistence with revisions, stable identifiers, idempotent offline replay, conflict responses, redacted audit records, and no raw camera/depth retention.
-- Embed a low-training manual/review/correction workflow in the existing authenticated RoomFlow surface with close/Escape/focus/mobile behavior and a versioned native bridge.
-- Implement actual Android ARCore capture with optional Depth and Apple RoomPlan capture with ARKit fallback. Keep deterministic fakes for automated testing and report device/Xcode gates honestly.
-- Remove production runtime network preparation by packaging a checksum-verified snapshot of the unchanged pinned RoomFlow commit; retain the existing non-root Pterodactyl paths and persistent-data contract.
-- Run the server/browser/Android gates and all Windows-available Apple checks, then refresh inventory, manifests, checksums, release notes, packages, and control ledgers. Do not bump a release identity until its required gates are satisfied.
+- **All locally executable implementation complete; external release gates open (2026-08-18).** Reviewable milestones define the shared schema/geometry contract, authenticated revisions/idempotency/audit, browser capture/review workflow, Android ARCore/Depth capture, Apple RoomPlan/ARKit capture source, and checksum-addressed offline RoomFlow input without reopening completed import/login work or advancing the upstream pin.
+- One schema-v2 contract now carries explicit units/coordinate frames, quality/provenance, original and corrected geometry, review state, openings, affected-area scope, and estimate derivation inputs. Python, JavaScript, Kotlin, and declared Swift fixtures cover deterministic geometry and privacy boundaries.
+- Authenticated Office/Mobile APIs scope rooms to workspace/job ownership, reject raw capture, use stable operation IDs and optimistic revisions, preserve existing estimates/snapshots, and write redacted audits. Browser and native clients retain bounded offline work and recover an unsaved review draft.
+- The embedded low-training workflow includes pre-scan guidance, manual/templates/native entry, drag/numeric corrections, wall locks, compare/rotation/pan/zoom, undo/redo, openings, detailed affected-wall scope, quantities, warnings, and close/Escape/focus/mobile behavior.
+- Android local gates pass real ARCore source with optional Depth. Apple RoomPlan and ARKit fallback source plus simulator workflow are ready, but Xcode and device results remain blocked and unclaimed.
+- Server and native preparation now consume a 29-file checksum-verified export of the unchanged pin without GitHub/CDN access. Source manifests, inventory, field guide, candidate notes, and local artifacts are refreshed.
+- A new deployable identity/package is deliberately not produced: the existing v4.6.10 ZIP remains frozen. Resume at BLK-004/BLK-006/BLK-011 on macOS, physical devices, staging, and an isolated release runner.
 
 ## Phase 3 — Android
 
@@ -42,6 +42,7 @@
 - Passed `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`, `assembleRelease`, and `bundleRelease` without weakening lint; the only 17 lint notices concern newer dependency versions.
 - Recorded local artifact SHA-256 values and added CI checksum generation. Physical-device/public-HTTPS and release signing remain separate external gates.
 - **Alpha12 usability refresh complete locally (2026-08-15).** The selected Floodman workspace scopes RoomFlow customer/property lookups; four-step guidance, plain customer/import controls, fixed Detroit time, and installer-only connection editing are packaged with exact-pin server 4.6.9 assets. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. CI dispatch requires a repository remote under BLK-010; device/signing gates remain external.
+- **RoomFlow Capture source gate complete locally (2026-08-18).** Real ARCore/Depth and guided fallback, lifecycle/permission handling, bridge v2, bounded atomic outbox, and deterministic capture fixtures pass forced compile, 8/8 total unit tests, lint with 0 errors/fatals, and fresh debug/release APK plus AAB packaging. Physical Depth/guided testing and a distinctly versioned signed build remain external.
 
 ## Phase 4 — iOS
 
@@ -50,6 +51,7 @@
 - Rebuilt the simulator workflow to select Xcode 26, validate sources/assets, generate the project, build unsigned, package the `.app`, and record checksums. The guarded TestFlight path now repeats the unsigned simulator compile for the same commit before signing.
 - Actual `xcodebuild` remains `BLOCKED`, not passed, until the macOS workflow runs. Signing, archive, TestFlight, and device acceptance remain blocked until explicitly authorized and configured.
 - **Alpha03 local preparation refreshed (2026-08-15).** Source/build identity, workspace-aware queries, four-step guidance, progressive company/import controls, fixed Detroit time, transient import-password handling, and installer-only endpoint details pass every Windows-available source, bridge, project, asset, pin, readiness, and workflow check; BLK-004 remains the honest boundary for the real unsigned Xcode compile.
+- **RoomFlow Capture source ready (2026-08-18).** RoomPlan wall/opening conversion, guided ARKit and LiDAR-mesh modes, lifecycle/relocalization guidance, bridge v2, file-protected offline outbox, six XCTest methods, and an updated build/test workflow pass static/source readiness. Xcode compilation/tests and device behavior remain BLK-004/BLK-006.
 
 ## Phase 5 — server and packaging
 

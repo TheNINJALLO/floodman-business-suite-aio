@@ -29,6 +29,16 @@
 - use Sandbox until acceptance tests pass
 - restrict payment logs
 
+## Room capture privacy
+
+- request camera access only when the user starts a native scan
+- persist normalized reviewed geometry, openings, confidence, scope, revisions, and derivation metadata only
+- never retain or upload raw camera video/images, depth maps, or point clouds
+- bound bridge and offline-operation payloads to 256 KB and private queues to 200 operations
+- clear/pause camera and AR sessions when capture closes or the app backgrounds
+- authorize capture records from the authenticated workspace/job relationship, never a client-supplied workspace ID alone
+- redact capture audits and logs; never include bearer/refresh tokens or full request bodies
+
 ## Customer-link security
 
 - use random, unguessable tokens

@@ -6,9 +6,11 @@ The live test deployment uses one Pterodactyl server allocation with Floodman's 
 
 ```text
 Server:  Floodman Operations 4.6.10
-Android: 0.3.0-alpha11
-Apple:   0.1.0-alpha02 development source
+Android source candidate: 0.3.0-alpha12
+Apple source candidate:   0.1.0-alpha03
 ```
+
+The files in `deployment/releases/` are the frozen v4.6.10 pre-capture release. The newer integrated RoomFlow Capture source is intentionally not repackaged under that existing identity. Continue using these files only to install/restore v4.6.10; wait for a separately versioned package before deploying capture.
 
 ## Startup
 

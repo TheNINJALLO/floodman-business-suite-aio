@@ -6,7 +6,7 @@ AI_HMAC_KEYS,"""""",server/office-console/app/config.py,1
 AI_PROVIDER,"""openai""",server/competitor-intel/app/config.py,1
 AI_SERVICE_URL,"""http://competitor-intel-api:8090""",server/orchestrator/app/config.py,1
 AI_USER_AGENT,"""FloodmanCompetitorMonitor/1.0""",server/competitor-intel/app/config.py,1
-API,,server/roomflow/floodman-panel.js | server/tests/unified_login_smoke.py,2
+API,,server/roomflow/capture/roomflow-capture.js | server/roomflow/floodman-panel.js | server/tests/unified_login_smoke.py,3
 API_PUBLIC_URL,,server/aio/start-suite.sh | server/aio/suite-monitor.sh,2
 APP_LOGO,,server/aio/start-suite.sh,1
 AR_REMINDER_OFFSETS_HOURS,"""1,2,3,4,5,6""",server/office-console/app/config.py,1

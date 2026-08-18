@@ -8,6 +8,8 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 `mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, Tailscale, Nginx/Supervisor configuration, upstream services, health checks and final readiness marker.
 
+The current files in `deployment/releases/` install the frozen v4.6.10 pre-capture runtime. Do not rebuild or upload different RoomFlow Capture contents under that same filename/version. The capture source uses local checksum-verified RoomFlow assets, but deployment waits for a separately versioned package after BLK-011 is cleared.
+
 Expected terminal marker:
 
 ```text

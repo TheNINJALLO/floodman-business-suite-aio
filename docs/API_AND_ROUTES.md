@@ -1,6 +1,6 @@
 # API and routes
 
-The generated inventory at `docs/generated/API_ROUTE_INVENTORY.csv` enumerates every FastAPI route decorator found in this handoff. It currently reports 304 route decorators across the five custom Python services.
+The generated inventory at `docs/generated/API_ROUTE_INVENTORY.csv` enumerates every FastAPI route decorator found in this handoff. It currently reports 332 route decorators across the custom Python services and route-bearing test fixtures.
 
 ## Public/native Mobile API
 
@@ -28,6 +28,9 @@ Primary groups:
 /roomflow/workspaces
 /roomflow/import/supabase
 /roomflow/jobs and layouts
+/roomflow/jobs/{job_id}/capture/rooms
+/roomflow/jobs/{job_id}/capture/rooms/{room_id}
+/roomflow/jobs/{job_id}/capture/operations
 /employees
 /calendar, appointments and subscriptions
 /tasks
@@ -42,8 +45,12 @@ The server contract at handoff is:
 API version:              0.3.0-alpha11
 Minimum Android version: 0.3.0-alpha11
 Minimum iOS version:     0.1.0-alpha02
-Required capability:     roomflow.workspaces.v1
+Required capabilities:   roomflow.workspaces.v1
+                         roomflow.capture.v2
+                         roomflow.capture.offline.v1
 ```
+
+Capture writes require the existing bearer token, resolve workspace/job ownership on the server, use stable operation IDs and optimistic room revisions, and reject raw camera/depth fields. Browser Office sessions expose equivalent `/office/api/roomflow/jobs/{job_id}/capture/...` routes.
 
 ## Floodman Office browser routes
 

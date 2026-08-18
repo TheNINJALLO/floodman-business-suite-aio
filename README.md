@@ -10,7 +10,7 @@ This repository is the source handoff for the Floodman Operations system develop
 | Pterodactyl launcher | 4.6.10 | Current cumulative launcher |
 | Android app | 0.3.0-alpha12 | Local compile/test/lint/APK/AAB gate passed; device/signing/CI dispatch remain external |
 | iPhone/iPad app | 0.1.0-alpha03 | Windows source/workflow readiness passed; run the Xcode simulator workflow before TestFlight |
-| RoomFlow | pinned commit `1f97817a52b916875e50cc6380c0d284072b8ce8` | Fetched separately by script |
+| RoomFlow | pinned commit `1f97817a52b916875e50cc6380c0d284072b8ce8` | Checksummed offline runtime export included; standalone checkout is optional for review |
 | Time zone | America/Detroit | Project standard |
 
 ## Start here
@@ -20,7 +20,7 @@ This repository is the source handoff for the Floodman Operations system develop
 3. Create a private Git repository and commit this untouched baseline.
 4. Run `python scripts/generate_inventory.py`.
 5. Run `python scripts/verify_repo.py`.
-6. Fetch RoomFlow with `bash scripts/fetch-roomflow.sh` or `./scripts/fetch-roomflow.ps1`.
+6. Verify the included RoomFlow export with `python scripts/verify_roomflow_release_assets.py`. Fetch the standalone checkout only when reviewing an approved pin update.
 7. Build the server from `containers/derivative/Dockerfile` first. It is the least disruptive path.
 8. Run the Android GitHub workflow and the unsigned iOS simulator workflow before any production release.
 
@@ -32,6 +32,7 @@ This repository is the source handoff for the Floodman Operations system develop
 - Original v3.1.1 AIO build source and current AIO Docker scaffolding
 - Current Pterodactyl runtime, launcher, and egg files
 - Android, iOS simulator, and TestFlight workflows
+- A checksum-verified, runtime-only export of the exact RoomFlow pin for network-independent server and native builds
 - VS Code workspace, Codex instructions, source inventories, API inventories, release history, security rules, and deployment notes
 - Fictional estimate and invoice reference PDFs plus a blank customer import template
 
@@ -40,7 +41,7 @@ This repository is the source handoff for the Floodman Operations system develop
 - Live customers, properties, estimates, invoices, payment records, signed documents, logs, screenshots, database volumes, RoomFlow job data, and backups
 - Passwords, Tailscale auth keys, Square tokens, Apple signing keys, mobile refresh tokens, private keys, and other secrets
 - Full upstream Gauzy, Documenso, Mailpit, Tailscale, and Square source
-- The RoomFlow repository itself. It remains pinned and fetchable through the included scripts.
+- The standalone RoomFlow development repository. Its reviewed runtime files are included under `server/roomflow/release-assets/`; the full checkout remains pinned and fetchable for audits.
 
 This is a source handoff, not a live-data backup and not proof that the latest release has passed every platform compiler and live-node test.
 
@@ -69,10 +70,12 @@ history/                       Reconstructed release and artifact history
 ```bash
 python scripts/generate_inventory.py
 python scripts/verify_repo.py
+python scripts/verify_roomflow_release_assets.py
 python scripts/package_pterodactyl_release.py
 python scripts/verify_pterodactyl_release.py
-bash scripts/fetch-roomflow.sh
 make derivative-image
 ```
 
 Android and iOS build commands are documented in `docs/06-ANDROID.md` and `docs/07-IOS.md`.
+
+The integrated RoomFlow Capture implementation is currently an unreleased source candidate. The existing v4.6.10 Pterodactyl ZIP remains the frozen pre-capture release and is not overwritten with different contents under the same version. See `docs/ROOMFLOW-CAPTURE-UNRELEASED.md` for gates and evidence.
