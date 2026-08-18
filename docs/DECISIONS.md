@@ -192,3 +192,12 @@
 - Decision: Replace that brittle assertion with the stable editor element `fm-rf-estimate-scope`, and make release verification validate every fixed-string `$overlay_root` launcher assertion against the exact tracked runtime source.
 - Identity: Keep server/runtime v4.7.0 because the runtime ZIP is byte-identical and only the separately uploaded launcher/embedded egg installer changes. Assigning v4.7.1 remains a release-version safety boundary requiring explicit approval.
 - Safety: Do not alter live data, automatically change the server image, or claim restart/staging acceptance. The log reveals AIO 3.2.0 rather than the reviewed pinned 3.2.2 image; reconcile that separately after backup under BLK-012.
+
+## DEC-028 — Publish through authenticated HTTPS and preserve the legacy GitHub history
+
+- Date: 2026-08-18
+- Decision: Use the intended existing `TheNINJALLO/floodman-business-suite-aio` repository. Publish the clean feature tip first, then join its unrelated legacy `main` history with an `ours` merge so the current readable source becomes the `main` tree without a force push or reintroducing the legacy `floodman-source.zip`.
+- Transport: The GitHub CLI is unavailable and the user explicitly directed use of the prior HTTP path. Use the stored Git credential only inside authenticated Git smart-HTTP and REST calls; never print, persist, or place the credential in a remote URL.
+- Safety: The target repository was already public. Before publication, verify 638 tracked files, enforce the existing live-data exclusions, confirm no tracked file exceeds 50 MB, regenerate the inventory, and require `verify_repo.py` to pass with 0 warnings. No live exports, Office state, payment data, signed documents, provider secrets, or production logs were added.
+- Evidence: Linux checksum normalization and lowercase GHCR tags repaired the first CI attempt. Android run `32197176293`, server-image run `32197176318`, source verification runs `32197176330`/`32197870225`, and Apple simulator run `32197870130` pass. The Apple run exposed and then verified the `CFBundleExecutable` repair with 6/6 XCTest methods.
+- Boundary: Remote unsigned builds and a GHCR image do not authorize signing, store/TestFlight upload, physical-device acceptance, live staging/deployment, database changes/imports, provider access, or production rollout.

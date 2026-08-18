@@ -31,15 +31,22 @@ The distinct identities prevent an installed v4.6.10/alpha12 system from treatin
 
 ## Remaining release gates
 
-- macOS/Xcode simulator build and XCTest execution;
 - Android Depth/guided and Apple RoomPlan/ARKit physical-device acceptance;
 - clean install, upgrade, restart, staging HTTPS, backup, and restore;
-- current container build/advisory scan on an isolated engine;
+- current container critical/high advisory scan;
 - release signing/store credentials and explicit release approval;
-- production deployment approval and a configured Git remote for publishing the release commit.
+- production deployment approval.
 
-The v4.7.0 Pterodactyl files are locally deployable test artifacts and Android packages are local pre-signing artifacts. Apple, device, staging, signing/store, container/advisory, backup/restore, and production acceptance are not claimed.
+The v4.7.0 Pterodactyl files are deployable test artifacts; Android packages and the Apple simulator package are pre-signing artifacts. Device, staging, signing/store, advisory, backup/restore, and production acceptance are not claimed.
 
 ## Pterodactyl launcher repair — 2026-08-18
 
 The first observed Wings startup stopped before Supervisor with `Could not install the integrated RoomFlow section editor`. The v4.7.0 runtime already contained the editor under its new low-training label; the launcher alone still asserted the retired pre-capture heading. The corrected same-release launcher checks the stable `fm-rf-estimate-scope` element. The runtime ZIP remains byte-identical, while the launcher and egg receive new checksums. Package verification now validates all 87 fixed overlay preflight markers against the exact tracked source before release.
+
+## GitHub publication and remote build evidence
+
+- The complete readable source was published to `TheNINJALLO/floodman-business-suite-aio` over authenticated HTTPS. The legacy unrelated repository history is retained as a merge parent; no force push was used and the legacy `floodman-source.zip` is not present in the current tree.
+- Android workflow run `32197176293` passed and uploaded artifact `9346411488` (`sha256:f99d289071b2a1880d979139c3ab681f0b75e2d9a68d8d3ca3d9bd3e4aa4b382`) containing the debug APK, unsigned release APK, release AAB, test/lint reports, and package checksums.
+- Apple simulator workflow run `32197870130` passed on macOS 26/Xcode 26.6 after the plist executable contract was repaired. All 6 capture tests passed, and artifact `9346645878` has digest `sha256:4e135c2929c1a08cebca809e913ece03863baf75ab1d53b9b8eb082caac5a2ef`.
+- Server-image workflow run `32197176318` passed and published `ghcr.io/theninjallo/floodman-operations:4.7.0` at digest `sha256:f1dc722dc9326b6642bc1d981186ec87dce34de1d73c02efcca267aa7c5f75e6`.
+- Source-verification runs `32197176330` and `32197870225` passed on Linux. Physical devices, signing/TestFlight/store upload, live staging, backup/restore, advisory scanning, and production deployment remain open safety gates.

@@ -10,7 +10,7 @@ This audit records the inputs used to begin the integrated RoomFlow Capture buil
 
 ## Source and release identity
 
-- The main worktree was clean before the feature branch was created. There is no configured Git remote and no GitHub CLI, so local commits can proceed but push, CI dispatch, and pull-request creation remain BLK-010.
+- The main worktree was clean before the feature branch was created. At audit time there was no configured Git remote or GitHub CLI, so publication remained BLK-010; authenticated HTTPS publication and CI later resolved that blocker under DEC-028/CI-001.
 - Canonical editable source is already extracted under `server/`, `apps/android/`, and `apps/ios/`. There is no `floodman-source.zip` in the current handoff. Historical ZIPs are not editing sources.
 - Current identities are server `4.6.10`, Mobile API `0.3.0-alpha11`, Android `0.3.0-alpha12`, iOS `0.1.0-alpha03`, and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
 - The ignored nested checkout at `vendor/roomflow/source` resolves to the required commit but has pre-existing deleted Gradle build intermediates and Windows long-path warnings. Those artifacts are not part of the main worktree. They will not be reset, deleted, or used as mutable release source.
@@ -56,7 +56,7 @@ This audit records the inputs used to begin the integrated RoomFlow Capture buil
 
 - Current workflows cover repository verification, Android build/package, iOS simulator, guarded TestFlight, and server-image publishing. New capture paths and tests must be wired into validation; publishing must remain behind successful release gates.
 - Dockerfiles are pinned and the current derivative image contract is proven historically, but the local Docker daemon is stopped. It will not be started because unrelated containers may restart; the fresh image gate remains BLK-009.
-- Staging install/upgrade/restart/backup/restore is BLK-005. Device tests are BLK-006, signing/store operations BLK-007, advisory scanning BLK-008, and remote CI/PR work BLK-010.
+- Staging install/upgrade/restart/backup/restore is BLK-005. Device tests are BLK-006, signing/store operations BLK-007, and advisory scanning is BLK-008. Remote CI was BLK-010 at audit time and later completed under CI-001; no pull request was required for the explicitly authorized `main` publication.
 
 ## Implementation order
 
