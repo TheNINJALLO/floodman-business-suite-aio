@@ -378,12 +378,16 @@ OFFICE_JS = r"""
 
     const addLineFromCatalog = (sectionId, item) => {
       const lines = sectionLines(sectionId);
+      const pricing = item.formula?.xactimate || {};
       state.line_items.push({
         id: uid('line'), section_id: sectionId, section_name: sectionById(sectionId)?.name || '',
         catalog_item_id: item.id || null, name: item.name || 'Catalog item', description: item.description || '',
         quantity: 1, unit: item.unit || 'each', unit_price_cents: num(item.unit_price_cents),
         line_total_cents: num(item.unit_price_cents), taxable: Boolean(item.taxable), optional: false,
         selected: true, pricing_method: item.pricing_method || 'fixed', category: item.category || '',
+        pricing_reference: pricing.code || '', pricing_source: item.source_provider || '',
+        pricing_price_list: pricing.price_list || '', pricing_effective_date: pricing.effective_date || '',
+        pricing_market: pricing.market || '',
         custom: false, save_to_catalog: false, sort_order: lines.length,
       });
       render();
@@ -434,7 +438,8 @@ OFFICE_JS = r"""
         if (!items.length) { results.innerHTML = '<div class="fm-catalog-message">No matching line items. Use Add custom item.</div>'; return; }
         items.forEach((item) => {
           const button = document.createElement('button'); button.type = 'button'; button.className = 'fm-catalog-option';
-          const title = document.createElement('b'); title.textContent = item.name;
+          const pricing = item.formula?.xactimate || {};
+          const title = document.createElement('b'); title.textContent = pricing.code ? `${pricing.code} · ${item.name}` : item.name;
           const detail = document.createElement('small'); detail.textContent = `${item.default_section || item.category || 'General'} · ${item.unit || 'each'} · ${money(item.unit_price_cents)}`;
           button.append(title, detail); button.addEventListener('click', () => addLineFromCatalog(sectionId, item)); results.appendChild(button);
         });
@@ -445,10 +450,11 @@ OFFICE_JS = r"""
       const section = sectionById(line.section_id);
       const sectionIndex = state.sections.indexOf(section);
       const globalIndex = state.line_items.indexOf(line);
+      const origin = line.pricing_reference ? `${line.pricing_reference} · ${line.pricing_price_list || 'Imported pricing'}` : (line.catalog_item_id ? 'Catalog item' : 'Custom item');
       return `<article class="fm-estimate-line" data-line-index="${globalIndex}">
         <div class="fm-line-main"><label>Line item<input data-line-field="name" value="${text(line.name).replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" required></label><label>Description<textarea data-line-field="description">${text(line.description).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea></label></div>
         <div class="fm-line-numbers"><label>Qty<input data-line-field="quantity" type="number" min="0.001" step="0.001" value="${num(line.quantity,1)}"></label><label>Unit<input data-line-field="unit" value="${text(line.unit || 'each').replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"></label><label>Unit price<input data-line-field="unit_price" type="number" min="0" step="0.01" value="${(num(line.unit_price_cents)/100).toFixed(2)}"></label><div class="fm-line-total"><span>Total</span><b>${money(line.line_total_cents)}</b></div></div>
-        <div class="fm-line-footer"><label class="fm-inline-check"><input data-line-field="taxable" type="checkbox" ${line.taxable ? 'checked' : ''}> Taxable</label><label class="fm-inline-check"><input data-line-field="optional" type="checkbox" ${line.optional ? 'checked' : ''}> Optional</label><span class="fm-catalog-origin">${line.catalog_item_id ? 'Catalog item' : 'Custom item'}</span><button type="button" class="secondary small" data-move-line="up" ${lineIndex === 0 ? 'disabled' : ''}>↑</button><button type="button" class="secondary small" data-move-line="down" ${lineIndex === sectionLines(section.id).length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="danger small" data-remove-line>Remove</button></div>
+        <div class="fm-line-footer"><label class="fm-inline-check"><input data-line-field="taxable" type="checkbox" ${line.taxable ? 'checked' : ''}> Taxable</label><label class="fm-inline-check"><input data-line-field="optional" type="checkbox" ${line.optional ? 'checked' : ''}> Optional</label><span class="fm-catalog-origin">${text(origin).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span><button type="button" class="secondary small" data-move-line="up" ${lineIndex === 0 ? 'disabled' : ''}>↑</button><button type="button" class="secondary small" data-move-line="down" ${lineIndex === sectionLines(section.id).length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="danger small" data-remove-line>Remove</button></div>
       </article>`;
     };
 

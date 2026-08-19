@@ -45,6 +45,13 @@
 - **RoomFlow Capture source gate complete locally (2026-08-18).** Real ARCore/Depth and guided fallback, lifecycle/permission handling, bridge v2, bounded atomic outbox, and deterministic capture fixtures pass forced compile, 8/8 total unit tests, lint with 0 errors/fatals, and fresh debug/release APK plus AAB packaging. Physical Depth/guided testing and a distinctly versioned signed build remain external.
 - **Android 0.4.0-alpha01/build 13 package complete locally and remotely (2026-08-18).** Forced JDK 17/Gradle 8.13 compile, 8/8 tests, lint with 0 errors/fatals, debug APK, unsigned release APK, release AAB, package metadata, signature state, exact-pin capture assets, and SHA-256 evidence pass. Remote run `32197176293` uploaded artifact `9346411488`; physical-device/signing acceptance remains BLK-006/BLK-007.
 
+## Phase 3B — licensed insurance pricing
+
+- **Safe Xactimate pricing worksheet path implemented locally (2026-08-19).** Services & Prices now recognizes PLX without retaining it, downloads a documented worksheet, previews authorized rows before writes, validates stable category/selector/activity identities and pricing metadata, and commits a complete catalog batch with one durable Office-state write. Office and integrated RoomFlow searches show the insurance code; selected lines retain source/list/effective-date metadata; estimate PDFs show the code and unit price.
+- The exact supplied PLX is a valid transfer container, but its only `XACTDOC.ZIPXML` member is opaque/protected and official Verisk material reviewed for this task does not publish a payload contract. Direct extraction remains BLK-013; no line-item content or licensed file entered Git, and no live runtime data was changed.
+- Keep server 4.7.0, Mobile API alpha11, Android alpha01, iOS alpha03, minimum clients, and the RoomFlow pin unchanged. This source milestone does not authorize a same-version runtime rebuild, version bump, push, live import, Xactimate credential use, or deployment.
+- All 13 source smokes, the 217-file server source manifest, and generated inventory pass. The repository verifier correctly stops only at the frozen v4.7.0 package comparison; BLK-014 requires explicit approval for a distinct version before package/checksum/release verification can return to PASS.
+
 ## Phase 4 — iOS
 
 - **Local readiness complete (2026-08-13); compiler gate blocked by BLK-004.** Verified project generation inputs, plist/ATS, all icon slots, HTTPS/minimum-version/capability enforcement, device-bound session storage, coordinated refresh, and PDF MIME/signature validation.

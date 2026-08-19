@@ -63,12 +63,12 @@ f3165b1bfd0f3eb849e5d05bc065a78021dd2a4235f5e48caa530c939f969ba6  ./office-conso
 9d67ec506f62c46e6b68a2597017ab7fd4edc906a3104e3173e896fcfeaf8be1  ./office-console/app/config.py
 8298b137c0b4f4ecad56509cad31b3b6e76ad2c1c05e4066f496ad2fb6fbc52a  ./office-console/app/customer_csv.py
 1d784e44dbbad29ff7a5abdb587d0595ecb0342da679d63872da74ed4a24d69b  ./office-console/app/customer_portal.py
-1fed1d3c5f5d4c7cd2146afc0a2a3969141c7db77b90ae2df36dc91f3a2915e4  ./office-console/app/estimate_catalog.py
+1d2c88abd73bcef3447558a96482fd81b4dced2da5596617c34ccf81c4ce33ca  ./office-console/app/estimate_catalog.py
 3c70772bb8d6519cb53f22c20977596e465460a85e8438f2654ca88539ec4dad  ./office-console/app/importer.py
-24e9e742d7af7d60518f7178c4848c34ddebe70471d72fd755ba308a08d66955  ./office-console/app/main.py
-350c25b149a58dcfe740796329de25c8631a3adb2f1bff2790eebcaf597a8d41  ./office-console/app/mobile_api.py
+3b6e5d7b480c1543126b73451c9c60bf3c5e3037267d439d4a42af63cba627b7  ./office-console/app/main.py
+d60f2357cb5506ff1d43ed4d7de661b4f330dfe23ba598c43cdbe5ba7ecb1c0f  ./office-console/app/mobile_api.py
 73f95ddb9e9763e2eecaa7fc25b2c7fe113d990e0db225c57044cbddd8d14dfc  ./office-console/app/mobile_operations.py
-d9aea4155ae632f55da4b08f75930a0ec38d79b51b6621415fd8c70c7b317267  ./office-console/app/pdf_documents.py
+18360b42081e5fa0a4fc8a73a13b3e9e1e48e45f5cf4cadb8d3f8740dacc002d  ./office-console/app/pdf_documents.py
 d2505213c0a55a3d6dad54773ec53bbfbf1de488b5cb72b1b3ca9d6d8c7eab4f  ./office-console/app/project_plans.py
 fa1aae7ed8cb6300b3e2a6aac4e3bbf1daa50fbf09a24388a81499002c8b0612  ./office-console/app/providers.py
 18c40f0405cfe2d6d64e84562d905bf27e0d4db8427dad89a9b5a9b8d27d8693  ./office-console/app/roomflow_assets.py
@@ -77,7 +77,8 @@ e9ae70cc314373b624d43066c4b0e38542150ead927f1f020f5d44cebc13a48b  ./office-conso
 f34e09ea8b9bb6584d276c6ae3b774cee48578cfc1cdea72e7c3a27eeead3da4  ./office-console/app/roomflow_supabase.py
 9795afdd2adf37f446906cfb1e30c1f1dfd9234400f5be05cb266b8a4c7e8655  ./office-console/app/security.py
 c67c00e59eef054ff3eaa0a417a3a574834636a3cabf390bb52a286bedeb6788  ./office-console/app/store.py
-cd2e9230cb003e5f429b242dec5c6dc65c8328a0f4311c412b322cd2d3f23665  ./office-console/app/ui.py
+1d0f8055afd75237572a018c51ea2df764aca47578cb49348998af9e1b9de0da  ./office-console/app/ui.py
+de6c5dee6fc5f620556034847e8d4437683242780d246dc0b4ffbcf7da153c95  ./office-console/app/xactimate_catalog.py
 370e2ab32676e73ce5ecfeaad80c8d3d0a5fbd4101cbdd27ffb6d40d9272f59d  ./orchestrator/app/__init__.py
 99d81eff550df355f6456ba8e9dce7bf7b5a72cbb821bb6097268d3c403dc079  ./orchestrator/app/adapters/__init__.py
 f885609468dc0547798f0270eb25983f6a7645a3e5d86ad27a5adbe5c6b8cb31  ./orchestrator/app/adapters/documenso.py
@@ -162,7 +163,7 @@ d356e1d8930de6d6c7f7826b31febc22d9259ee3e8e09ff69c2968770686f9a5  ./roomflow/cap
 36ed2e6fd6f133776a24d3dc110f1ec501736bb24e5f609609bdf64e44080677  ./roomflow/capture/roomflow-capture.js
 690428235d02af9f8957d401aac0c887b7a6d0f68046b0d0f2229c9cd6556360  ./roomflow/capture/tests/geometry.test.cjs
 112c486ff60bfedb28c362e665d88f0c152d8d4ea3431a11d93efc9d06677399  ./roomflow/floodman-panel.css
-5e3875c4dedfc607cd380c551a59bd857d09dceaa7b3b17f4a49179afdb087e9  ./roomflow/floodman-panel.js
+fc3f1634cc4b305374d509e2e08a864493f46b441038aa9323963deaccd5337b  ./roomflow/floodman-panel.js
 edf6195867776e4f3c20d0a710b58fe23fc25aa2f63338119d4f0b63cf840362  ./roomflow/floodman-roomflow.css
 59f27f39b5440f82b22cd02262bd08722248a9ec50f72dd63b3393c0112e9eec  ./roomflow/floodman-roomflow.js
 57e5e182e5a8f3cf6a4de49683ea753b90d9fd389fc1ae92a8676e3e16153190  ./roomflow/prepare-roomflow.py
@@ -213,3 +214,4 @@ f8bbe061f8260462a75e675264eea0251e84efe5d7bfdd00e589cb93a11a4adc  ./tests/roomfl
 3b1fe98f8da6fb09f3351754c70f2d49692dc0809e66000e09497e7b39e703bf  ./tests/roomflow_workspace_smoke.py
 eff8e71ca99d7a4d63e04a1a1d9d51e9f31c68828125ab9868e1a02b8927941e  ./tests/unified_login_smoke.py
 87abe00b2aee52d2cc1560ccf40da49c07e75b3e68f3136230cf86520c4439c6  ./tests/web_ui_smoke.py
+fb780597dce737534224905f1e211a1dd3a82116c2de4bb2bac5612d62ea8a53  ./tests/xactimate_catalog_smoke.py

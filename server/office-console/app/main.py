@@ -57,6 +57,16 @@ from .security import SignedRequestError, verify_signed_body
 from .store import CaptureOperationConflict, CaptureOperationNotFound, OfficeStore
 from .mobile_api import build_mobile_router
 from .ui import badge, esc, json_pre, layout, money_cents, money_units, progress, simple_page, table
+from .xactimate_catalog import (
+    IMPORT_KIND as XACTIMATE_IMPORT_KIND,
+    MAX_ROWS as XACTIMATE_MAX_ROWS,
+    MAX_UPLOAD_BYTES as XACTIMATE_MAX_UPLOAD_BYTES,
+    ProtectedXactimatePlxError,
+    SOURCE_PROVIDER as XACTIMATE_SOURCE_PROVIDER,
+    XactimateCatalogError,
+    parse_xactimate_catalog_upload,
+    xactimate_catalog_template,
+)
 
 
 settings = Settings.from_env()
@@ -1403,6 +1413,10 @@ def imports_page() -> HTMLResponse:
             total_records = int(counts.get("customers_ready") or 0)
             import_type = "Customer CSV"
             attachments = 0
+        elif run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+            total_records = int(counts.get("items_ready") or 0)
+            import_type = "Xactimate pricing CSV"
+            attachments = 0
         else:
             total_records = sum(int(counts.get(key) or 0) for key in (
                 "contacts", "properties", "estimates", "estimate_lines", "invoices", "payments", "documents", "notes"
@@ -1905,13 +1919,71 @@ async def _commit_customer_csv(run_id: str, run: dict[str, Any], actor: dict[str
     }
 
 
+def _xactimate_import_detail(run: dict[str, Any]) -> HTMLResponse:
+    _require("estimates.manage")
+    run_id = str(run["id"])
+    counts = run.get("counts") or {}
+    try:
+        normalized = store.read_normalized(run_id)
+        items = list(normalized.get("catalog_items") or [])
+    except Exception:
+        items = []
+    preview_rows = []
+    for item in items[:100]:
+        metadata = ((item.get("formula") or {}).get("xactimate") or {})
+        preview_rows.append([
+            esc(metadata.get("code") or item.get("source_id") or ""),
+            esc(item.get("name") or ""),
+            esc(item.get("category") or ""),
+            esc(item.get("unit") or ""),
+            money_cents(item.get("unit_price_cents")),
+            esc(metadata.get("effective_date") or "Needs review"),
+        ])
+    warning_values = list(run.get("warnings") or [])
+    warnings = "".join(f"<li>{esc(value)}</li>" for value in warning_values[:100]) or "<li>None</li>"
+    if len(warning_values) > 100:
+        warnings += f"<li>…and {esc(len(warning_values) - 100)} additional warnings retained with this preview.</li>"
+    action = ""
+    if run.get("status") == "PREVIEWED" and not run.get("errors"):
+        action = (
+            f"<form method='post' action='/office/imports/{esc(run_id)}/commit'>"
+            f"<button class='good'>Import {esc(counts.get('items_ready', 0))} reviewed prices</button></form>"
+        )
+    elif run.get("status") == "COMMITTED":
+        result = run.get("commit_result") or {}
+        action = (
+            "<div class='callout success'><b>Pricing import completed.</b><br>"
+            f"Added: {esc(result.get('added', 0))} · Updated: {esc(result.get('updated', 0))} · "
+            f"Skipped: {esc(result.get('skipped', 0))}</div>"
+        )
+    elif run.get("status") == "FAILED":
+        action = f"<div class='callout danger'>{esc(run.get('commit_error') or 'Pricing import failed.')}</div>"
+    body = f"""
+<div class='callout success'><b>Nothing has been added yet.</b> Review the detected codes, descriptions, units, prices, and effective dates below. Floodman will use the market + category + selector + activity as the stable identity, so a later pricing worksheet updates matching items instead of duplicating them.</div>
+<div class='grid metrics-grid'>
+  <div class='card metric'><small>Line items ready</small><strong>{esc(counts.get('items_ready', 0))}</strong></div>
+  <div class='card metric'><small>Categories</small><strong>{esc(counts.get('categories', 0))}</strong></div>
+  <div class='card metric'><small>Markets</small><strong>{esc(counts.get('markets', 0))}</strong></div>
+  <div class='card metric'><small>Need date review</small><strong>{esc(counts.get('needs_review', 0))}</strong></div>
+</div>
+<div class='card'><h2>Source pricing</h2><p><b>Price list:</b> {esc(', '.join(run.get('price_lists') or []))}</p><p><b>Market:</b> {esc(', '.join(run.get('markets') or []) or 'Not supplied')}</p><p><b>Effective date:</b> {esc(', '.join(run.get('effective_dates') or []) or 'Not supplied')}</p><p><b>Unit price range:</b> {money_cents(run.get('minimum_unit_price_cents'))} to {money_cents(run.get('maximum_unit_price_cents'))}</p></div>
+<div class='card'><h2>Line-item preview</h2>{table(('Code','Description','Section','Unit','Unit price','Effective'), preview_rows, 'No valid line items were found.')}{'<p class="muted">Showing the first 100 line items. All validated items will be imported after confirmation.</p>' if len(items) > 100 else ''}</div>
+<div class='card'><h2>Review warnings</h2><ul>{warnings}</ul></div>
+<div class='card'><h2>Import action</h2><p>Only the normalized line-item values are written to the reusable Floodman catalog. This does not contact Xactimate, modify the original file, create an estimate, or send anything to a customer or insurer.</p><div class='actions'>{action}<a class='button secondary' href='/office/catalog'>Back to Services &amp; Prices</a></div></div>
+"""
+    return _page("Xactimate Pricing Review", body, "catalog")
+
+
 @app.get("/office/imports/{run_id}")
 def import_detail(run_id: str) -> HTMLResponse:
     run = store.get_import(run_id)
     if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     if run.get("import_kind") == "CUSTOMERS_CSV":
         return _customer_import_detail(run)
+    if run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+        return _xactimate_import_detail(run)
     errors = "".join(f"<li>{esc(value)}</li>" for value in run.get("errors") or []) or "<li>None</li>"
     warnings = "".join(f"<li>{esc(value)}</li>" for value in run.get("warnings") or []) or "<li>None</li>"
     files = "".join(
@@ -1945,6 +2017,7 @@ async def commit_import(run_id: str) -> RedirectResponse:
     run = store.get_import(run_id)
     if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     if run.get("errors"):
         store.set_notice("This import cannot be committed until its validation errors are fixed.")
         return RedirectResponse(f"/office/imports/{run_id}", status_code=303)
@@ -1966,6 +2039,18 @@ async def commit_import(run_id: str) -> RedirectResponse:
             store.set_notice(
                 f"Customer import completed. {result['created']} created and {result['matched']} matched. "
                 f"No messages or invoices were sent."
+            )
+        elif run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+            actor = _require("estimates.manage")
+            normalized = store.read_normalized(run_id)
+            raw_items = normalized.get("catalog_items")
+            if not isinstance(raw_items, list):
+                raise ValueError("The validated pricing preview no longer contains catalog items.")
+            result = _import_xactimate_catalog_rows(raw_items, actor_id=str(actor.get("id") or ""))
+            store.update_import(run_id, status="COMMITTED", commit_result=result)
+            store.set_notice(
+                f"Pricing import completed: {result['added']} added and {result['updated']} updated. "
+                "No estimates or messages were created."
             )
         else:
             normalized = store.read_normalized(run_id)
@@ -2031,8 +2116,10 @@ async def sync_customer_import(run_id: str) -> RedirectResponse:
 
 @app.get("/office/imports/{run_id}/files/{filename:path}")
 def import_file(run_id: str, filename: str) -> Response:
-    if not store.get_import(run_id):
+    run = store.get_import(run_id)
+    if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     try:
         path = store.file_path(run_id, filename)
     except ValueError as exc:
@@ -2331,6 +2418,32 @@ def _import_catalog_rows(
     }
 
 
+def _import_xactimate_catalog_rows(raw_items: list[Any], *, actor_id: str) -> dict[str, Any]:
+    if len(raw_items) > XACTIMATE_MAX_ROWS:
+        raise ValueError(f"The validated pricing import exceeds the {XACTIMATE_MAX_ROWS:,}-item limit.")
+    normalized: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for index, raw in enumerate(raw_items, start=1):
+        if not isinstance(raw, dict):
+            errors.append(f"Item {index}: expected a catalog object.")
+            continue
+        try:
+            normalized.append(normalize_catalog_item(raw, source=XACTIMATE_SOURCE_PROVIDER))
+        except Exception as exc:
+            if len(errors) < 10:
+                errors.append(f"Item {index}: {exc}")
+    if errors:
+        raise ValueError(" ".join(errors))
+    result = store.bulk_upsert_records({"catalog_items": normalized}, actor_id=actor_id)["catalog_items"]
+    return {
+        "added": result["created"],
+        "updated": result["updated"],
+        "skipped": 0,
+        "errors": [],
+        "total_catalog_items": len(store.records("catalog_items")),
+    }
+
+
 def _import_bundled_roomflow_catalog(*, actor_id: str, force: bool = False) -> dict[str, Any]:
     seed_path = _roomflow_catalog_seed_path()
     existing_roomflow = [
@@ -2444,9 +2557,11 @@ def _render_grouped_document_lines(document: dict[str, Any]) -> str:
                 labels.append("Taxable")
             description = esc(item.get("description") or "")
             detail = f"<small class='muted'>{description}</small>" if description else ""
+            pricing_reference = esc(item.get("pricing_reference") or "")
+            pricing_detail = f"<small class='muted'><b>Pricing code:</b> {pricing_reference}</small>" if pricing_reference else ""
             flags = f"<div>{' · '.join(labels)}</div>" if labels else ""
             rows.append([
-                f"<b>{esc(item.get('name') or item.get('description'))}</b>{detail}{flags}",
+                f"<b>{esc(item.get('name') or item.get('description'))}</b>{pricing_detail}{detail}{flags}",
                 esc(item.get("quantity")),
                 esc(item.get("unit") or "each"),
                 money_cents(unit),
@@ -3346,7 +3461,11 @@ def catalog_items_api(q: str = "", category: str = "", limit: int = 30) -> dict[
     for item in store.records("catalog_items"):
         if item.get("active") is False:
             continue
-        searchable = " ".join(str(item.get(key) or "") for key in ("name", "description", "category", "default_section", "unit", "external_key")).casefold()
+        pricing = ((item.get("formula") or {}).get("xactimate") or {})
+        searchable = " ".join([
+            *(str(item.get(key) or "") for key in ("name", "description", "category", "default_section", "unit", "external_key", "source_id")),
+            *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+        ]).casefold()
         if query and query not in searchable:
             continue
         if category_key and str(item.get("category") or "").casefold() != category_key:
@@ -4045,7 +4164,11 @@ def catalog_page(q: str = "", category: str = "") -> HTMLResponse:
     categories = sorted({str(item.get("category") or "General Services") for item in all_items}, key=str.casefold)
     items = []
     for item in all_items:
-        searchable = " ".join(str(item.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider")).casefold()
+        pricing = ((item.get("formula") or {}).get("xactimate") or {})
+        searchable = " ".join([
+            *(str(item.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider", "source_id", "external_key")),
+            *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+        ]).casefold()
         if query and query not in searchable:
             continue
         if category_key and str(item.get("category") or "").casefold() != category_key:
@@ -4054,19 +4177,64 @@ def catalog_page(q: str = "", category: str = "") -> HTMLResponse:
     items.sort(key=lambda item: (item.get("active") is False, str(item.get("category") or "").casefold(), str(item.get("name") or "").casefold()))
     category_options = "".join(f"<option value='{esc(value)}' {'selected' if value.casefold() == category_key else ''}>{esc(value)}</option>" for value in categories)
     create = ""
+    xactimate_import = ""
     if has_permission(_user(), "estimates.manage"):
         create = """<details class='card plain-details'><summary>Add a new service or price</summary><p class='muted'>Add something your team sells often. It will appear in office estimates and the RoomFlow scope builder.</p><form method='post' action='/office/catalog/add'><div class='form-grid three'><div class='field'><label>Service name <span class='required-mark'>Required</span></label><input name='name' maxlength='200' placeholder='Interior perimeter drainage' required><small class='field-help'>Use the name a customer will understand.</small></div><div class='field'><label>Estimate section</label><input name='category' value='General Services' maxlength='120' required><small class='field-help'>Services with the same section stay grouped together.</small></div><div class='field'><label>How it is measured</label><select name='unit'><option value='each'>Each</option><option value='LF'>Linear foot</option><option value='SF'>Square foot</option><option value='hour'>Hour</option><option value='day'>Day</option><option value='allowance'>Allowance</option></select></div><div class='field'><label>Standard unit price</label><input name='unit_price' type='number' min='0' max='9999999.99' step='0.01' value='0.00' inputmode='decimal'><small class='field-help'>Enter dollars, not cents. It can still be changed on an estimate.</small></div><div class='field checks'><label><input type='checkbox' name='taxable' value='yes'> Apply sales tax when the estimate uses tax</label></div><div class='field full'><label>Customer-facing description <span class='muted'>Optional</span></label><textarea name='description' maxlength='2000' placeholder='What is included in this service?'></textarea></div></div><button class='good' style='margin-top:12px'>Save service</button></form></details>"""
+        xactimate_import = """<details class='card plain-details'><summary>Bring in licensed Xactimate pricing</summary><div class='callout'><b>Preview first, import second.</b> Floodman never changes the original file. A direct PLX upload is inspected locally, but protected XACTDOC.ZIPXML data requires a supported Xactimate conversion. A completed Floodman pricing CSV can be fully previewed and confirmed here.</div><form method='post' action='/office/catalog/import-xactimate' enctype='multipart/form-data' class='import-upload-form'><label class='file-drop-field'><span class='file-drop-icon'>⇩</span><b>Select a PLX or pricing CSV</b><small>Accepted: .plx and .csv · Maximum 25 MB · Files stay in private server storage only when a CSV preview succeeds</small><input type='file' name='pricing_file' accept='.plx,.csv,text/csv' required></label><button class='good'>Inspect and preview</button></form><div class='role-guide'><div><b>1. Try the PLX</b><small>Floodman identifies the transfer container and tells you if Xactimate conversion is required.</small></div><div><b>2. Fill the template</b><small>Use only pricing data your Xactimate license allows you to use.</small></div><div><b>3. Confirm the preview</b><small>Stable market/category/selector/activity codes update existing items without duplicates.</small></div></div><div class='actions'><a class='button secondary' href='/office/catalog/import-xactimate/template.csv'>Download pricing CSV template</a></div></details>"""
     source_labels = {
         "FLOODMAN_CUSTOM": "Added by your team",
         "ROOMFLOW_SUPABASE": "Current RoomFlow/Supabase",
         "ROOMFLOW_BUNDLED_CATALOG": "Floodman starter list",
+        XACTIMATE_SOURCE_PROVIDER: "Licensed Xactimate import",
     }
-    cards = "".join(
-        f"<article class='catalog-card'><div class='catalog-source'>{esc(source_labels.get(str(item.get('source_provider') or ''), 'Floodman service'))}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div><small>Estimate section: {esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or 'No customer description yet.')}</small><div style='margin-top:9px'>{badge('AVAILABLE' if item.get('active') is not False else 'HIDDEN', 'good' if item.get('active') is not False else 'neutral')}</div></article>"
-        for item in items[:1000]
-    ) or "<div class='callout'>No services match this search. Clear the filters, refresh the starter list, or add a service.</div>"
-    body = f"""<div class='callout success'><b>One price list for office and field staff.</b> Choose these services while building an estimate in Floodman Office or RoomFlow. A price is a reusable starting point and can be adjusted on an individual estimate.</div><div class='card'><div class='actions spread'><div><h2>Services &amp; Prices</h2><p class='muted'>{len(all_items)} reusable services are available. RoomFlow/Supabase items update by their original source ID, so refreshing does not create duplicates.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Refresh starter services</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Pull current RoomFlow prices</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Find a service</label><input type='search' name='q' value='{esc(q)}' placeholder='Try waterproofing, mold, or demolition' autocomplete='off'></div><div class='field'><label>Show section</label><select name='category'><option value=''>All sections</option>{category_options}</select></div><button>Apply filters</button></form><div class='catalog-grid'>{cards}</div></div>{create} """
+
+    def catalog_card(item: dict[str, Any]) -> str:
+        xactimate = ((item.get("formula") or {}).get("xactimate") or {})
+        code = xactimate.get("code")
+        effective = xactimate.get("effective_date")
+        pricing_details = ""
+        if code:
+            pricing_details = f"<small><b>Insurance code:</b> {esc(code)}</small><small><b>Price list:</b> {esc(xactimate.get('price_list') or 'Not recorded')} · <b>Effective:</b> {esc(effective or 'Review required')}</small>"
+        return f"<article class='catalog-card'><div class='catalog-source'>{esc(source_labels.get(str(item.get('source_provider') or ''), 'Floodman service'))}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div>{pricing_details}<small>Estimate section: {esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or 'No customer description yet.')}</small><div style='margin-top:9px'>{badge('REVIEW PRICE' if item.get('review_required') else ('AVAILABLE' if item.get('active') is not False else 'HIDDEN'), 'warn' if item.get('review_required') else ('good' if item.get('active') is not False else 'neutral'))}</div></article>"
+
+    display_limit = 200
+    cards = "".join(catalog_card(item) for item in items[:display_limit]) or "<div class='callout'>No services match this search. Clear the filters, refresh the starter list, or add a service.</div>"
+    result_note = f"<p class='muted'>Showing the first {display_limit} of {len(items)} matches. Search by description or insurance code to narrow the list.</p>" if len(items) > display_limit else ""
+    body = f"""<div class='callout success'><b>One price list for office and field staff.</b> Choose these services while building an estimate in Floodman Office or RoomFlow. A price is a reusable starting point and can be adjusted on an individual estimate.</div>{xactimate_import}<div class='card'><div class='actions spread'><div><h2>Services &amp; Prices</h2><p class='muted'>{len(all_items)} reusable services are available. RoomFlow/Supabase and licensed pricing imports use stable source IDs, so refreshing does not create duplicates.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Refresh starter services</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Pull current RoomFlow prices</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Find a service or insurance code</label><input type='search' name='q' value='{esc(q)}' placeholder='Try WTR, drywall, waterproofing, or demolition' autocomplete='off'></div><div class='field'><label>Show section</label><select name='category'><option value=''>All sections</option>{category_options}</select></div><button>Apply filters</button></form>{result_note}<div class='catalog-grid'>{cards}</div></div>{create} """
     return _page("Services & Prices", body, "catalog")
+
+
+@app.get("/office/catalog/import-xactimate/template.csv")
+def download_xactimate_catalog_template() -> Response:
+    _require("estimates.manage")
+    return Response(
+        xactimate_catalog_template(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="floodman-xactimate-pricing-template.csv"'},
+    )
+
+
+@app.post("/office/catalog/import-xactimate")
+async def upload_xactimate_catalog(pricing_file: UploadFile = File(...)) -> RedirectResponse:
+    _require("estimates.manage")
+    filename = Path((pricing_file.filename or "pricing-import").replace("\\", "/")).name
+    data = await pricing_file.read(XACTIMATE_MAX_UPLOAD_BYTES + 1)
+    try:
+        result = parse_xactimate_catalog_upload(data, filename)
+    except ProtectedXactimatePlxError as exc:
+        inspection = exc.inspection
+        store.set_notice(
+            f"PLX recognized ({inspection.member_name}, {inspection.member_size:,} bytes; file SHA-256 starts {inspection.sha256[:12]}). "
+            f"{exc} The PLX was not stored or imported."
+        )
+        return RedirectResponse("/office/catalog", status_code=303)
+    except (XactimateCatalogError, zipfile.BadZipFile) as exc:
+        store.set_notice(f"Pricing file was not imported: {exc}")
+        return RedirectResponse("/office/catalog", status_code=303)
+    safe_filename = str(result.summary.get("source_filename") or "xactimate-pricing.csv")
+    run_id = store.create_import(result.summary, result.normalized, {safe_filename: data})
+    store.set_notice("Pricing worksheet validated. Review the detected line items before importing them.")
+    return RedirectResponse(f"/office/imports/{run_id}", status_code=303)
 
 
 @app.post("/office/catalog/add")
@@ -5457,6 +5625,11 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
             "pricing_method": _roomflow_clean(raw.get("pricing_method") or "fixed", 50),
             "sort_order": _roomflow_int(raw.get("sort_order"), index - 1),
             "category": _roomflow_clean(raw.get("category") or section_name, 120),
+            "pricing_reference": _roomflow_clean(raw.get("pricing_reference"), 160),
+            "pricing_source": _roomflow_clean(raw.get("pricing_source"), 120),
+            "pricing_price_list": _roomflow_clean(raw.get("pricing_price_list"), 160),
+            "pricing_effective_date": _roomflow_clean(raw.get("pricing_effective_date"), 80),
+            "pricing_market": _roomflow_clean(raw.get("pricing_market"), 200),
             "custom": not bool(raw_catalog_id),
             "save_to_catalog": not bool(raw_catalog_id),
             "source": "ROOMFLOW",

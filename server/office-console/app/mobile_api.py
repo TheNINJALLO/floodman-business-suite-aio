@@ -942,7 +942,11 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
                 continue
             if category_query and str(record.get("category") or "").casefold() != category_query:
                 continue
-            haystack = " ".join(str(record.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider")).casefold()
+            pricing = ((record.get("formula") or {}).get("xactimate") or {})
+            haystack = " ".join([
+                *(str(record.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider", "source_id", "external_key")),
+                *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+            ]).casefold()
             if query and query not in haystack:
                 continue
             values.append(document_public(record))

@@ -353,6 +353,9 @@
         quantity, unit_price_cents: cents(unitPrice), line_total_cents: Math.round(quantity * cents(unitPrice)),
         taxable: Boolean(line.taxable || line.applyTax), optional: Boolean(line.optional), selected: line.selected !== false,
         unit: asText(line.unit || 'each'), category: asText(line.category || sectionName || 'other'), pricing_method: asText(line.pricing_method || line.pricingMethod || 'fixed'), sort_order: Number(line.sort_order ?? line.sortOrder ?? index) || 0,
+        pricing_reference: asText(line.pricing_reference || ''), pricing_source: asText(line.pricing_source || ''),
+        pricing_price_list: asText(line.pricing_price_list || ''), pricing_effective_date: asText(line.pricing_effective_date || ''),
+        pricing_market: asText(line.pricing_market || ''),
       };
     }).filter(line => line.quantity > 0 && line.unit_price_cents >= 0 && line.line_total_cents >= 0);
   }
@@ -399,12 +402,16 @@
   function addCatalogItemToEstimate(item) {
     const api = roomFlowEstimateApi(); if (!api) return;
     const section = model.activeEstimateSection || estimateSectionNames()[0] || 'Waterproofing';
+    const pricing = item.formula?.xactimate || {};
     const line = {
       roomflow_line_id: uuid(), catalog_item_id: item.id || null,
       name: asText(item.name || 'Catalog item'), description: asText(item.description || ''),
       section_name: section, category: asText(item.category || section), pricing_method: asText(item.pricing_method || 'fixed'),
       quantity: 1, unit: asText(item.unit || 'each'), unit_price: Number(item.unit_price_cents || 0) / 100,
       taxable: Boolean(item.taxable), optional: false, selected: true, sort_order: api.currentLines.length,
+      pricing_reference: asText(pricing.code || ''), pricing_source: asText(item.source_provider || ''),
+      pricing_price_list: asText(pricing.price_list || ''), pricing_effective_date: asText(pricing.effective_date || ''),
+      pricing_market: asText(pricing.market || ''),
     };
     api.currentLines.push(line);
     persistEstimateScope();
@@ -425,7 +432,8 @@
       }
       for (const item of items) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'fm-rf-result';
-        button.innerHTML = `<b>${escapeHtml(item.name || '')}</b><small>${escapeHtml(item.default_section || item.category || 'General Services')} · ${escapeHtml(item.unit || 'each')} · ${escapeHtml(money(item.unit_price_cents || 0))}</small>`;
+        const pricing = item.formula?.xactimate || {};
+        button.innerHTML = `<b>${escapeHtml(pricing.code ? `${pricing.code} · ${item.name || ''}` : item.name || '')}</b><small>${escapeHtml(item.default_section || item.category || 'General Services')} · ${escapeHtml(item.unit || 'each')} · ${escapeHtml(money(item.unit_price_cents || 0))}</small>`;
         button.addEventListener('click', () => { host.classList.remove('is-open'); addCatalogItemToEstimate(item); });
         host.appendChild(button);
       }

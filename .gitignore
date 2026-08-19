@@ -37,6 +37,9 @@ config/*.json
 **/postgres/
 **/documenso/
 **/roomflow/current/
+# Licensed Xactimate transfer data belongs in private runtime imports, never Git.
+*.plx
+*.PLX
 
 # Generated packages and build products
 *.apk
