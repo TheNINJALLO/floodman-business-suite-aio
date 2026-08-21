@@ -584,7 +584,9 @@ BASE_CSS = r"""
 
 /* Low-training settings workspace */
 .settings-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:22px;border-color:#39799d;background:linear-gradient(135deg,#123a5a,#0c2238)}.settings-hero h2{font-size:25px;margin:4px 0 7px}.settings-eyebrow{font-size:11px;font-weight:900;letter-spacing:.12em;color:#76d4ff;text-transform:uppercase}.settings-hero-copy{max-width:760px}.settings-hero-copy p{margin:0;color:#c4d6e8;line-height:1.55}.settings-progress{min-width:150px;text-align:center;padding:15px;border:1px solid #477492;border-radius:13px;background:#07192a}.settings-progress strong{display:block;font-size:30px;color:#7fe6b8}.settings-progress small{color:var(--muted)}.settings-section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:24px 0 12px}.settings-section-head h2,.settings-section-head p{margin:0}.settings-section-head p{color:var(--muted)}.settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:13px}.settings-card{display:flex;flex-direction:column;min-height:235px;margin:0;padding:17px}.settings-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.settings-card-number{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:50%;background:#1d78b7;color:#fff;font-weight:900}.settings-card h3{font-size:18px;margin:12px 0 6px}.settings-card p{margin:0 0 12px;color:#b9cada;line-height:1.5}.settings-card .settings-summary{margin-top:auto;padding:10px;border-radius:9px;background:#081727;color:var(--muted);font-size:12px}.settings-card .actions{margin-top:12px}.settings-card .button{width:100%}.field-help{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.4}.required-mark{color:#8bd3ff;font-weight:750}.plain-details{margin-top:14px}.plain-details>summary{min-height:42px;display:flex;align-items:center}.choice-card{padding:13px;border:1px solid var(--line);border-radius:11px;background:#0a1728}.choice-card b,.choice-card small{display:block}.choice-card small{margin-top:5px;color:var(--muted);line-height:1.45}.role-guide{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px;margin:12px 0}.role-guide>div{padding:11px;border:1px solid var(--line);border-radius:10px;background:#0a1728}.role-guide b,.role-guide small{display:block}.role-guide small{margin-top:4px;color:var(--muted)}.advanced-banner{border-color:#5c512d;background:#2a2516}.connection-simple-table table{min-width:520px}
+.conversation-shell{display:grid;grid-template-columns:minmax(240px,.75fr) minmax(0,1.75fr);gap:14px}.thread-list{display:grid;gap:8px}.thread-link{display:block;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0a1728;color:var(--text)}.thread-link.active{border-color:#4aa9df;background:#123b5a}.thread-link b,.thread-link small{display:block}.thread-link small{margin-top:4px;color:var(--muted)}.staff-message-list{display:grid;gap:10px;max-height:540px;overflow:auto;padding:2px;margin:14px 0}.staff-message{max-width:84%;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:#0a1728}.staff-message.staff{justify-self:end;border-color:#2c6b58;background:#0d3026}.staff-message.customer{justify-self:start;border-color:#376b91;background:#0d2941}.staff-message-head{display:flex;justify-content:space-between;gap:14px;font-size:12px}.staff-message-head span{color:var(--muted)}.staff-message p{white-space:pre-wrap;margin:7px 0 0;line-height:1.45}.staff-message-delivery{display:block;margin-top:6px;color:var(--muted);font-size:11px}
 @media(max-width:720px){.settings-hero{flex-direction:column;padding:18px}.settings-progress{width:100%}.settings-section-head{align-items:flex-start;flex-direction:column}.settings-card{min-height:0}.settings-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.conversation-shell{grid-template-columns:1fr}.staff-message{max-width:94%}}
 
 """
 
@@ -602,6 +604,7 @@ def layout(
     setup_complete: bool = False,
     release: str = "",
     user: dict[str, Any] | None = None,
+    unread_notifications: int = 0,
 ) -> str:
     nav_parts: list[str] = []
     for group, items in NAV_GROUPS:
@@ -610,7 +613,7 @@ def layout(
             continue
         nav_parts.append(f"<div class='nav-group'>{esc(group)}</div>")
         nav_parts.extend(
-            f"<a class={'active' if key == active else ''!r} href='{href}'>{esc(label)}</a>"
+            f"<a class={'active' if key == active else ''!r} href='{href}'>{esc(label)}{' ' + badge(unread_notifications, 'warn') if key == 'alerts' and unread_notifications else ''}</a>"
             for href, label, key, _permission in visible
         )
     nav = "".join(nav_parts)
@@ -619,6 +622,11 @@ def layout(
         badge("Setup review complete", "good")
         if setup_complete
         else f"<a href='/setup' title='The server is running. Finish the optional operating review checklist.'>{badge('Setup review pending', 'warn')}</a>"
+    )
+    notification_chip = (
+        f"<a href='/office/alerts' aria-label='{unread_notifications} unread staff notifications'>{badge(f'{unread_notifications} unread', 'warn')}</a>"
+        if unread_notifications
+        else ""
     )
     if user:
         user_box = (
@@ -650,5 +658,5 @@ def layout(
 <div class='sidebar-mobile-head'><div class='brand'>Floodman Operations</div><button class='mobile-close' type='button' data-mobile-menu-close aria-label='Close navigation'>×</button></div>
 <div class='brand desktop-brand'>Floodman Operations</div><div class='subbrand'>Created by Josh Aldrich · {esc(release)}</div><nav>{nav}</nav>
 <div class='side-note'><b>BUSINESS STAGING</b><br>Floodman runs in clean non-demo mode. Square, SMS, customer email, and production signatures remain local or sandboxed until explicitly connected.</div>{user_box}
-</aside><main><header class='page-header'><div><h1>{esc(title)}</h1><div class='muted'>One command center for Floodman ERP, signing, receivables, RoomFlow, customer files, and AI intelligence.</div></div><div class='header-meta'>{setup_chip}</div></header>{notice_html}{content}<footer class='creator-footer'><b>Floodman Operations</b> · Created by Josh Aldrich · <a href='/floodman-third-party-notices.html' target='_blank'>Third-party notices</a></footer></main></div>
+</aside><main><header class='page-header'><div><h1>{esc(title)}</h1><div class='muted'>One command center for Floodman ERP, signing, receivables, RoomFlow, customer files, and AI intelligence.</div></div><div class='header-meta actions'>{notification_chip}{setup_chip}</div></header>{notice_html}{content}<footer class='creator-footer'><b>Floodman Operations</b> · Created by Josh Aldrich · <a href='/floodman-third-party-notices.html' target='_blank'>Third-party notices</a></footer></main></div>
 <nav class='mobile-bottom-nav' aria-label='Primary mobile navigation'>{mobile_bottom}</nav><script>{OFFICE_JS}</script>{PWA_BODY}</body></html>"""

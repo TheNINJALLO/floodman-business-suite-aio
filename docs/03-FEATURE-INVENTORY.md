@@ -45,6 +45,7 @@
 - Processor-managed saved payment method authorization
 - Cash, check, ACH/bank transfer, external card, and other manual methods
 - Payment attempts and audit records
+- Deduplicated in-app/mobile and email alerts for payment administrators
 - No intended raw card or CVV storage
 
 ## Documents and signing
@@ -83,6 +84,9 @@
 
 ## Communications and intelligence
 
+- Property-scoped two-way customer conversations inside secure estimate/invoice links
+- Staff conversation inbox, replies, unread state, and customer email notifications
+- Per-user alert center with mobile notification-feed compatibility and email delivery status
 - Mailpit test email
 - SMTP provider configuration
 - Twilio configuration and local mock support

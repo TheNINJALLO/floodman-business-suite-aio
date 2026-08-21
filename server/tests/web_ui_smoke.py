@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 import json
 import re
 import shutil
@@ -17,6 +18,9 @@ REPO = ROOT.parent
 
 
 class FakeProviders:
+    def __init__(self) -> None:
+        self.sent_emails: list[dict[str, Any]] = []
+
     async def lab_state(self) -> dict[str, Any]:
         return {
             "demo_job_id": "ui-smoke-job",
@@ -59,6 +63,27 @@ class FakeProviders:
             "sdk_url": "",
             "live": False,
             "local_mock": True,
+        }
+
+    async def send_email(self, **message: Any) -> dict[str, Any]:
+        self.sent_emails.append(dict(message))
+        return {"status": "SENT", "to": message.get("to"), "subject": message.get("subject")}
+
+    async def record_payment(self, _payment: dict[str, Any]) -> dict[str, Any]:
+        return {"ok": True}
+
+    async def ensure_square_customer(self, _contact: dict[str, Any]) -> dict[str, Any]:
+        return {"id": "ui-smoke-square-customer"}
+
+    async def create_square_payment(self, **values: Any) -> dict[str, Any]:
+        return {
+            "id": f"ui-smoke-square-{values['source_id']}",
+            "status": "COMPLETED",
+            "receipt_url": "https://example.test/receipt",
+            "card_details": {
+                "entry_method": "KEYED",
+                "card": {"card_brand": "VISA", "last_4": "1111", "exp_month": 12, "exp_year": 2030},
+            },
         }
 
 
@@ -271,8 +296,136 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
         assert pdf.headers["content-type"].startswith("application/pdf")
         assert pdf.content.startswith(b"%PDF-")
 
+    invoice_token = records["invoice"]["public_token"]
+    portal = client.get(f"/customer/invoice/{invoice_token}")
+    assert "Message the Floodman team" in portal.text
+    portal_message = "Could you confirm the installation date? <script>alert(1)</script>"
+    first_message = client.post(
+        f"/customer/invoice/{invoice_token}/messages",
+        data={"body": portal_message, "request_id": "ui-smoke-customer-message-001", "website": ""},
+    )
+    assert first_message.status_code == 303 and first_message.headers["location"].endswith("#messages")
+    thread_id = main._customer_thread_id(
+        records["contact"]["id"], records["property"]["id"], records["invoice"]["id"]
+    )
+    customer_messages = main._customer_thread_messages(thread_id)
+    assert len(customer_messages) == 1 and customer_messages[0]["sender_kind"] == "CUSTOMER"
+    message_alerts = [item for item in main.store.records("notifications") if item.get("kind") == "CUSTOMER_MESSAGE"]
+    assert len(message_alerts) == 1 and message_alerts[0]["status"] == "UNREAD"
+    assert message_alerts[0]["email_status"] == "SENT"
+    staff_alert_email = next(item for item in main.providers.sent_emails if str(item.get("subject") or "").startswith("Floodman customer message"))
+    assert portal_message not in str(staff_alert_email.get("text") or ""), "customer message text leaked into an alert email"
+    duplicate_message = client.post(
+        f"/customer/invoice/{invoice_token}/messages",
+        data={"body": portal_message, "request_id": "ui-smoke-customer-message-001", "website": ""},
+    )
+    assert duplicate_message.status_code == 303
+    assert len(main._customer_thread_messages(thread_id)) == 1, "portal retry created a duplicate message"
+    oversized_message = client.post(
+        f"/customer/invoice/{invoice_token}/messages",
+        data={"body": "x" * 3001, "request_id": "ui-smoke-customer-message-002", "website": ""},
+    )
+    assert oversized_message.status_code == 422
+    assert len(main._customer_thread_messages(thread_id)) == 1, "an invalid portal message was stored"
+
+    other_property = main.store.create_record(
+        "properties",
+        {
+            "contact_id": records["contact"]["id"],
+            "name": "Carter Rental",
+            "service_street": "100 Fictional Avenue",
+            "service_city": "Traverse City",
+            "service_state": "MI",
+            "service_postal_code": "49686",
+        },
+        actor_id=records["owner"]["id"],
+    )
+    other_invoice = main.store.create_record(
+        "invoices",
+        {
+            "contact_id": records["contact"]["id"],
+            "property_id": other_property["id"],
+            "invoice_number": "INV-UI-ISOLATED",
+            "title": "Separate fictional property",
+            "status": "SENT",
+            "currency": "USD",
+            "sections": [],
+            "line_items": [],
+            "total_cents": 10000,
+            "paid_cents": 0,
+            "balance_cents": 10000,
+        },
+        actor_id=records["owner"]["id"],
+    )
+    other_invoice = main._ensure_public_document("invoice", other_invoice, actor_id=records["owner"]["id"])
+    isolated_portal = client.get(f"/customer/invoice/{other_invoice['public_token']}")
+    assert isolated_portal.status_code == 200
+    assert "Could you confirm the installation date?" not in isolated_portal.text, "a different property link exposed the conversation"
+
+    staff_view = client.get(f"/office/messages?thread={thread_id}")
+    assert staff_view.status_code == 200 and "Could you confirm the installation date?" in staff_view.text
+    assert "<script>alert(1)</script>" not in staff_view.text and "&lt;script&gt;alert(1)&lt;/script&gt;" in staff_view.text
+    assert main.store.record("notifications", message_alerts[0]["id"])["status"] == "READ"
+    reply = client.post(
+        f"/office/messages/{thread_id}/reply",
+        data={"body": "Yes. Your installation is scheduled for Tuesday morning.", "request_id": "ui-smoke-staff-reply-001"},
+    )
+    assert reply.status_code == 303
+    customer_email = next(item for item in main.providers.sent_emails if item.get("to") == "alex@example.test")
+    assert "replied to your secure message" in str(customer_email.get("subject") or "").lower()
+    customer_email_count = len([item for item in main.providers.sent_emails if item.get("to") == "alex@example.test"])
+    duplicate_reply = client.post(
+        f"/office/messages/{thread_id}/reply",
+        data={"body": "Yes. Your installation is scheduled for Tuesday morning.", "request_id": "ui-smoke-staff-reply-001"},
+    )
+    assert duplicate_reply.status_code == 303
+    assert len([item for item in main.providers.sent_emails if item.get("to") == "alex@example.test"]) == customer_email_count
+    replied_portal = client.get(f"/customer/invoice/{invoice_token}")
+    assert "Tuesday morning" in replied_portal.text and "1 new reply" in replied_portal.text
+    assert "<script>alert(1)</script>" not in replied_portal.text and "&lt;script&gt;alert(1)&lt;/script&gt;" in replied_portal.text
+    marked_read = client.post(f"/customer/invoice/{invoice_token}/messages/read")
+    assert marked_read.status_code == 303
+    assert all(item.get("customer_read_at") for item in main._customer_thread_messages(thread_id) if item.get("sender_kind") == "STAFF")
+
+    payment_response = client.post(
+        f"/office/invoices/{records['invoice']['id']}/payment",
+        data={"amount": "10.00", "method": "CHECK", "reference": "UI-SMOKE-CHECK", "note": "Fictional test payment"},
+    )
+    assert payment_response.status_code == 303
+    payment_alerts = [item for item in main.store.records("notifications") if item.get("kind") == "PAYMENT_RECEIVED"]
+    assert len(payment_alerts) == 1 and payment_alerts[0]["status"] == "UNREAD"
+    assert payment_alerts[0]["email_status"] == "SENT"
+    payment = next(item for item in main.store.records("payments") if item.get("reference") == "UI-SMOKE-CHECK")
+    before_retry = len(payment_alerts)
+    asyncio.run(main._notify_payment_admins("invoice", main.store.record("invoices", records["invoice"]["id"]), payment))
+    assert len([item for item in main.store.records("notifications") if item.get("kind") == "PAYMENT_RECEIVED"]) == before_retry
+    alerts_page = client.get("/office/alerts")
+    assert "Payment received" in alerts_page.text and "Customer Message" in alerts_page.text
+    opened_alert = client.get(f"/office/alerts/{payment_alerts[0]['id']}/open")
+    assert opened_alert.status_code == 303 and f"/office/invoices/{records['invoice']['id']}" in opened_alert.headers["location"]
+    assert main.store.record("notifications", payment_alerts[0]["id"])["status"] == "READ"
+    assert client.post("/office/alerts/read-all").status_code == 303
+    owner_alerts = [item for item in main.store.records("notifications") if item.get("user_id") == records["owner"]["id"]]
+    assert owner_alerts and all(item.get("status") == "READ" for item in owner_alerts)
+
     pay = client.get(f"/customer/pay/{records['invoice']['public_token']}")
     assert pay.status_code == 200 and "secure payment" in pay.text.lower()
+    card_payment = client.post(
+        f"/customer/pay/{records['invoice']['public_token']}/process",
+        json={"source_id": "one-time-token-001", "amount_cents": 500, "save_card": False},
+    )
+    assert card_payment.status_code == 200 and card_payment.json()["processor_status"] == "COMPLETED"
+    payment_admin_email_count = len([item for item in main.providers.sent_emails if str(item.get("subject") or "").startswith("Floodman payment received")])
+    card_payment_retry = client.post(
+        f"/customer/pay/{records['invoice']['public_token']}/process",
+        json={"source_id": "one-time-token-001", "amount_cents": 500, "save_card": False},
+    )
+    assert card_payment_retry.status_code == 200
+    processor_payments = [item for item in main.store.records("payments") if item.get("processor_payment_id") == "ui-smoke-square-one-time-token-001"]
+    assert len(processor_payments) == 1, "processor retry created a duplicate payment"
+    card_alerts = [item for item in main.store.records("notifications") if item.get("kind") == "PAYMENT_RECEIVED"]
+    assert len(card_alerts) == 2, "processor retry duplicated or omitted the administrator alert"
+    assert len([item for item in main.providers.sent_emails if str(item.get("subject") or "").startswith("Floodman payment received")]) == payment_admin_email_count
     receipt = client.get(
         f"/customer/receipt/{records['invoice']['public_token']}?payment={records['payment']['id']}"
     )
@@ -617,6 +770,19 @@ def browser_smoke(main: Any) -> None:
                 assert mobile_dialog.evaluate("node => node.scrollWidth <= node.clientWidth + 2"), f"capture dialog overflow at {width}px"
                 mobile_page.keyboard.press("Escape")
                 assert mobile_dialog.is_hidden(), f"capture dialog did not close at {width}px"
+
+            portal_invoice = next(item for item in main.store.records("invoices") if item.get("invoice_number") == "INV-UI-001")
+            for width in (320, 390):
+                mobile_page.set_viewport_size({"width": width, "height": 844})
+                portal_response = mobile_page.goto(
+                    base + f"/customer/invoice/{portal_invoice['public_token']}#messages",
+                    wait_until="domcontentloaded",
+                )
+                assert portal_response is None or portal_response.status == 200, f"customer portal returned {portal_response.status} at {width}px: {mobile_page.content()[:300]}"
+                assert mobile_page.get_by_role("heading", name="Message the Floodman team").is_visible()
+                assert mobile_page.locator("#portal-message-body").is_visible()
+                overflow = mobile_page.evaluate("""Array.from(document.querySelectorAll('body *')).filter(node=>{const r=node.getBoundingClientRect();return r.right>document.documentElement.clientWidth+2||r.left<-2}).slice(0,12).map(node=>({tag:node.tagName,className:node.className,text:(node.textContent||'').trim().slice(0,80),left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth}))""")
+                assert not overflow, f"customer portal horizontal overflow at {width}px: {overflow}"
 
             mobile_page.close()
             desktop.close()

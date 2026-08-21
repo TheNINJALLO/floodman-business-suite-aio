@@ -559,6 +559,13 @@ def root() -> RedirectResponse:
 
 def _page(title: str, body: str, active: str) -> HTMLResponse:
     snapshot = store.snapshot()
+    user = _user()
+    unread_notifications = sum(
+        1
+        for item in store.records("notifications")
+        if str(item.get("user_id") or "") == str((user or {}).get("id") or "")
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    )
     return HTMLResponse(
         layout(
             title,
@@ -567,7 +574,8 @@ def _page(title: str, body: str, active: str) -> HTMLResponse:
             notice=snapshot.get("last_notice", ""),
             setup_complete=bool(snapshot["checklist"].get("setup_complete")),
             release=settings.release,
-            user=_user(),
+            user=user,
+            unread_notifications=unread_notifications,
         )
     )
 
@@ -1114,9 +1122,15 @@ async def mobile_operations() -> HTMLResponse:
     payments = store.records("payments")
     documents = store.records("documents")
     tasks = store.records("tasks")
-    messages = _rows(state.get("messages")) + _rows(state.get("message_threads"))
+    messages = _rows(state.get("messages")) + _rows(state.get("message_threads")) + store.records("customer_threads")
     ar_cases = _rows(state.get("ar_cases"))
-    alerts = _rows(state.get("staff_alerts"))
+    current_user_id = str((_user() or {}).get("id") or "")
+    local_alerts = [
+        item for item in store.records("notifications")
+        if str(item.get("user_id") or "") == current_user_id
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    ]
+    alerts = _rows(state.get("staff_alerts")) + local_alerts
 
     open_invoices = [item for item in invoices if str(item.get("status") or "").upper() not in {"PAID", "VOID", "CANCELED", "CANCELLED"}]
     completed_documents = [item for item in documents if str(item.get("status") or "").upper() in {"COMPLETED", "SIGNED", "EXECUTED"}]
@@ -1192,7 +1206,13 @@ async def office_dashboard() -> HTMLResponse:
     square = _rows(state.get("square_invoices"))
     documents = combine(store.records("documents"), _rows(state.get("envelopes")) + _rows(state.get("imported_documents")))
     notes = combine(store.records("notes"), _rows(state.get("notes")))
-    alerts = _rows(state.get("staff_alerts"))
+    current_user_id = str((_user() or {}).get("id") or "")
+    local_alerts = [
+        item for item in store.records("notifications")
+        if str(item.get("user_id") or "") == current_user_id
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    ]
+    alerts = _rows(state.get("staff_alerts")) + local_alerts
     ar_cases = _rows(state.get("ar_cases"))
     outstanding = sum(_square_remaining(item) for item in square)
     imported_due = sum(
@@ -2810,6 +2830,7 @@ async def _publish_invoice_to_square(
     )
     square_invoice = dict(result.get("invoice") or {})
     total, paid, balance = _square_amounts(square_invoice)
+    previous_paid = int(invoice.get("paid_cents") or 0)
     status = str(square_invoice.get("status") or "UNPAID").upper()
     local_status = "PAID" if status == "PAID" else "PARTIALLY_PAID" if paid > 0 else "SENT"
     updates = {
@@ -2829,14 +2850,12 @@ async def _publish_invoice_to_square(
         "balance_cents": balance if total else int(invoice.get("balance_cents") or 0),
     }
     updated = store.update_record("invoices", str(invoice["id"]), updates, actor_id=actor_id)
-    if local_status == "PAID" and not any(
-        str(item.get("invoice_id") or "") == str(invoice["id"]) and str(item.get("reference") or "") == updates["square_invoice_id"]
-        for item in store.records("payments")
-    ):
-        store.create_record("payments", {
+    if paid > previous_paid:
+        payment_key = f"floodman-square-invoice-payment:{updates['square_invoice_id']}:{paid}"
+        payment, _ = store.create_record_if_absent("payments", str(uuid.uuid5(uuid.NAMESPACE_URL, payment_key)), {
             "invoice_id": str(invoice["id"]),
             "contact_id": contact_id,
-            "amount_cents": paid or int(invoice.get("total_cents") or 0),
+            "amount_cents": paid - previous_paid,
             "currency": str(invoice.get("currency") or "USD"),
             "method": "SQUARE_CARD_ON_FILE" if card_id else "SQUARE",
             "reference": updates["square_invoice_id"],
@@ -2844,6 +2863,7 @@ async def _publish_invoice_to_square(
             "payment_date": datetime.now(UTC).isoformat(),
             "status": "COMPLETED",
         }, actor_id="square-reconciliation")
+        await _notify_payment_admins("invoice", updated, payment)
     message = "Floodman automatically charged the authorized card on file." if card_id else "Floodman published the secure invoice payment page and offered the customer an optional save-payment-method checkbox."
     return updated, message
 
@@ -2857,6 +2877,7 @@ async def _reconcile_square_invoices_once() -> int:
         try:
             square_invoice = await providers.get_square_invoice(square_invoice_id)
             total, paid, balance = _square_amounts(square_invoice)
+            previous_paid = int(invoice.get("paid_cents") or 0)
             square_status = str(square_invoice.get("status") or "").upper()
             local_status = "PAID" if square_status == "PAID" else "PARTIALLY_PAID" if paid else str(invoice.get("status") or "SENT")
             if paid != int(invoice.get("paid_cents") or 0) or balance != int(invoice.get("balance_cents") or 0) or local_status != str(invoice.get("status") or ""):
@@ -2868,22 +2889,30 @@ async def _reconcile_square_invoices_once() -> int:
                     "square_public_url": str(square_invoice.get("public_url") or invoice.get("square_public_url") or ""),
                 }, actor_id="square-reconciliation")
                 changed += 1
-                if local_status == "PAID":
-                    if not any(
-                        str(item.get("invoice_id") or "") == str(invoice["id"]) and str(item.get("reference") or "") == square_invoice_id
-                        for item in store.records("payments")
-                    ):
-                        store.create_record("payments", {
+                if paid > previous_paid:
+                    payment_key = f"floodman-square-invoice-payment:{square_invoice_id}:{paid}"
+                    payment, _ = store.create_record_if_absent(
+                        "payments",
+                        str(uuid.uuid5(uuid.NAMESPACE_URL, payment_key)),
+                        {
                             "invoice_id": str(invoice["id"]),
                             "contact_id": invoice.get("contact_id"),
-                            "amount_cents": paid,
+                            "amount_cents": paid - previous_paid,
                             "currency": str(invoice.get("currency") or "USD"),
                             "method": "SQUARE",
                             "reference": square_invoice_id,
                             "note": "Reconciled from the payment processor.",
                             "payment_date": datetime.now(UTC).isoformat(),
                             "status": "COMPLETED",
-                        }, actor_id="square-reconciliation")
+                        },
+                        actor_id="square-reconciliation",
+                    )
+                    await _notify_payment_admins(
+                        "invoice",
+                        store.record("invoices", str(invoice["id"])) or invoice,
+                        payment,
+                    )
+                if local_status == "PAID":
                     # If the buyer chose Square's "Save my card on file" option,
                     # discover the new tokenized card and make it the customer's
                     # default only when no default has been chosen yet. Floodman
@@ -3582,6 +3611,205 @@ def _document_contact_property(document: dict[str, Any]) -> tuple[dict[str, Any]
     return contact, property_record
 
 
+def _contact_display_name(contact: dict[str, Any]) -> str:
+    return str(
+        contact.get("name")
+        or " ".join(part for part in (contact.get("first_name"), contact.get("last_name")) if part)
+        or contact.get("email")
+        or "Customer"
+    ).strip()
+
+
+def _notification_id(event_kind: str, event_id: str, user_id: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-notification:{event_kind}:{event_id}:{user_id}"))
+
+
+async def _notify_staff(
+    *,
+    permission: str,
+    event_kind: str,
+    event_id: str,
+    reference_id: str,
+    title: str,
+    body: str,
+    action_url: str,
+    email_subject: str,
+) -> int:
+    """Create one durable alert per eligible staff member and email it once.
+
+    The stable event/user identifier makes payment callbacks and browser retries
+    safe.  Email failure never rolls back the business event; the in-app/mobile
+    notification remains available and records delivery status for staff review.
+    """
+    recipients = [
+        user
+        for user in store.list_users()
+        if str(user.get("status") or "ACTIVE").upper() == "ACTIVE" and has_permission(user, permission)
+    ]
+    pending: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for user in recipients:
+        user_id = str(user.get("id") or "")
+        if not user_id:
+            continue
+        notification, created = store.create_record_if_absent(
+            "notifications",
+            _notification_id(event_kind, event_id, user_id),
+            {
+                "user_id": user_id,
+                "title": title,
+                "body": body,
+                "kind": event_kind,
+                "reference_id": reference_id,
+                "action_url": action_url if action_url.startswith("/office/") else "/office/alerts",
+                "status": "UNREAD",
+                "email_status": "PENDING" if user.get("email") else "NO_EMAIL",
+                "source": "FLOODMAN_NOTIFICATION",
+            },
+            actor_id="floodman-system",
+        )
+        if created and user.get("email"):
+            pending.append((user, notification))
+
+    async def deliver(user: dict[str, Any], notification: dict[str, Any]) -> None:
+        try:
+            office_url = f"{settings.public_url.rstrip('/')}/office/alerts/{quote(str(notification.get('id') or ''))}/open"
+            await providers.send_email(
+                to=str(user.get("email") or ""),
+                subject=email_subject,
+                text=f"{body}\n\nOpen Floodman: {office_url}",
+            )
+            store.update_record(
+                "notifications",
+                str(notification["id"]),
+                {"email_status": "SENT", "email_sent_at": datetime.now(UTC).isoformat()},
+                actor_id="floodman-system",
+            )
+        except Exception:
+            store.update_record(
+                "notifications",
+                str(notification["id"]),
+                {"email_status": "FAILED"},
+                actor_id="floodman-system",
+            )
+
+    if pending:
+        await asyncio.gather(*(deliver(user, notification) for user, notification in pending))
+    return len(recipients)
+
+
+async def _notify_payment_admins(kind: str, document: dict[str, Any], payment: dict[str, Any]) -> int:
+    contact, _ = _document_contact_property(document)
+    number = str(
+        document.get("estimate_number")
+        if kind == "estimate"
+        else document.get("invoice_number") or document.get("id") or ""
+    )
+    label = "deposit" if kind == "estimate" else "invoice payment"
+    amount = money_cents(payment.get("amount_cents"), str(payment.get("currency") or "USD"))
+    customer = _contact_display_name(contact)
+    action_url = f"/office/{kind}s/{quote(str(document.get('id') or ''))}"
+    return await _notify_staff(
+        permission="payments.manage",
+        event_kind="PAYMENT_RECEIVED",
+        event_id=str(payment.get("id") or ""),
+        reference_id=str(payment.get("id") or ""),
+        title=f"Payment received: {amount}",
+        body=f"{customer} paid {amount} toward {label} {number}. Open Floodman to review the balance and receipt.",
+        action_url=action_url,
+        email_subject=f"Floodman payment received - {number}",
+    )
+
+
+def _customer_thread_id(contact_id: str, property_id: str = "", document_id: str = "") -> str:
+    # A document capability may be forwarded to an insurer or other project
+    # participant.  Scope conversations to the service property (or, when no
+    # property exists, the individual document) so one link cannot expose an
+    # unrelated project belonging to the same customer.
+    scope = str(property_id or "").strip() or f"document:{str(document_id or '').strip()}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-customer-thread:{contact_id}:{scope}"))
+
+
+def _customer_thread(document: dict[str, Any], kind: str, *, create: bool = False) -> dict[str, Any] | None:
+    contact_id = str(document.get("contact_id") or "")
+    if not contact_id:
+        return None
+    thread_id = _customer_thread_id(contact_id, str(document.get("property_id") or ""), str(document.get("id") or ""))
+    thread = store.record("customer_threads", thread_id)
+    if thread or not create:
+        return thread
+    thread, _ = store.create_record_if_absent(
+        "customer_threads",
+        thread_id,
+        {
+            "contact_id": contact_id,
+            "property_id": document.get("property_id"),
+            "last_document_kind": kind,
+            "last_document_id": document.get("id"),
+            "status": "OPEN",
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id="customer-portal",
+    )
+    return thread
+
+
+def _customer_thread_messages(thread_id: str) -> list[dict[str, Any]]:
+    return sorted(
+        [item for item in store.records("customer_messages") if str(item.get("thread_id") or "") == thread_id],
+        key=lambda item: (str(item.get("created_at") or ""), str(item.get("id") or "")),
+    )
+
+
+def _clean_portal_message(value: str) -> str:
+    message = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not message:
+        raise ValueError("Write a message before sending.")
+    if len(message) > 3000:
+        raise ValueError("Messages can contain up to 3,000 characters.")
+    return message
+
+
+async def _notify_customer_message_staff(document: dict[str, Any], message: dict[str, Any], thread_id: str) -> int:
+    contact, _ = _document_contact_property(document)
+    customer = _contact_display_name(contact)
+    return await _notify_staff(
+        permission="messages.manage",
+        event_kind="CUSTOMER_MESSAGE",
+        event_id=str(message.get("id") or ""),
+        reference_id=thread_id,
+        title="New customer portal message",
+        body=f"{customer} sent a secure portal message. Open Floodman Messages to read and respond.",
+        action_url=f"/office/messages?thread={quote(thread_id)}",
+        email_subject=f"Floodman customer message - {customer}",
+    )
+
+
+def _customer_conversation_body(kind: str, document: dict[str, Any]) -> str:
+    thread_id = _customer_thread_id(
+        str(document.get("contact_id") or ""),
+        str(document.get("property_id") or ""),
+        str(document.get("id") or ""),
+    )
+    messages = _customer_thread_messages(thread_id)
+    unread = sum(1 for item in messages if str(item.get("sender_kind") or "").upper() == "STAFF" and not item.get("customer_read_at"))
+    rendered = "".join(
+        f"<article class='portal-message {'staff' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'customer'}'><div class='portal-message-head'><b>{esc('Floodman team' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'You')}</b><span>{esc(str(item.get('created_at') or '')[:16].replace('T', ' '))} UTC</span></div><p>{esc(item.get('body') or '').replace(chr(10), '<br>')}</p></article>"
+        for item in messages
+    ) or "<div class='notice'>No messages yet. Send a question below and the Floodman team will be notified.</div>"
+    request_id = secrets.token_urlsafe(24)
+    read_form = (
+        f"<form method='post' action='/customer/{esc(kind)}/{esc(document.get('public_token') or '')}/messages/read'><button class='secondary'>Mark replies read</button></form>"
+        if unread
+        else ""
+    )
+    return f"""
+<section class='card portal-conversation' id='messages'><div class='portal-message-title'><div><span class='eyebrow'>SECURE CUSTOMER MESSAGES</span><h2>Message the Floodman team</h2><p>Ask a project, scheduling, estimate, or billing question here. Staff replies stay with your customer file.</p></div>{f"<span class='status'>{unread} new repl{'y' if unread == 1 else 'ies'}</span>" if unread else ""}</div>
+<div class='portal-message-list' aria-live='polite'>{rendered}</div>
+{read_form}
+<form method='post' action='/customer/{esc(kind)}/{esc(document.get('public_token') or '')}/messages' class='portal-message-form'><input type='hidden' name='request_id' value='{esc(request_id)}'><div class='portal-honeypot' aria-hidden='true'><label>Website<input name='website' tabindex='-1' autocomplete='off'></label></div><div class='field'><label for='portal-message-body'>Your message</label><textarea id='portal-message-body' name='body' maxlength='3000' rows='5' required placeholder='How can we help?'></textarea><small>Do not send card numbers, security codes, passwords, or other sensitive account information.</small></div><button>Send message</button></form></section>
+"""
+
+
 def _ensure_public_document(kind: str, document: dict[str, Any], *, actor_id: str = "floodman-system") -> dict[str, Any]:
     record_id = str(document.get("id") or "")
     if kind not in {"estimate", "invoice"} or not record_id:
@@ -3686,6 +3914,8 @@ async def _record_document_payment(
     if processor_id:
         existing = next((p for p in store.records("payments") if str(p.get("processor_payment_id") or "") == processor_id), None)
         if existing:
+            current_document = store.record(kind + "s", record_id) or document
+            await _notify_payment_admins(kind, current_document, existing)
             return existing
     values: dict[str, Any] = {
         "invoice_id": record_id if kind == "invoice" else None,
@@ -3703,7 +3933,17 @@ async def _record_document_payment(
     }
     values.update(_payment_card_summary(processor_payment or {}))
     values.update(payment_metadata or {})
-    payment = store.create_record("payments", values, actor_id=actor_id)
+    if processor_id:
+        stable_payment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-processor-payment:{processor_id}"))
+        payment, payment_created = store.create_record_if_absent(
+            "payments", stable_payment_id, values, actor_id=actor_id
+        )
+        if not payment_created:
+            current_document = store.record(kind + "s", record_id) or document
+            await _notify_payment_admins(kind, current_document, payment)
+            return payment
+    else:
+        payment = store.create_record("payments", values, actor_id=actor_id)
     if kind == "invoice":
         new_paid = int(document.get("paid_cents") or 0) + amount_cents
         total = int(document.get("total_cents") or 0)
@@ -3735,6 +3975,8 @@ async def _record_document_payment(
         })
     except Exception:
         pass
+    current_document = store.record(kind + "s", record_id) or document
+    await _notify_payment_admins(kind, current_document, payment)
     return payment
 
 
@@ -4081,7 +4323,8 @@ def _customer_document_response(expected_kind: str, token: str) -> HTMLResponse:
     kind, document = _public_document(token)
     if kind != expected_kind:
         raise HTTPException(404, "Document link not found")
-    return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), _customer_document_body(kind, document)), headers=_payment_security_headers())
+    body = _customer_document_body(kind, document) + _customer_conversation_body(kind, document)
+    return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), body), headers=_payment_security_headers())
 
 
 def _customer_document_pdf_response(expected_kind: str, token: str) -> Response:
@@ -4100,6 +4343,106 @@ def customer_estimate(token: str) -> HTMLResponse:
 @app.get("/customer/invoice/{token}")
 def customer_invoice(token: str) -> HTMLResponse:
     return _customer_document_response("invoice", token)
+
+
+@app.post("/customer/{kind}/{token}/messages")
+async def customer_message(
+    kind: str,
+    token: str,
+    body: str = Form(...),
+    request_id: str = Form(...),
+    website: str = Form(default=""),
+) -> Response:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    return_url = str(document.get("public_url") or f"{settings.customer_public_url}/{kind}/{token}") + "#messages"
+    if website.strip():
+        return RedirectResponse(return_url, status_code=303)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", str(request_id or "")):
+        raise HTTPException(422, "Refresh the page and send your message again.")
+    try:
+        message_body = _clean_portal_message(body)
+    except ValueError as exc:
+        page_body = f"<div class='notice error'>{esc(exc)}</div>" + _customer_document_body(kind, document) + _customer_conversation_body(kind, document)
+        return HTMLResponse(customer_page("Message not sent", page_body), status_code=422, headers=_payment_security_headers())
+
+    thread = _customer_thread(document, kind, create=True)
+    if not thread:
+        raise HTTPException(409, "This customer file is not available for messaging.")
+    thread_id = str(thread["id"])
+    message_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-customer-message:{thread_id}:{request_id}"))
+    existing_message = store.record("customer_messages", message_id)
+    if existing_message:
+        await _notify_customer_message_staff(document, existing_message, thread_id)
+        return RedirectResponse(return_url, status_code=303)
+
+    now = datetime.now(UTC)
+    recent_customer_messages = 0
+    for item in _customer_thread_messages(thread_id):
+        if str(item.get("sender_kind") or "").upper() != "CUSTOMER":
+            continue
+        try:
+            created = datetime.fromisoformat(str(item.get("created_at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - created).total_seconds() <= 60:
+            recent_customer_messages += 1
+    if recent_customer_messages >= 5:
+        raise HTTPException(429, "Please wait a moment before sending another message.")
+
+    contact, _ = _document_contact_property(document)
+    message, created = store.create_record_if_absent(
+        "customer_messages",
+        message_id,
+        {
+            "thread_id": thread_id,
+            "contact_id": document.get("contact_id"),
+            "property_id": document.get("property_id"),
+            "document_kind": kind,
+            "document_id": document.get("id"),
+            "sender_kind": "CUSTOMER",
+            "sender_name": _contact_display_name(contact),
+            "body": message_body,
+            "customer_read_at": now.isoformat(),
+            "staff_read_at": None,
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id="customer-portal",
+    )
+    if created:
+        store.update_record(
+            "customer_threads",
+            thread_id,
+            {
+                "status": "OPEN",
+                "property_id": document.get("property_id") or thread.get("property_id"),
+                "last_document_kind": kind,
+                "last_document_id": document.get("id"),
+                "last_message_at": message.get("created_at"),
+                "last_sender_kind": "CUSTOMER",
+            },
+            actor_id="customer-portal",
+        )
+    await _notify_customer_message_staff(document, message, thread_id)
+    return RedirectResponse(return_url, status_code=303)
+
+
+@app.post("/customer/{kind}/{token}/messages/read")
+def customer_messages_read(kind: str, token: str) -> RedirectResponse:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    thread_id = _customer_thread_id(
+        str(document.get("contact_id") or ""),
+        str(document.get("property_id") or ""),
+        str(document.get("id") or ""),
+    )
+    now = datetime.now(UTC).isoformat()
+    for item in _customer_thread_messages(thread_id):
+        if str(item.get("sender_kind") or "").upper() == "STAFF" and not item.get("customer_read_at"):
+            store.update_record("customer_messages", str(item["id"]), {"customer_read_at": now}, actor_id="customer-portal")
+    return RedirectResponse(str(document.get("public_url") or f"{settings.customer_public_url}/{kind}/{token}") + "#messages", status_code=303)
 
 
 @app.get("/customer/estimate/{token}/pdf")
@@ -6195,19 +6538,161 @@ def accept_invitation(token: str, password: str = Form(...), confirm_password: s
     return response
 
 
+def _portal_document_for_thread(thread: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    preferred_kind = str(thread.get("last_document_kind") or "")
+    preferred_id = str(thread.get("last_document_id") or "")
+    if preferred_kind in {"estimate", "invoice"} and preferred_id:
+        preferred = store.record(preferred_kind + "s", preferred_id)
+        if preferred and preferred.get("public_enabled") is not False and preferred.get("public_token"):
+            return preferred_kind, preferred
+    contact_id = str(thread.get("contact_id") or "")
+    property_id = str(thread.get("property_id") or "")
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for kind in ("invoice", "estimate"):
+        candidates.extend(
+            (kind, item)
+            for item in store.records(kind + "s")
+            if str(item.get("contact_id") or "") == contact_id
+            and (not property_id or str(item.get("property_id") or "") == property_id)
+            and item.get("public_enabled") is not False
+            and item.get("public_token")
+        )
+    return candidates[0] if candidates else None
+
+
+def _mark_thread_read_for_staff(thread_id: str, user_id: str) -> None:
+    now = datetime.now(UTC).isoformat()
+    for message in _customer_thread_messages(thread_id):
+        if str(message.get("sender_kind") or "").upper() == "CUSTOMER" and not message.get("staff_read_at"):
+            store.update_record("customer_messages", str(message["id"]), {"staff_read_at": now}, actor_id=user_id)
+    for notification in store.records("notifications"):
+        if (
+            str(notification.get("user_id") or "") == user_id
+            and str(notification.get("reference_id") or "") == thread_id
+            and str(notification.get("status") or "UNREAD").upper() == "UNREAD"
+        ):
+            store.update_record("notifications", str(notification["id"]), {"status": "READ", "read_at": now}, actor_id=user_id)
+
+
 @app.get("/office/messages")
-async def messages_page() -> HTMLResponse:
-    _require("messages.view")
+async def messages_page(thread: str = "") -> HTMLResponse:
+    user = _require("messages.view")
+    threads = store.records("customer_threads")
+    selected = store.record("customer_threads", thread) if thread else (threads[0] if threads else None)
+    if selected:
+        _mark_thread_read_for_staff(str(selected["id"]), str(user.get("id") or ""))
+        selected = store.record("customer_threads", str(selected["id"])) or selected
+
+    thread_links = []
+    for item in threads:
+        contact = store.record("contacts", str(item.get("contact_id") or "")) or {}
+        messages = _customer_thread_messages(str(item.get("id") or ""))
+        unread = sum(1 for message in messages if str(message.get("sender_kind") or "").upper() == "CUSTOMER" and not message.get("staff_read_at"))
+        latest = messages[-1] if messages else {}
+        unread_badge = f" {badge(f'{unread} new', 'warn')}" if unread else ""
+        active_class = " active" if selected and str(selected.get("id")) == str(item.get("id")) else ""
+        thread_links.append(
+            f"<a class='thread-link{active_class}' href='/office/messages?thread={quote(str(item.get('id') or ''))}'><b>{esc(_contact_display_name(contact))}{unread_badge}</b><small>{esc(str(latest.get('body') or 'No messages yet')[:90])}</small><small>{esc(str(latest.get('created_at') or '')[:16].replace('T', ' '))}</small></a>"
+        )
+
+    conversation = "<div class='card'><h2>Select a conversation</h2><p class='muted'>Customer replies will appear here as soon as they send a secure portal message.</p></div>"
+    if selected:
+        thread_id = str(selected["id"])
+        contact = store.record("contacts", str(selected.get("contact_id") or "")) or {}
+        messages = _customer_thread_messages(thread_id)
+        rendered = "".join(
+            f"<article class='staff-message {'staff' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'customer'}'><div class='staff-message-head'><b>{esc(item.get('sender_name') or ('Floodman team' if str(item.get('sender_kind') or '').upper() == 'STAFF' else _contact_display_name(contact)))}</b><span>{esc(str(item.get('created_at') or '')[:16].replace('T', ' '))} UTC</span></div><p>{esc(item.get('body') or '')}</p>{f"<small class='staff-message-delivery'>Customer email notification: {esc(str(item.get('customer_email_status') or 'not requested').replace('_', ' ').title())}</small>" if str(item.get('sender_kind') or '').upper() == 'STAFF' else ''}</article>"
+            for item in messages
+        ) or "<div class='callout'>No messages are in this conversation yet.</div>"
+        portal_document = _portal_document_for_thread(selected)
+        portal_link = f"<a class='button secondary' href='{esc(portal_document[1].get('public_url') or '')}' target='_blank'>Open customer portal</a>" if portal_document else ""
+        reply_form = ""
+        if has_permission(user, "messages.manage"):
+            reply_request_id = secrets.token_urlsafe(24)
+            reply_form = f"<form method='post' action='/office/messages/{esc(thread_id)}/reply'><input type='hidden' name='request_id' value='{esc(reply_request_id)}'><div class='field'><label for='staff-reply'>Reply to customer</label><textarea id='staff-reply' name='body' maxlength='3000' required placeholder='Write a clear reply for the customer...'></textarea><small class='field-help'>Floodman saves the reply in the portal and emails a secure notification when the customer has an email address.</small></div><button class='good' style='margin-top:12px'>Send reply</button></form>"
+        conversation = f"<div class='card'><div class='actions spread'><div><h2>{esc(_contact_display_name(contact))}</h2><p class='muted'>{esc(contact.get('email') or 'No customer email')} · Secure customer portal conversation</p></div><div class='actions'><a class='button secondary' href='/office/contacts/{esc(contact.get('id') or '')}'>Open customer</a>{portal_link}</div></div><div class='staff-message-list'>{rendered}</div>{reply_form}</div>"
+
     state = await _state_page_data()
     sms = _rows(state.get("sms_messages"))
     emails = _rows(state.get("emails"))
     sms_rows = [[esc(item.get("created_at")), esc(item.get("to")), badge(item.get("status")), esc(item.get("body"))] for item in sms]
     email_rows = [[esc(item.get("received_at")), esc(", ".join(item.get("to") or [])), esc(item.get("subject")), f"<details><summary>Open</summary><pre>{esc(item.get('text') or item.get('html') or '')}</pre></details>"] for item in emails]
-    send_form = ""
-    if has_permission(_user(), "messages.manage"):
-        send_form = """<div class='card'><h2>Send local test SMS</h2><form method='post' action='/office/messages/send'><div class='form-grid'><div class='field'><label>Phone</label><input name='phone' value='+13135550199' required></div><div class='field full'><label>Message</label><textarea name='body' required></textarea></div></div><button style='margin-top:12px'>Send message</button></form></div>"""
-    body = f"{send_form}<div class='card'><h2>Outbound and automated SMS</h2>{table(('Time','To','Status','Message'), sms_rows)}</div><div class='card'><h2>Captured email</h2>{table(('Time','To','Subject','Body'), email_rows)}</div><div class='card'><h2>Try the AI text assistant</h2><form method='post' action='{esc(settings.engineering_public_url)}/lab/sms/inbound'><div class='form-grid'><div class='field full'><label>Customer message</label><input name='body' value='What is my balance?' required></div></div><button>Send local inbound SMS</button></form></div>"
+    test_tools = ""
+    if has_permission(user, "messages.manage"):
+        test_tools = """<div class='card'><h2>Send local test SMS</h2><form method='post' action='/office/messages/send'><div class='form-grid'><div class='field'><label>Phone</label><input name='phone' value='+13135550199' required></div><div class='field full'><label>Message</label><textarea name='body' required></textarea></div></div><button style='margin-top:12px'>Send test message</button></form></div>"""
+    body = f"<div class='callout success'><b>Customer portal messaging is active.</b> Customers can write from a secure estimate or invoice link. Staff with message access receive an in-app/mobile alert and email notification; customer replies are never exposed on public administrative pages.</div><div class='conversation-shell'><aside class='card'><h2>Customer conversations</h2><div class='thread-list'>{''.join(thread_links) or '<div class=\'empty\'>No portal conversations yet.</div>'}</div></aside><section>{conversation}</section></div><details class='card plain-details'><summary>SMS, captured email, and testing tools</summary><div style='margin-top:14px'>{test_tools}<div class='card'><h2>Outbound and automated SMS</h2>{table(('Time','To','Status','Message'), sms_rows)}</div><div class='card'><h2>Captured email</h2>{table(('Time','To','Subject','Body'), email_rows)}</div><div class='card'><h2>Try the AI text assistant</h2><form method='post' action='{esc(settings.engineering_public_url)}/lab/sms/inbound'><div class='form-grid'><div class='field full'><label>Customer message</label><input name='body' value='What is my balance?' required></div></div><button>Send local inbound SMS</button></form></div></div></details>"
     return _page("Messages", body, "messages")
+
+
+@app.post("/office/messages/{thread_id}/reply")
+async def reply_to_customer(thread_id: str, body: str = Form(...), request_id: str = Form(...)) -> RedirectResponse:
+    user = _require("messages.manage")
+    thread = store.record("customer_threads", thread_id)
+    if not thread:
+        raise HTTPException(404, "Customer conversation not found")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", str(request_id or "")):
+        store.set_notice("Refresh the conversation and send your reply again.")
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    try:
+        message_body = _clean_portal_message(body)
+    except ValueError as exc:
+        store.set_notice(str(exc))
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    contact = store.record("contacts", str(thread.get("contact_id") or "")) or {}
+    now = datetime.now(UTC).isoformat()
+    message_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-staff-message:{thread_id}:{user.get('id')}:{request_id}"))
+    message, created = store.create_record_if_absent(
+        "customer_messages",
+        message_id,
+        {
+            "thread_id": thread_id,
+            "contact_id": thread.get("contact_id"),
+            "property_id": thread.get("property_id"),
+            "document_kind": thread.get("last_document_kind"),
+            "document_id": thread.get("last_document_id"),
+            "sender_kind": "STAFF",
+            "sender_id": user.get("id"),
+            "sender_name": user.get("name") or "Floodman team",
+            "body": message_body,
+            "staff_read_at": now,
+            "customer_read_at": None,
+            "customer_email_status": "PENDING",
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id=str(user.get("id") or ""),
+    )
+    if not created:
+        store.set_notice("That reply was already sent; Floodman did not create a duplicate.")
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    store.update_record(
+        "customer_threads",
+        thread_id,
+        {"status": "OPEN", "last_message_at": message.get("created_at"), "last_sender_kind": "STAFF"},
+        actor_id=str(user.get("id") or ""),
+    )
+    email = str(contact.get("email") or contact.get("primaryEmail") or "").strip()
+    portal_document = _portal_document_for_thread(thread)
+    if not email:
+        store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "NO_EMAIL"}, actor_id=str(user.get("id") or ""))
+        store.set_notice("Reply saved. Add a customer email address if they should receive email notifications.")
+    elif not portal_document:
+        store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "NO_PORTAL_LINK"}, actor_id=str(user.get("id") or ""))
+        store.set_notice("Reply saved, but a secure customer portal link is not available for email delivery.")
+    else:
+        portal_url = str(portal_document[1].get("public_url") or "") + "#messages"
+        try:
+            await providers.send_email(
+                to=email,
+                subject="Floodman replied to your secure message",
+                text=f"The Floodman team replied to your customer portal message.\n\nRead and reply securely: {portal_url}",
+                html=_payment_email_html("You have a new Floodman reply", "The Floodman team replied to your secure customer message.", portal_url, "Read secure reply"),
+            )
+            store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "SENT", "customer_email_sent_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+            store.set_notice("Reply sent. The customer portal was updated and an email notification was sent.")
+        except Exception:
+            store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "FAILED"}, actor_id=str(user.get("id") or ""))
+            store.set_notice("Reply saved in the portal, but the customer email notification could not be delivered.")
+    return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
 
 
 @app.post("/office/messages/send")
@@ -6235,11 +6720,67 @@ async def receivables_page() -> HTMLResponse:
 
 @app.get("/office/alerts")
 async def alerts_page() -> HTMLResponse:
-    _require("alerts.view")
+    user = _require("alerts.view")
+    user_id = str(user.get("id") or "")
+    notifications = [item for item in store.records("notifications") if str(item.get("user_id") or "") == user_id]
+    local_rows = []
+    for item in notifications:
+        action_url = str(item.get("action_url") or "")
+        open_action = f"<a class='button small secondary' href='/office/alerts/{esc(item.get('id'))}/open'>Open</a>" if action_url.startswith("/office/") else ""
+        read_action = (
+            f"<form method='post' action='/office/alerts/{esc(item.get('id'))}/read'><button class='small'>Mark read</button></form>"
+            if str(item.get("status") or "UNREAD").upper() == "UNREAD"
+            else ""
+        )
+        local_rows.append([
+            esc(str(item.get("created_at") or "")[:16].replace("T", " ")),
+            badge(item.get("status") or "UNREAD", "warn" if str(item.get("status") or "UNREAD").upper() == "UNREAD" else "neutral"),
+            esc(str(item.get("kind") or "GENERAL").replace("_", " ").title()),
+            f"<b>{esc(item.get('title') or '')}</b><br><span class='muted'>{esc(item.get('body') or '')}</span>",
+            badge(str(item.get("email_status") or "IN APP").replace("_", " ").title()),
+            f"<div class='actions'>{open_action}{read_action}</div>",
+        ])
     state = await _state_page_data()
     alerts = _rows(state.get("staff_alerts"))
     rows = [[esc(item.get("created_at") or ""), badge(item.get("severity") or item.get("alert_status") or "OPEN"), esc(item.get("alert_type") or item.get("type") or ""), esc(item.get("message") or item.get("summary") or "")] for item in alerts]
-    return _page("Staff Alerts", f"<div class='card'><h2>Staff alerts</h2>{table(('Created','Severity','Type','Message'), rows)}</div>", "alerts")
+    unread = sum(1 for item in notifications if str(item.get("status") or "UNREAD").upper() == "UNREAD")
+    mark_all = "<form method='post' action='/office/alerts/read-all'><button class='secondary'>Mark all read</button></form>" if unread else ""
+    body = f"<div class='card'><div class='actions spread'><div><h2>Your Floodman notifications</h2><p class='muted'>Payment confirmations and customer messages appear here and in the mobile notifications list.</p></div>{mark_all}</div>{table(('Created','Status','Type','Notification','Email','Action'), local_rows)}</div><details class='card plain-details'><summary>Connected-service staff alerts</summary><div style='margin-top:12px'>{table(('Created','Severity','Type','Message'), rows)}</div></details>"
+    return _page("Staff Alerts", body, "alerts")
+
+
+@app.post("/office/alerts/{notification_id}/read")
+def read_staff_notification(notification_id: str) -> RedirectResponse:
+    user = _require("alerts.view")
+    notification = store.record("notifications", notification_id)
+    if not notification or str(notification.get("user_id") or "") != str(user.get("id") or ""):
+        raise HTTPException(404, "Notification not found")
+    store.update_record("notifications", notification_id, {"status": "READ", "read_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+    return RedirectResponse("/office/alerts", status_code=303)
+
+
+@app.get("/office/alerts/{notification_id}/open")
+def open_staff_notification(notification_id: str) -> RedirectResponse:
+    user = _require("alerts.view")
+    notification = store.record("notifications", notification_id)
+    if not notification or str(notification.get("user_id") or "") != str(user.get("id") or ""):
+        raise HTTPException(404, "Notification not found")
+    store.update_record("notifications", notification_id, {"status": "READ", "read_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+    action_url = str(notification.get("action_url") or "")
+    if not action_url.startswith("/office/"):
+        action_url = "/office/alerts"
+    return RedirectResponse(action_url, status_code=303)
+
+
+@app.post("/office/alerts/read-all")
+def read_all_staff_notifications() -> RedirectResponse:
+    user = _require("alerts.view")
+    user_id = str(user.get("id") or "")
+    now = datetime.now(UTC).isoformat()
+    for notification in store.records("notifications"):
+        if str(notification.get("user_id") or "") == user_id and str(notification.get("status") or "UNREAD").upper() == "UNREAD":
+            store.update_record("notifications", str(notification["id"]), {"status": "READ", "read_at": now}, actor_id=user_id)
+    return RedirectResponse("/office/alerts", status_code=303)
 
 
 def _list_items(value: Any) -> list[str]:

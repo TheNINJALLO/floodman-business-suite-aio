@@ -53,12 +53,15 @@ Payments and totals use integer cents where represented in custom application st
 contacts, properties, estimates, estimate revisions, invoices, invoice revisions,
 payments, payment attempts, documents, notes, time entries, tasks,
 appointments, announcements, notifications, push tokens, calendar subscriptions,
+customer threads and customer messages,
 RoomFlow jobs, imports, workspaces and workspace selections,
 mobile devices, refresh tokens and audit events,
 public links and catalog items.
 ```
 
 Writes use a temporary file followed by atomic replacement. This protects against many partial-write failures but does not provide relational constraints or robust multi-process concurrency. Moving Office state to PostgreSQL is a high-priority dedicated-server task.
+
+Customer conversations use stable contact-plus-property thread IDs; when a document has no property, the individual document is the fallback scope. Customer-message request IDs, processor-payment IDs, and per-user notification IDs are created through a locked create-if-absent operation so browser retries and processor callbacks do not duplicate records. Messages are plain text with a 3,000-character limit. Public capability tokens remain on the estimate/invoice records and are not copied into conversation records.
 
 ## External systems
 

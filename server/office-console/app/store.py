@@ -37,6 +37,7 @@ OPERATION_KINDS = {
     "contacts", "properties", "estimates", "invoices", "payments", "documents", "notes", "time_entries", "tasks",
     "roomflow_jobs", "catalog_items", "public_links", "payment_attempts", "mobile_devices", "mobile_refresh_tokens",
     "mobile_audit", "appointments", "announcements", "notifications", "push_tokens", "calendar_subscriptions",
+    "customer_threads", "customer_messages",
     "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections",
     "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit"
 }
@@ -529,6 +530,44 @@ class OfficeStore:
             self._state["operations"][kind][record_id] = record
             self._save()
         return deepcopy(record)
+
+    def create_record_if_absent(
+        self,
+        kind: str,
+        record_id: str,
+        values: dict[str, Any],
+        *,
+        actor_id: str | None = None,
+    ) -> tuple[dict[str, Any], bool]:
+        """Create one operational record once and return whether it was new.
+
+        Payment callbacks, mobile retries, and customer form resubmissions can
+        legitimately repeat.  Keeping the existence check and write under the
+        store lock prevents those retries from producing duplicate alerts or
+        conversation messages.
+        """
+        if kind not in OPERATION_KINDS:
+            raise KeyError(kind)
+        stable_id = str(record_id or "").strip()
+        if not stable_id:
+            raise ValueError("A stable record ID is required.")
+        with self.lock:
+            existing = self._state["operations"][kind].get(stable_id)
+            if existing is not None:
+                return deepcopy(existing), False
+            now = _now()
+            record = {
+                **values,
+                "id": stable_id,
+                "source": values.get("source") or "FLOODMAN_OFFICE",
+                "created_at": values.get("created_at") or now,
+                "updated_at": now,
+                "created_by": values.get("created_by") or actor_id,
+                "updated_by": actor_id,
+            }
+            self._state["operations"][kind][stable_id] = record
+            self._save()
+            return deepcopy(record), True
 
     def bulk_upsert_records(
         self,

@@ -52,6 +52,13 @@
 - Keep server 4.7.0, Mobile API alpha11, Android alpha01, iOS alpha03, minimum clients, and the RoomFlow pin unchanged. This source milestone does not authorize a same-version runtime rebuild, version bump, push, live import, Xactimate credential use, or deployment.
 - All 13 source smokes, the 217-file server source manifest, and generated inventory pass. The repository verifier correctly stops only at the frozen v4.7.0 package comparison; BLK-014 requires explicit approval for a distinct version before package/checksum/release verification can return to PASS.
 
+### Customer communication and payment alerts (2026-08-21)
+
+- Add durable property-scoped customer threads and escaped plain-text messages to the existing estimate/invoice capability portal; do not expose a public staff or database endpoint.
+- Notify active payment administrators after every recorded manual, secure-card, auto-charge, or reconciled processor payment. Notify message administrators when a customer writes. Use stable per-event/per-recipient records so retries cannot duplicate alerts or reset read state.
+- Deliver staff and customer notifications by email when configured while always retaining the authenticated Office/mobile notification record. Do not include customer message content, card data, tokens, or private authorization details in notification email.
+- Verify customer/staff read controls, mobile notification listing/read, retry deduplication, separate-property isolation, length/rate limits, and 320/390 px customer portal layout with fictional data. Keep FCM/APNs background push, versioning, packaging, push, and deployment outside this source milestone.
+
 ## Phase 4 — iOS
 
 - **Local readiness complete (2026-08-13); compiler gate blocked by BLK-004.** Verified project generation inputs, plist/ATS, all icon slots, HTTPS/minimum-version/capability enforcement, device-bound session storage, coordinated refresh, and PDF MIME/signature validation.

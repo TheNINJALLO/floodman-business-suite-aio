@@ -28,6 +28,8 @@ mobile_audit
 appointments
 announcements
 notifications
+customer_threads
+customer_messages
 push_tokens
 calendar_subscriptions
 estimate_revisions
