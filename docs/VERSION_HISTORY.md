@@ -41,6 +41,7 @@ The releases below are the major cumulative milestones represented by the conver
 - **v4.6.9**: RoomFlow company workspaces use the existing Floodman ERP session; legacy Supabase account prompts are neutralized, native lookups are company-scoped, and Android alpha12/iOS alpha03 are prepared.
 - **v4.6.10**: Guided CRM and RoomFlow settings, server-validated safe defaults, dismissible four-step help, owner-only original RoomFlow import, and a distinct server/Pterodactyl update identity; native and Mobile API identities remain unchanged.
 - **v4.7.0**: Integrated suite-owned RoomFlow Capture with authenticated revisions, offline replay, web review/corrections, Android ARCore/Depth capture, prepared Apple RoomPlan/ARKit source, checksum-addressed exact-pin assets, and distinct Pterodactyl test artifacts.
+- **v4.7.1**: Licensed pricing preview/import plus secure property-scoped customer conversations and durable payment/message administrator alerts in a distinct server/Pterodactyl package.
 
 ## Android alpha compiler history
 

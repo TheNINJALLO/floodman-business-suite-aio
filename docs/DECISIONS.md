@@ -221,3 +221,13 @@
 - Privacy: Store and render message text as escaped plain text; limit messages to 3,000 characters; add a bounded customer send rate; do not include message content, payment tokens, card data, or authorization data in notification emails. Staff replies email only a secure portal-link notice. The portal remains `noindex`, no-store, CSP-constrained, and separate from private staff routes.
 - Delivery: The implemented channels are durable Office/mobile notification records plus email. FCM/APNs background delivery is not claimed; native clients obtain these alerts through the existing authenticated `/mobile-api/v1/notifications` contract.
 - Release boundary: Keep v4.7.0 and its ZIP/checksums immutable. Source tests and manifests may advance, but a distributable package requires a distinct explicitly approved release under BLK-014. No push, live provider call, deployment, or production record mutation is authorized by this source change.
+
+## DEC-031 — Release post-v4.7.0 server milestones as v4.7.1
+
+- Date: 2026-08-21
+- Authorization: The user explicitly requested “commit and release,” resolving BLK-014 and authorizing a distinct server/web/Pterodactyl identity, local upload artifacts, release commit, authenticated feature-branch publication, and draft pull request.
+- Identity: Advance only server/web/Pterodactyl to `4.7.1`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged because the API changes remain additive.
+- Contents: Package EST-001 and COMMS-001 together: licensed pricing preview/confirm import, insurance code/source retention, property-scoped customer conversations, durable staff replies/read controls, and retry-safe payment/message administrator notifications.
+- Immutability: Keep the tracked v4.7.0 runtime and launcher byte-identical and preserve their checksums. Produce new v4.7.1 filenames; never relabel prior bytes or overwrite v4.7.0 with different content.
+- Verification: Require all current source smokes, deterministic packaging, every internal hash, 12 portable extracted smokes, launcher/preflight validation, manifests, inventory, release checksums, and repository verification before the release commit. Native identities remain unchanged and any native compiler evidence must be reported with its actual commit/run scope.
+- Boundary: This approval does not authorize production deployment, live data/provider access, database changes, container-image publication, signing/store upload, or claims for staging, devices, advisory scanning, backup/restore, or production acceptance.

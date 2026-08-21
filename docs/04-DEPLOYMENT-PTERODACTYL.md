@@ -4,28 +4,28 @@
 
 ```text
 Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
-Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.0.json
-Launcher: deployment/releases/mobile-start-v4.7.0.sh
-Runtime: deployment/releases/floodman-operations-runtime-v4.7.0.zip
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.1.json
+Launcher: deployment/releases/mobile-start-v4.7.1.sh
+Runtime: deployment/releases/floodman-operations-runtime-v4.7.1.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-18 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.7.0 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes suite-owned RoomFlow Capture, unified authentication/workspaces, offline/revision APIs, the stable Supabase importer, and checksum-verified network-independent RoomFlow assets used by Android 0.4.0-alpha01 and future Apple builds. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
+The 2026-08-21 artifacts are regenerated from the verified current source. The egg installs the matched v4.7.1 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the licensed-pricing workflow, customer portal conversations, payment/message administrator alerts, suite-owned RoomFlow Capture, unified authentication/workspaces, the stable Supabase importer, and checksum-verified offline RoomFlow assets. The v4.7.0 files remain frozen rollback evidence; `release-artifacts/` remains historical handoff provenance.
 
 Current deployable SHA-256 values:
 
 ```text
-733514138066eab31940c771918dddaf18204c4d26a071daf9a063965f7e967a  floodman-operations-runtime-v4.7.0.zip
-38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4  mobile-start-v4.7.0.sh
-a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b  egg-floodman-operations-mobile-v4.7.0.json
+2e05a7c5386dda7931ee81cdf931585392903b94d9d93848357fc9f9546445ec  floodman-operations-runtime-v4.7.1.zip
+bc3adee529c84e79ab1db03ff169b89e40339e22970eea4873e4650768a3d0fd  mobile-start-v4.7.1.sh
+d1e8b08e7793f8d659c310362795a17cb89040ea3f27f58762e207c1e1c4931f  egg-floodman-operations-mobile-v4.7.1.json
 ```
 
-The launcher checksum above includes the 2026-08-18 startup repair. The first uploaded launcher aborted after RoomFlow preparation because it searched the current panel for the retired heading `Estimate headers & line items`. The runtime ZIP was already correct and its checksum is unchanged. If that exact error appears, leave the ZIP in place and replace only `mobile-start.sh` with the launcher above. The release verifier now checks every fixed `$overlay_root` launcher assertion against the exact source packaged in the ZIP.
+The current launcher retains the 2026-08-18 startup-preflight repair and verifies every fixed `$overlay_root` assertion against the exact source packaged in the ZIP. Do not combine a launcher, runtime, or egg from different version rows.
 
 Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.
 
-To reproduce these artifacts after an approved same-version source repair:
+To reproduce these artifacts from the approved v4.7.1 source:
 
 ```bash
 python scripts/package_pterodactyl_release.py

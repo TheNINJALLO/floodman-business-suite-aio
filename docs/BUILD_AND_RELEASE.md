@@ -17,7 +17,7 @@ python3 scripts/generate_checksums.py
 
 Use `containers/derivative/Dockerfile` first. It builds the latest custom Floodman layer over the existing AIO base image used during Pterodactyl testing.
 
-The v4.7.0 derivative continues to use the immutable reviewed base fixed in both the Dockerfile and `vendor/UPSTREAMS.lock.json` as:
+The v4.7.1 derivative continues to use the immutable reviewed base fixed in both the Dockerfile and `vendor/UPSTREAMS.lock.json` as:
 
 ```text
 ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
@@ -27,7 +27,7 @@ Build the reviewed path with:
 
 ```bash
 python3 scripts/verify_container_inputs.py
-docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.7.0 .
+docker build --pull --no-cache -f containers/derivative/Dockerfile -t floodman-operations:4.7.1 .
 ```
 
 The Docker context is deny-by-default. It includes the two active Dockerfiles and reviewed `server/` source while excluding environment files, Office state, customer CSVs, databases, uploads, logs, backups, runtime volumes, and prepared RoomFlow checkouts. Each service install uses its committed file under `server/requirements/constraints/`.
@@ -50,7 +50,7 @@ The Gauzy API/web, Documenso, and Mailpit sources are also fixed by registry dig
 - test startup, restart and restore;
 - verify required license notices.
 
-The server-image workflow is fixed to reviewed action commits and is configured to publish v4.7.0 plus commit-specific tags after an explicitly authorized push. Its build evidence contains the registry digest and SHA-256 values for the Docker context policy, derivative Dockerfile, server manifest, and upstream lock. Publishing is a release action and does not replace staging acceptance.
+The server-image workflow is fixed to reviewed action commits and is configured to publish v4.7.1 plus commit-specific tags after an explicitly authorized main-branch update. Its build evidence contains the registry digest and SHA-256 values for the Docker context policy, derivative Dockerfile, server manifest, and upstream lock. A feature-branch push or draft pull request does not publish this image, and image publication does not replace staging acceptance.
 
 ## Runtime overlay release
 
@@ -106,6 +106,10 @@ Run the unsigned simulator build first. Only enable TestFlight after the simulat
 ## RoomFlow Capture v4.7.0 boundary
 
 The user's 2026-08-18 scoped exception authorizes distinct local web/Pterodactyl v4.7.0 and Android 0.4.0-alpha01 artifacts for testing. It does not authorize production deployment, live data changes, signing/store upload, or claims for the unavailable Xcode, physical-device, staging, container, clean install/upgrade/restart, or backup/restore gates. Never overwrite the frozen v4.6.10 artifact with v4.7.0 contents.
+
+## Pricing and customer communications v4.7.1 boundary
+
+The user's 2026-08-21 release approval authorizes the distinct local v4.7.1 server/web/Pterodactyl artifacts, release commit, feature-branch publication, and draft pull request. Android, iOS, Mobile API, minimum-client, and RoomFlow-pin identities remain unchanged. The exception does not authorize a production deployment, live provider/data access, container-image publication, signing/store upload, or claims for staging, devices, backup/restore, or advisory scanning. Never overwrite the frozen v4.7.0 artifacts with v4.7.1 bytes.
 
 ## Version synchronization
 

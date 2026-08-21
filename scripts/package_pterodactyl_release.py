@@ -14,12 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 RELEASES = ROOT / "deployment" / "releases"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.0.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.1.json"
 BASE_IMAGE = (
     "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@"
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
-ZIP_TIMESTAMP = (2026, 8, 18, 0, 0, 0)
+ZIP_TIMESTAMP = (2026, 8, 21, 0, 0, 0)
 
 EXCLUDED_RUNTIME_PATHS = {
     "MANIFEST.sha256",
@@ -215,11 +215,11 @@ def write_release_checksums(version: str) -> Path:
 
 def main() -> None:
     version = (SERVER / "VERSION").read_text(encoding="utf-8").strip()
-    if version != "4.7.0":
-        raise SystemExit(f"This reviewed packager is fixed to v4.7.0; found {version!r}")
+    if version != "4.7.1":
+        raise SystemExit(f"This reviewed packager is fixed to v4.7.1; found {version!r}")
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    if "[Floodman Mobile v4.7.0]" not in launcher:
-        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.0")
+    if "[Floodman Mobile v4.7.1]" not in launcher:
+        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.1")
 
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)

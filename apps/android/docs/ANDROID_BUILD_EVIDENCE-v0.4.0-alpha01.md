@@ -37,4 +37,16 @@ Toolchain: Windows 11 x64, Temurin JDK `17.0.20+8`, Gradle `8.13`, Android Gradl
 | `app/build/outputs/apk/release/app-release-unsigned.apk` | 6,615,467 | `641f7cfda1f67b63c475d268690a19a195b7e1c8f279c9cb8cf441f7ce525a94` |
 | `app/build/outputs/bundle/release/app-release.aab` | 6,971,269 | `113d544fbd6ad7c9574bcce67ff2e3ceb399a6b567ac6070f64480ca80d4bbb7` |
 
+## v4.7.1 server-compatibility rerun — 2026-08-21
+
+The Android source and `0.4.0-alpha01`/build 13 identity did not change for the server-only v4.7.1 release. A current-tree JDK 17/Gradle 8.13 gate was nevertheless attempted. The initial combined `--rerun-tasks` invocation exceeded its 15-minute command ceiling after producing the fresh debug APK; its Gradle/Kotlin child processes were identified and stopped, and that invocation is not counted as a pass. A continuation of the remaining tasks completed normally in 5m 50s with 95 actionable tasks (13 executed, 82 up to date).
+
+- unit XML: 8 tests, 0 failures, 0 errors, 0 skipped;
+- debug lint XML: 27 advisory issues, 0 error/fatal findings;
+- debug APK: `0e3876bc8d88987b47ae05bd1843c3806e0cf20592ea1d67baf18e2498fc9148` (71,157,967 bytes);
+- unsigned release APK: `d7b0e38635715c2f73b9514e20bb77e7cb4126463c3ff8e129cd764cda462e2d` (6,615,467 bytes);
+- unsigned release AAB: `f34a216b3767cebfa97040f21c0993f2f2c36aa6f8667f497ffa1ba6fe17ca40` (6,970,587 bytes).
+
+This rerun confirms compatibility with the unchanged additive Mobile API contract. It does not relabel the embedded v4.7.0 RoomFlow asset metadata, sign the release outputs, or claim device/store acceptance.
+
 Physical ARCore/Depth acceptance, clean install/upgrade, release signing, Play upload, and public-staging HTTPS remain BLK-006/BLK-007 and are not claimed.

@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "generated_for": "Floodman Operations v4.7.0 VS Code and Codex handoff",
+  "generated_for": "Floodman Operations v4.7.1 VS Code and Codex handoff",
   "components": [
     {
       "name": "Floodman custom server source",
       "location": "server/",
-      "version": "4.7.0",
+      "version": "4.7.1",
       "included": true,
       "notes": "Complete custom overlay source included."
     },

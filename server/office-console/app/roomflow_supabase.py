@@ -387,7 +387,7 @@ class RoomFlowSupabaseClient:
             "apikey": self.anon_key,
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "Floodman-RoomFlow-Importer/4.7.0",
+            "User-Agent": "Floodman-RoomFlow-Importer/4.7.1",
         }
         if self.access_token:
             request_headers["Authorization"] = f"Bearer {self.access_token}"

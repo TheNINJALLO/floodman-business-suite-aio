@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const RELEASE = '4.7.0';
+  const RELEASE = '4.7.1';
   const $ = (selector, root = document) => root.querySelector(selector);
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
   const money = cents => new Intl.NumberFormat('en-US', {style:'currency', currency:'USD'}).format((Number(cents)||0)/100);

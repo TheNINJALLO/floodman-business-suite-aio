@@ -1,4 +1,4 @@
-# Floodman Codex master execution prompt v4.7.0
+# Floodman Codex master execution prompt v4.7.1
 
 ## Mission
 
@@ -6,7 +6,7 @@ Continue the checked-in Floodman Operations handoff without restarting completed
 
 The active release identities are:
 
-- server `4.7.0`
+- server `4.7.1`
 - Mobile API `0.3.0-alpha11`
 - Android `0.4.0-alpha01`
 - iOS `0.1.0-alpha03`
@@ -26,6 +26,10 @@ On 2026-08-18 the user explicitly requested that the completed Android and web s
 ### Scoped v4.7.0 failed-start launcher repair
 
 On 2026-08-18 the user supplied the first Wings startup log and asked Codex to act on it. This authorizes diagnosis and a same-release local launcher/package repair for the observed pre-Supervisor failure. The runtime ZIP, server identity, Mobile API, native identities, minimum clients, and RoomFlow pin remain unchanged. It does not authorize a v4.7.1 identity, automatic image change, live-data access, or a claim that the corrected launcher completed restart/staging acceptance.
+
+### Scoped v4.7.1 server release authorization
+
+On 2026-08-21 the user explicitly requested that the committed post-v4.7.0 work be committed and released. This authorizes the distinct server/web/Pterodactyl `4.7.1` identity, deterministic local runtime/launcher/egg artifacts, checksums, release documentation, a release commit, authenticated publication of the feature branch, and a draft pull request. It includes the licensed-pricing workflow and customer messaging/payment-administrator alerts. Mobile API remains additive at `0.3.0-alpha11`; Android remains `0.4.0-alpha01`/build 13; iOS remains `0.1.0-alpha03`; minimum native clients and the RoomFlow pin do not advance. The v4.7.0 artifacts remain frozen historical evidence. This exception does not authorize live deployment, production data or credentials, provider calls, image publication, signing/store upload, or claims for physical devices, staging, backup/restore, advisory scanning, or production acceptance.
 
 ## Task selection and evidence
 

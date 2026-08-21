@@ -2,6 +2,15 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.7.1
+
+- Added safe PLX recognition and an authorized CSV preview/confirm workflow for stable, non-duplicating insurance pricing updates.
+- Preserved insurance item codes and supported source metadata through catalog search, RoomFlow selection, estimates, and PDFs.
+- Added property-scoped customer portal conversations, staff replies, customer/staff read controls, and retry-safe deduplication.
+- Added durable payment-administrator and customer-message alerts with optional privacy-bounded email notices and existing mobile notification-feed delivery.
+- Produced a distinct deterministic 205-file Pterodactyl runtime, launcher, egg, internal manifest, and checksums without changing native versions, Mobile API compatibility, minimum clients, or the RoomFlow pin.
+- Preserved the frozen v4.7.0 runtime and launcher as byte-identical rollback evidence. Staging, devices, advisory scanning, signing/store, backup/restore, and production deployment remain external gates.
+
 ## 4.7.0
 
 - Added suite-owned RoomFlow Capture with shared schema-v2 geometry, authenticated room revisions, idempotent offline replay, and redacted audit records.

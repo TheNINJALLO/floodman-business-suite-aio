@@ -59,6 +59,13 @@
 - Deliver staff and customer notifications by email when configured while always retaining the authenticated Office/mobile notification record. Do not include customer message content, card data, tokens, or private authorization details in notification email.
 - Verify customer/staff read controls, mobile notification listing/read, retry deduplication, separate-property isolation, length/rate limits, and 320/390 px customer portal layout with fictional data. Keep FCM/APNs background push, versioning, packaging, push, and deployment outside this source milestone.
 
+### v4.7.1 server release (2026-08-21)
+
+- The user's explicit commit-and-release approval resolves the post-v4.7.0 identity boundary. Advance server/web/Pterodactyl only to v4.7.1; keep Mobile API, Android, iOS, minimum-client versions, and the exact RoomFlow pin unchanged.
+- Preserve the frozen v4.7.0 runtime/launcher bytes and hashes. Build new v4.7.1 runtime, launcher, egg, checksums, and release notes from tracked source.
+- Require all 13 source smokes, two byte-identical packages, 205 internal runtime files, all extracted portable tests, 87 launcher overlay preflights, source manifests, inventory, and final repository verification before the release commit.
+- Publish only the feature branch and a draft pull request over the previously authorized authenticated HTTPS/REST path. Do not dispatch or claim a production deployment, container-image publication, signing/store upload, live provider/data operation, staging result, or device acceptance.
+
 ## Phase 4 — iOS
 
 - **Local readiness complete (2026-08-13); compiler gate blocked by BLK-004.** Verified project generation inputs, plist/ATS, all icon slots, HTTPS/minimum-version/capability enforcement, device-bound session storage, coordinated refresh, and PDF MIME/signature validation.
