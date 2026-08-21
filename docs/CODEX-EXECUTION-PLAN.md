@@ -65,6 +65,7 @@
 - Preserve the frozen v4.7.0 runtime/launcher bytes and hashes. Build new v4.7.1 runtime, launcher, egg, checksums, and release notes from tracked source.
 - Require all 13 source smokes, two byte-identical packages, 205 internal runtime files, all extracted portable tests, 87 launcher overlay preflights, source manifests, inventory, and final repository verification before the release commit.
 - Publish only the feature branch and a draft pull request over the previously authorized authenticated HTTPS/REST path. Do not dispatch or claim a production deployment, container-image publication, signing/store upload, live provider/data operation, staging result, or device acceptance.
+- **Complete.** Release commit `ca9cd35` is published on `feature/roomflow-capture`; draft PR #1 targets `main`. Linux source run `32494582232`, Android run `32494662846`, and unsigned iOS simulator run `32494665766` pass. The main branch, server-image publication, signing/store, live deployment, and production boundaries remain untouched.
 
 ## Phase 4 — iOS
 

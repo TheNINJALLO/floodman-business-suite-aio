@@ -40,3 +40,11 @@ d1e8b08e7793f8d659c310362795a17cb89040ea3f27f58762e207c1e1c4931f  egg-floodman-o
 ## Boundaries
 
 These are source and Pterodactyl upload artifacts, not evidence of a live deployment. Staging clean-install/upgrade/restart, sanitized backup/restore, physical Android and Apple device testing, signing/store upload, the container critical/high advisory scan, production provider credentials, and production rollout remain separate safety gates. No live customer, message, payment, Xactimate, signing, Supabase, or production data was read or changed while building this release.
+
+## GitHub publication and pre-signing builds
+
+- Release commit `ca9cd35` and its two prerequisite feature commits were pushed normally to `feature/roomflow-capture`; draft PR #1 targets `main`.
+- Linux source-verification run `32494582232` passed.
+- Android run `32494662846` passed and uploaded artifact `9451290230` with digest `sha256:9861d49523aea616e3603d195f8a699590eb7063e89f5b3f67a45b742525d215`.
+- iOS simulator run `32494665766` passed the unsigned build and 6/6 tests and uploaded artifact `9451386408` with digest `sha256:c0bf3f4d61aa4b0b4b97517a343496c0b1c0cb54ce1755d5d44a12669eda2de6`.
+- `main` was not merged, the v4.7.1 server-image workflow was not dispatched, and no signed/store or deployment action occurred.
