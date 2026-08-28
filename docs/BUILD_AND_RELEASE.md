@@ -63,6 +63,14 @@ python3 scripts/verify_pterodactyl_release.py
 
 The packager produces a stable ZIP, an internal source manifest, synchronized launcher, matched egg installer, and deployment `SHA256SUMS`. The exact handoff-era v4.6.7 artifacts retained in `release-artifacts/` are immutable comparison/rollback provenance and are not silently overwritten.
 
+The 2026-08-28 WEB-007 request additionally authorizes a same-identity v4.7.1 package for a **new** Pterodactyl server. Its source/runtime distinction and the previously published v4.7.1 hashes are recorded in `docs/UI-LAYOUT-HARDENING.md` and `deployment/releases/SHA256SUMS-v4.7.1-published-20260821`. Build the operator handoff only after the ordinary packager/verifier passes:
+
+```bash
+python3 scripts/package_fresh_server_handoff.py
+```
+
+That deterministic outer ZIP contains `mobile-start.sh`, the exact runtime filename, the egg, the setup guide, and its own component checksums. It does not authorize an in-place production update.
+
 New development should prefer versioned container images from source, with overlays reserved for emergency patches.
 
 ## Android

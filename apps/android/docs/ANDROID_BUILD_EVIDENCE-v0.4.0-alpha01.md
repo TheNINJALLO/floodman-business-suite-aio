@@ -50,3 +50,34 @@ The Android source and `0.4.0-alpha01`/build 13 identity did not change for the 
 This rerun confirms compatibility with the unchanged additive Mobile API contract. It does not relabel the embedded v4.7.0 RoomFlow asset metadata, sign the release outputs, or claim device/store acceptance.
 
 Physical ARCore/Depth acceptance, clean install/upgrade, release signing, Play upload, and public-staging HTTPS remain BLK-006/BLK-007 and are not claimed.
+
+## WEB-007 safe-area rerun — 2026-08-28
+
+The unchanged `0.4.0-alpha01`/build 13 source now applies safe-drawing padding to Compose login/lock screens and consumes system-bar plus display-cutout insets in the local RoomFlow WebView and AR capture shell. No API, capture schema, RoomFlow pin, endpoint, credential, or version changed.
+
+Official Temurin and Gradle archives were downloaded into a temporary host toolchain and verified before use:
+
+```text
+e53a79c3c3d86865bd7e787903884331068e71321714ffd44f145785affc7cb0  OpenJDK17U-jdk_x64_windows_hotspot_17.0.20.1_1.zip
+20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78  gradle-8.13-bin.zip
+```
+
+| Gate | Result |
+|---|---|
+| Temurin 17.0.20.1+1 / Gradle 8.13 / SDK 36.1.0 | PASS |
+| `--rerun-tasks :app:compileDebugKotlin :app:testDebugUnitTest :app:lintDebug` | PASS; 36 tasks in 9m33s |
+| Unit XML | PASS; 8 tests, 0 failures/errors/skips |
+| Debug lint XML | PASS; 27 advisories, 0 error/fatal findings |
+| `:app:assembleDebug :app:assembleRelease :app:bundleRelease` | PASS; 99 tasks in 5m42s |
+| Package metadata | PASS; `com.floodman.operations.debug`, build 13, `0.4.0-alpha01-debug`, min 28, target 36 |
+| Signing state | PASS; debug APK verifies with APK Signature Scheme v2; release APK and AAB are intentionally unsigned |
+
+Fresh artifact checksums:
+
+| Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| `app/build/outputs/apk/debug/app-debug.apk` | 72,447,417 | `072edc318914435682cfdb9ca49fa2b9ec9b747a43c44c280bf335455810c6fc` |
+| `app/build/outputs/apk/release/app-release-unsigned.apk` | 6,631,851 | `f9b1f3aa9a7677e4da65fb86e98a1edeb393672cf382b888ed97e9b0b278d82e` |
+| `app/build/outputs/bundle/release/app-release.aab` | 6,972,900 | `f29cf2ace8462797eeee5ed5e219290f97326c25911f939ebe8129dcfc092714` |
+
+These files are local pre-signing outputs. Physical-device layout/capture, clean install/upgrade, public HTTPS, signing, and Play upload remain BLK-006/BLK-007.

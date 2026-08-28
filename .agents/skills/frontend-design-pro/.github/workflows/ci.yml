@@ -1,0 +1,274 @@
+name: A+ Gate Chain
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      # No requirements.txt — every script here is stdlib, so there is nothing
+      # to pip install and nothing to cache on the Python side.
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `build_release.py --dry-run` IS the contract: it runs all 11 gates in
+      # order, fails fast, and is the same entry point that builds a release.
+      # Everything below is diagnostics for when this step fails.
+      - name: Full gate chain (dry run — no archive)
+        id: chain
+        run: python3 scripts/build_release.py --dry-run
+
+      # Individual gates, each guarded on the chain having failed.
+      #
+      # Without the guard these were dead weight: a failing chain fails the job,
+      # GitHub skips every later step by default, and so the "readable output on
+      # failure" steps only ever ran on a green build — doing the whole suite a
+      # second time and reporting nothing new. `if: failure() && ...` inverts
+      # that. Green runs skip them entirely; red runs get the per-gate breakdown
+      # they were always meant to provide.
+      - name: Gate 3 — TypeScript strict compile
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/typecheck_golds.py
+
+      - name: Gate 4 — Semantic AST constraints
+        if: failure() && steps.chain.outcome == 'failure'
+        run: |
+          for f in skills/*/examples/good-*.tsx; do
+            case "$f" in *.test.tsx) continue;; esac
+            node scripts/parser_constraints.js "$f"
+          done
+
+      - name: Gate 5 — Syntactic constraints
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/test_constraints.py --dir skills
+
+      - name: Gate 6 — Pipeline smoke test
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/test_v12_pipeline.py
+
+      - name: Gate 7a — Eval self-test
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/run_evals.py --self-test --no-semantic
+
+      # Gate 7 has two halves. The contract half asserts every gold has a 1:1
+      # test file and that all of them compile strict. The runtime half executes
+      # them: peer libraries resolve to `test/stubs/` through `vitest.config.ts`,
+      # so the suite runs green at 39/39 files and 124/124 tests. Both halves are
+      # already covered by the chain above — this is the readable breakdown.
+      - name: Gate 7b — Test coverage (1:1 + strict compile)
+        if: failure() && steps.chain.outcome == 'failure'
+        run: |
+          missing=0
+          for gold in skills/*/examples/good-*.tsx; do
+            case "$gold" in *.test.tsx) continue;; esac
+            test -f "${gold%.tsx}.test.tsx" || { echo "missing test for $gold"; missing=1; }
+          done
+          [ "$missing" = 0 ] || exit 1
+          npx tsc --noEmit --strict --noImplicitAny --jsx react-jsx \
+            --moduleResolution bundler --target ES2022 --module ESNext \
+            --esModuleInterop --skipLibCheck --types react,react-dom \
+            skills/*/examples/*.test.tsx skills/*/examples/*.d.ts
+
+      - name: Gate 7c — Test suite execution
+        if: failure() && steps.chain.outcome == 'failure'
+        run: npx vitest run --reporter=basic
+
+      # Broken out even though Gate 10 is not, because a figure failure is only
+      # actionable as a list. The chain tail-truncates its output, and "64
+      # drifts" without the 64 file:line pairs tells you nothing you can fix.
+      - name: Gate 11 — Documented figures
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/check_figures.py
+
+      - name: Parser regression proof
+        if: failure() && steps.chain.outcome == 'failure'
+        run: node scripts/parser_regression_test.js
+
+      # Broken out for the same reason as Gate 11 above: when the figure
+      # patterns stop reading a prose form, the chain says "Figure patterns
+      # FAILED" and nothing else, and the fixture that broke is the whole
+      # diagnosis.
+      - name: Figure pattern proof
+        if: failure() && steps.chain.outcome == 'failure'
+        run: python3 scripts/figure_pattern_test.py
+
+      # The README banner draws the pack's headline figures, and Gate 11 cannot
+      # police it: the patterns match inside SVG, but every match is dropped by
+      # the forbid look-back window, which in markup is attribute soup rather
+      # than sentence. Proved with a negative control before this step existed —
+      # see the note in scripts/check_figures.py where the SCAN entry would have
+      # gone.
+      #
+      # So the banner is checked the way generated artifacts should be: re-render
+      # from the current truth table and byte-compare.
+      #
+      # `!cancelled()` rather than no condition at all. Every diagnostic step
+      # above is guarded on `failure()`, and this one is not a diagnostic — but
+      # an unguarded step is not an unconditional one: GitHub skips every later
+      # step once a step fails, so on a red chain this would never have run. A
+      # stale banner is a wrong number on the most-read page in the project and
+      # nothing else in this workflow can see it, so it has to be checked on
+      # red runs too. Not `always()`, which would also fire on cancellation and
+      # report a failure nobody caused.
+      - name: README banner is current
+        if: ${{ !cancelled() }}
+        run: node tools/readme-router/generate.mjs --check
+
+      # Same reasoning one surface over. `home/lib/data.generated.json` drives
+      # the two interactive panels on the Pages site — the registry the router
+      # resolves against and the budgets it reports — and Gate 11 cannot see
+      # it, because its SCAN list covers `home/`'s components and lib source,
+      # not a generated JSON payload. So a stale payload there is a wrong
+      # number on a public page with nothing behind it.
+      #
+      # pages.yml checks this too, but only when a deploy runs, and a deploy
+      # only runs when something under home/ or demo/ changes. Moving a figure
+      # anywhere else in the pack is exactly the change that staleness comes
+      # from and exactly the one that would not trigger it.
+      - name: Pages data is current
+        if: ${{ !cancelled() }}
+        run: node tools/pages-data/generate.mjs --check
+
+  # demo/showcase/ is the one demo that claims to RUN. It has its own package.json
+  # and real dependencies, so the stub-typed gates above cannot verify it and
+  # build_release.py skips it on a machine without its node_modules. This job is
+  # what makes the README's "real runnable Next.js app" an enforced claim rather
+  # than a hopeful one.
+  showcase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: demo/showcase/package-lock.json
+
+      # `npm ci` alone, with no `|| npm install` fallback. The fallback made a
+      # lockfile that no longer matched package.json look like a passing build,
+      # which is the opposite of what a lockfile is for.
+      - name: Install showcase dependencies
+        working-directory: demo/showcase
+        run: npm ci
+
+      - name: Typecheck (real vendor typings, strict)
+        working-directory: demo/showcase
+        run: npx tsc --noEmit
+
+      - name: next build
+        working-directory: demo/showcase
+        run: npx next build
+
+  # No SEC-* category exists in test_constraints.py — docs/AUDIT.md found a
+  # real stored-XSS bug once by manual audit and it was fixed as a prose
+  # edit, never gated. This is three narrow, proven-clean-against-the-real-
+  # corpus patterns (scripts/check_security.py); a normal blocking check,
+  # same as the constraint/reference gates it deliberately sits beside
+  # rather than inside — see the docstring in check_security.py for why it
+  # is not one of the numbered 60.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Security pattern proof
+        run: python3 scripts/test_security_patterns.py
+
+      - name: Security scan
+        run: python3 scripts/check_security.py
+
+  # home/lib/router.ts is a real port of the SKILL.md routing protocol, run
+  # by the live demo on the pack's own homepage — and until now had zero
+  # test coverage of its own. Unlike the screenshot job below, there is
+  # nothing flaky about this: it is deterministic keyword matching against
+  # the live registry, so it runs as a normal blocking check.
+  home-router-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: home/package-lock.json
+
+      - name: Install home dependencies
+        working-directory: home
+        run: npm ci
+
+      - name: Router tests
+        working-directory: home
+        run: npm test
+
+  # No gate in this repository renders a page and compares it to what it
+  # rendered last time — this is that check, for the two demos that render
+  # deterministically (demo/showcase's WebGL hero is seeded at random and is
+  # deliberately excluded; see tools/screenshots/visual-regression.mjs).
+  #
+  # `continue-on-error: true` at the job level, on purpose: baselines were
+  # captured once and this has not yet run clean across enough real commits
+  # to trust the threshold, so a false positive here should not block a
+  # merge. Promoting this to a blocking, numbered gate is tracked as
+  # follow-up work in docs/CAPABILITY_MATRIX.md, not attempted in the PR
+  # that introduced the tool.
+  visual-regression:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # tools/screenshots deliberately ships without react/react-dom of its
+      # own (see tools/screenshots/README.md) — `next` resolves them by
+      # walking up to this install. Root first, or the dev/prod server it
+      # starts has no React at all.
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install screenshot harness dependencies
+        working-directory: tools/screenshots
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: tools/screenshots
+        run: npx playwright install --with-deps chromium
+
+      - name: Install home/ dependencies
+        working-directory: home
+        run: npm ci
+
+      - name: Install demo/landing-page dependencies
+        working-directory: demo/landing-page
+        run: npm ci
+
+      - name: Visual regression check
+        run: npm run visual-regression
+
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: |
+            tools/screenshots/.diff-output/
+            tools/screenshots/visual-regression-report.json
+          retention-days: 14

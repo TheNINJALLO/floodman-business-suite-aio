@@ -7,8 +7,6 @@ const OFFLINE_CACHE = `floodman-offline-${RELEASE}`;
 const MANAGED_PREFIXES = ['floodman-static-', 'floodman-offline-'];
 const PRECACHE = [
   '/manifest.webmanifest',
-  '/workspace',
-  '/full-erp',
   '/floodman-offline.html',
   '/floodman-starting.html',
   '/install-app',

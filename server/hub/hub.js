@@ -242,6 +242,7 @@
     drawer.setAttribute('role', 'dialog');
     drawer.setAttribute('aria-modal', 'true');
     drawer.setAttribute('aria-label', 'Floodman Operations tools');
+    drawer.inert = true;
     drawer.innerHTML = `
       <header class="fm-hub-drawer-header">
         <div>
@@ -272,6 +273,7 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'fm-hub-overlay-title');
+    overlay.inert = true;
     overlay.innerHTML = `
       <div class="fm-hub-overlay-bar">
         <div class="fm-hub-overlay-title-wrap"><img class="fm-hub-overlay-mark" src="${brandMark}" alt=""><div><div class="fm-hub-overlay-kicker">Floodman module</div><strong class="fm-hub-overlay-title" id="fm-hub-overlay-title">Module</strong></div></div>
@@ -328,15 +330,25 @@
     });
 
     let moduleReturnFocus = null;
+    const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),iframe,[tabindex]:not([tabindex="-1"])';
+    const trapFocus = (event, container) => {
+      const focusable = Array.from(container.querySelectorAll(focusableSelector)).filter(node => !node.hidden && node.getClientRects().length);
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     const closeDrawer = (restoreFocus = true) => {
       const wasOpen = drawer.classList.contains('is-open');
       drawer.classList.remove('is-open'); backdrop.classList.remove('is-open');
       drawer.setAttribute('aria-hidden', 'true'); backdrop.setAttribute('aria-hidden', 'true'); trigger.setAttribute('aria-expanded', 'false');
+      drawer.inert = true;
       if (wasOpen && restoreFocus) trigger.focus();
     };
     const openDrawer = () => {
       drawer.classList.add('is-open'); backdrop.classList.add('is-open');
       drawer.setAttribute('aria-hidden', 'false'); backdrop.setAttribute('aria-hidden', 'false'); trigger.setAttribute('aria-expanded', 'true');
+      drawer.inert = false;
       window.setTimeout(() => search.focus(), 80);
     };
 
@@ -345,8 +357,11 @@
     backdrop.addEventListener('click', closeDrawer);
     $('.fm-hub-overlay-close', overlay).addEventListener('click', closeModule);
     document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      if (overlay.classList.contains('is-open')) closeModule(); else closeDrawer();
+      if (event.key === 'Tab' && overlay.classList.contains('is-open')) { trapFocus(event, overlay); return; }
+      if (event.key === 'Tab' && drawer.classList.contains('is-open')) { trapFocus(event, drawer); return; }
+      if (event.key === 'Escape') {
+        if (overlay.classList.contains('is-open')) closeModule(); else closeDrawer();
+      }
     });
 
     function openModule(item) {
@@ -365,7 +380,7 @@
       const openLink = $('.fm-hub-overlay-link', overlay); openLink.href = item.url;
       loading.classList.remove('is-hidden', 'is-error');
       loading.innerHTML = '<div><span class="fm-hub-spinner"></span><b>Loading module…</b><small>This should take only a moment.</small></div>';
-      frame.title = item.label; overlay.classList.add('is-open'); overlay.setAttribute('aria-hidden', 'false'); document.documentElement.classList.add('fm-hub-module-open');
+      frame.title = item.label; overlay.classList.add('is-open'); overlay.setAttribute('aria-hidden', 'false'); overlay.inert = false; document.documentElement.classList.add('fm-hub-module-open');
       window.setTimeout(() => $('.fm-hub-overlay-close', overlay).focus(), 0);
       let settled = false;
       const timeout = window.setTimeout(() => {
@@ -380,7 +395,7 @@
     function closeModule() {
       const wasOpen = overlay.classList.contains('is-open');
       const frame = $('.fm-hub-frame', overlay); frame.onload = null;
-      overlay.classList.remove('is-open'); overlay.setAttribute('aria-hidden', 'true'); document.documentElement.classList.remove('fm-hub-module-open');
+      overlay.classList.remove('is-open'); overlay.setAttribute('aria-hidden', 'true'); overlay.inert = true; document.documentElement.classList.remove('fm-hub-module-open');
       window.setTimeout(() => { frame.src = 'about:blank'; }, 180);
       if (wasOpen && moduleReturnFocus?.focus) moduleReturnFocus.focus();
     }

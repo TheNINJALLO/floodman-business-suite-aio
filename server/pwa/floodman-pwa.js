@@ -12,6 +12,8 @@
   let deferredInstall = null;
   let registration = null;
   let reloadingForUpdate = false;
+  const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M5 21h14"/></svg>';
+  const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>';
 
   document.documentElement.classList.toggle('fm-pwa-standalone', isStandalone());
   document.documentElement.classList.toggle('fm-pwa-insecure', !secureEnough);
@@ -25,7 +27,7 @@
       root.id = 'fm-pwa-toast';
       root.className = 'fm-pwa-toast';
       root.setAttribute('role', 'status');
-      root.innerHTML = '<div class="fm-pwa-toast-copy"></div><div class="fm-pwa-toast-actions"></div><button type="button" class="fm-pwa-toast-dismiss" aria-label="Dismiss notification">×</button>';
+      root.innerHTML = `<div class="fm-pwa-toast-copy"></div><div class="fm-pwa-toast-actions"></div><button type="button" class="fm-pwa-toast-dismiss" aria-label="Dismiss notification">${ICON_CLOSE}</button>`;
       root.querySelector('.fm-pwa-toast-dismiss').addEventListener('click', () => {
         root.classList.remove('is-visible');
         window.clearTimeout(root.__hideTimer);
@@ -73,7 +75,7 @@
     button.type = 'button';
     button.className = className;
     button.dataset.fmPwaInstall = '1';
-    button.innerHTML = '<span class="fm-pwa-install-icon">⇩</span><span><b>Install Floodman</b><small>Open full-screen from your Home Screen</small></span>';
+    button.innerHTML = `<span class="fm-pwa-install-icon">${ICON_DOWNLOAD}</span><span><b>Install Floodman</b><small>Open full-screen from your Home Screen</small></span>`;
     button.addEventListener('click', requestInstall);
     return button;
   }
@@ -118,7 +120,7 @@
     const button = makeInstallButton('fm-hub-module fm-pwa-hub-module');
     button.id = 'fm-pwa-hub-module';
     button.dataset.label = 'install floodman app pwa home screen offline';
-    button.innerHTML = '<span class="fm-hub-module-icon">⇩</span><span class="fm-hub-module-copy"><b>Install Floodman App</b><small>Full-screen Android, iPhone, iPad, and desktop app.</small></span><span class="fm-hub-module-arrow">›</span>';
+    button.innerHTML = `<span class="fm-hub-module-icon">${ICON_DOWNLOAD}</span><span class="fm-hub-module-copy"><b>Install Floodman App</b><small>Full-screen Android, iPhone, iPad, and desktop app.</small></span><span class="fm-hub-module-arrow" aria-hidden="true">›</span>`;
     firstSection.insertBefore(button, firstSection.children[1] || null);
   }
 
@@ -129,16 +131,27 @@
     badge.className = 'fm-pwa-network';
     badge.setAttribute('role', 'status');
     badge.setAttribute('aria-live', 'polite');
+    badge.innerHTML = `<span class="fm-pwa-network-copy"></span><button type="button" class="fm-pwa-network-dismiss" aria-label="Dismiss connection status">${ICON_CLOSE}</button>`;
     document.body.appendChild(badge);
 
     let lastState = 'checking';
+    let paintedState = '';
+    let dismissed = false;
     let consecutiveFailures = 0;
     let activeProbe = null;
+    const copy = badge.querySelector('.fm-pwa-network-copy');
+    badge.querySelector('.fm-pwa-network-dismiss').addEventListener('click', () => {
+      dismissed = true;
+      badge.classList.remove('is-visible');
+    });
 
     const paint = (state, detail = '') => {
-      badge.textContent = state === 'online' ? 'Online' : state === 'offline' ? 'Offline' : 'Checking…';
+      if (paintedState !== state) dismissed = false;
+      paintedState = state;
+      copy.textContent = state === 'online' ? 'Online' : state === 'offline' ? 'Floodman is offline' : 'Checking connection…';
       badge.classList.toggle('is-offline', state === 'offline');
       badge.classList.toggle('is-checking', state === 'checking');
+      badge.classList.toggle('is-visible', state !== 'online' && !dismissed);
       badge.title = detail || (state === 'online'
         ? 'Floodman Office responded through this private HTTPS connection.'
         : state === 'offline'

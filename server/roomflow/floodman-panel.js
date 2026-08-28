@@ -701,7 +701,7 @@
     neutralizeLegacyCloudControls();
     $('#fm-rf-workspace-select')?.addEventListener('change', event => changeWorkspace(event.target.value));
     $('#fm-rf-create-workspace')?.addEventListener('click', () => createWorkspace($('#fm-rf-new-workspace-name')));
-    $('#fm-rf-help')?.addEventListener('click', () => { panelOpen(true); showGuide(true); $('#fm-rf-quick-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    $('#fm-rf-help')?.addEventListener('click', () => { panelOpen(true); showGuide(true); const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; $('#fm-rf-quick-start')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); });
     $('#fm-rf-guide-close')?.addEventListener('click', () => showGuide(false));
     $('#fm-rf-open-panel')?.addEventListener('click', () => { panelOpen(true); $('#fm-rf-close-panel')?.focus(); }); $('#fm-rf-close-panel')?.addEventListener('click', () => { panelOpen(false); $('#fm-rf-open-panel')?.focus(); }); backdrop.addEventListener('click', () => panelOpen(false));
     $('#fm-rf-customer-search')?.addEventListener('input', event => { clearTimeout(model.searchTimer); model.searchTimer = setTimeout(() => searchCustomers(event.target.value), 220); });

@@ -54,6 +54,7 @@ FLOODMAN_PUBLIC_HOST,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_SCHEME,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_URL,,server/aio/start-suite.sh,1
 FLOODMAN_RELEASE,"""windows-business-suite-v3.0.0""",server/local-lab/app/main.py | server/office-console/app/config.py,2
+FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/web_ui_smoke.py,1
 FM_CONFIG,,server/aio/common.sh | server/aio/finalize-gauzy.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,4
 FM_DATA,,server/aio/common.sh | server/aio/start-documenso.sh | server/aio/start-local-lab.sh | server/aio/start-mailpit.sh | server/aio/start-postgres.sh | server/aio/start-suite.sh,6
 FM_HOME,,server/aio/common.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,3
@@ -108,6 +109,8 @@ HUB_REMOTE_MAILPIT_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.templ
 HUB_ROOMFLOW_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
 HUB_SYNC_STATUS_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
 HUB_TITLE,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
+ICON_CLOSE,,server/pwa/floodman-pwa.js,1
+ICON_DOWNLOAD,,server/pwa/floodman-pwa.js,1
 INTERNAL_HMAC_KEYS,"""""",server/local-lab/app/main.py | server/office-console/app/config.py,2
 INTERNAL_HMAC_MAX_AGE_SECONDS,"""300""",server/messaging-ai/app/config.py,1
 LAB_PUBLIC_URL,"""http://localhost:9003""",server/local-lab/app/main.py | server/office-console/app/config.py,2

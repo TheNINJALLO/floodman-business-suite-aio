@@ -1,0 +1,179 @@
+name: Deploy showcase to Pages
+
+# The two demos in demo/ that actually run are the only artifacts here a
+# stranger can evaluate without installing anything. Both were reachable by
+# nobody until this workflow existed.
+#
+# Both are samples of what the pack produces, for fictional products —
+# demo/showcase is "Nexus" and demo/landing-page is "Bellwether". Neither is the
+# pack's own homepage, so neither has a claim on the root.
+#
+# Which is what this arrangement finally acts on. This file already said
+# "README.md is the front door; this is the gallery" while serving one exhibit
+# where the door should be: a visitor landing on the root met a convincing fake
+# analytics startup with nothing to tell them what they were looking at or that
+# a second page existed. Both demos disclose themselves, but only in their
+# footers, and nobody scrolls to the footer of a page they do not understand.
+#
+# So the root serves a page of its own and the exhibits move down one level to
+# /showcase/ and /landing-page/. The reasoning that used to justify the showcase
+# holding the root (it is the fuller artifact, so meet it first) is now what
+# orders the exhibits further down that page, where it costs nobody their
+# bearings.
+#
+# That root began as an index of the two specimens, which was still a gallery
+# with a caption — everything the pack claims was asserted there and none of it
+# could be tried. It is a product page now, and as of the `home/` rebuild it is
+# a real Next app rather than a hand-written static page: the registry the
+# router resolves against and the constraint patterns the checker runs are both
+# generated from the same sources the release gates read, so a visitor can
+# route a request and fail a snippet rather than take our word for either.
+# `home/` is exported and copied to the site root below, the same way the two
+# exhibits are exported to their own subpaths — it is no longer an index of
+# them, so it does not link back to either; both stay reachable at
+# /showcase/ and /landing-page/ for anyone who already has the URL, and from
+# README.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/showcase/**'
+      - 'demo/landing-page/**'
+      - 'home/**'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/verify_pages_site.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race to publish. Not cancel-in-progress: a half-finished
+# deploy that gets cancelled can leave the site serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # A project site is served from /<repo>. Next bakes asset URLs at build time,
+  # so this has to be known here rather than resolved in the browser.
+  BASE_PATH: /frontend-design-pro
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            home/package-lock.json
+            demo/landing-page/package-lock.json
+            demo/showcase/package-lock.json
+
+      # `npm ci` alone, matching the showcase job in ci.yml: an `|| npm install`
+      # fallback makes a stale lockfile look like a passing build.
+      - name: Install home dependencies
+        working-directory: home
+        run: npm ci
+
+      - name: Install landing-page dependencies
+        working-directory: demo/landing-page
+        run: npm ci
+
+      - name: Install showcase dependencies
+        working-directory: demo/showcase
+        run: npm ci
+
+      - name: Verify generated Pages data
+        run: node tools/pages-data/generate.mjs --check
+
+      # $BASE_PATH with no further suffix, not empty: this is a project Pages
+      # site served from /frontend-design-pro/, and home fills the top of that
+      # path — not the true domain root. It still needs its assets prefixed,
+      # same as the two exhibits below, just with nothing appended after it.
+      - name: Export the home page (/)
+        working-directory: home
+        env:
+          NEXT_OUTPUT_EXPORT: '1'
+          NEXT_BASE_PATH: ${{ env.BASE_PATH }}
+        run: npx next build
+
+      - name: Export the showcase (/showcase/)
+        working-directory: demo/showcase
+        env:
+          NEXT_OUTPUT_EXPORT: '1'
+          NEXT_BASE_PATH: ${{ env.BASE_PATH }}/showcase
+        run: npx next build
+
+      # NEXT_PUBLIC_BASE_PATH is separate from NEXT_BASE_PATH on purpose. Next
+      # rewrites its own asset URLs from the config, but not the ones handed to
+      # fetch() — app/page.tsx reads /api/site/overview and needs the prefix
+      # inlined into the client bundle to find it.
+      - name: Export the landing page (/landing-page/)
+        working-directory: demo/landing-page
+        env:
+          NEXT_OUTPUT_EXPORT: '1'
+          NEXT_BASE_PATH: ${{ env.BASE_PATH }}/landing-page
+          NEXT_PUBLIC_BASE_PATH: ${{ env.BASE_PATH }}/landing-page
+          NEXT_PUBLIC_BUILD_SHA: ${{ github.sha }}
+        run: npx next build
+
+      - name: Compose the site
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          mkdir -p site/showcase
+          cp -r demo/showcase/out/. site/showcase/
+          mkdir -p site/landing-page
+          cp -r demo/landing-page/out/. site/landing-page/
+          # home last: its export fills in the site ROOT, so this runs after
+          # the two subpaths are populated rather than before, even though
+          # neither order can actually collide (home has no showcase/ or
+          # landing-page/ route of its own).
+          cp -r home/out/. site/.
+          # Pages serves the uploaded artifact directly rather than running
+          # Jekyll, so this is belt-and-braces — but Jekyll strips directories
+          # beginning with an underscore, and everything Next emits is in _next/.
+          touch site/.nojekyll
+
+      # Gate 9 builds a server bundle of one of these apps; this job ships static
+      # exports of all three. That split is only safe if something checks the
+      # export, and this is that something.
+      #
+      # It resolves every asset each page references against the files actually
+      # in the upload, rather than pattern-matching the HTML — the failure being
+      # gated is "does this 404 when served", and the honest way to ask that is
+      # to look for the file. A missing or wrong base path renders as unstyled
+      # HTML that still returns 200, which reads like a CSS bug and is a routing
+      # one. Composing three apps at different prefixes makes it likelier, not
+      # less: the showcase's assets have to carry /showcase, the landing page's
+      # have to carry /landing-page, home's have to carry the bare project path
+      # and nothing after it, and one shared config drives all three.
+      #
+      # That sentence described the opposite arrangement until the index landed —
+      # it claimed the showcase carried /showcase while the showcase was in fact
+      # serving from the root with no sub-prefix at all. It was inert because
+      # nothing executes a comment, which is exactly why it stayed wrong: the
+      # check below reads the files, so it was right the whole time the prose
+      # above it was not.
+      - name: Verify the composed site would actually serve
+        run: python3 .github/workflows/verify_pages_site.py site "$BASE_PATH"
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

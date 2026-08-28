@@ -1,0 +1,285 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="frontend-design-pro — a skill pack for AI coding agents. A component on an audit bench: a scan beam sweeps it while constraints for type scale, contrast, focus ring and colour space resolve to green checks, ending on a pass.">
+<title>frontend-design-pro — machine-enforced frontend design</title>
+<defs>
+  <radialGradient id="bloom" cx="0.62" cy="0.42" r="0.72">
+    <stop offset="0" stop-color="#16294D"/>
+    <stop offset="1" stop-color="#070A12"/>
+  </radialGradient>
+  <linearGradient id="faceFill" x1="0" y1="0" x2="0.35" y2="1">
+    <stop offset="0" stop-color="#17223A"/>
+    <stop offset="1" stop-color="#111A2B"/>
+  </linearGradient>
+  <linearGradient id="rimLight" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#3D5580" stop-opacity="0"/>
+    <stop offset="0.45" stop-color="#3D5580" stop-opacity="0.9"/>
+    <stop offset="1" stop-color="#3D5580" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="accentRule" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#5AA9FF"/>
+    <stop offset="1" stop-color="#5AA9FF" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="beamFill" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#5AA9FF" stop-opacity="0"/>
+    <stop offset="0.5" stop-color="#5AA9FF" stop-opacity="0.95"/>
+    <stop offset="1" stop-color="#5AA9FF" stop-opacity="0"/>
+  </linearGradient>
+  <!-- The trail sits ABOVE the core because the beam travels downward, so the
+       haze is what it has already passed. Kept faint: at 0.30 the three stacked
+       beam layers merged into a solid bar and the whole thing read as a progress
+       indicator rather than a light moving over a surface. -->
+  <linearGradient id="beamHaze" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#5AA9FF" stop-opacity="0"/>
+    <stop offset="0.8" stop-color="#5AA9FF" stop-opacity="0.14"/>
+    <stop offset="1" stop-color="#5AA9FF" stop-opacity="0"/>
+  </linearGradient>
+
+  <radialGradient id="floorFade" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.85"/>
+    <stop offset="0.55" stop-color="#fff" stop-opacity="0.35"/>
+    <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+  </radialGradient>
+  <mask id="floorMask">
+    <ellipse cx="910" cy="354" rx="620" ry="150" fill="url(#floorFade)"/>
+  </mask>
+
+  <!-- Generous explicit filter regions. The default region is the bounding box
+       plus 10%, which clips a blur this wide and leaves a visible square edge
+       around the shadow. -->
+  <filter id="drop" x="-40%" y="-40%" width="180%" height="200%">
+    <feGaussianBlur stdDeviation="20"/>
+  </filter>
+  <filter id="glow" x="-120%" y="-900%" width="340%" height="1900%">
+    <feGaussianBlur stdDeviation="4"/>
+  </filter>
+</defs>
+
+<style>
+  /* Every animated element RESTS in its finished state and the stylesheet moves
+     it away and back, so losing this block leaves a completed audit rather than
+     a dim panel. See the header note. */
+  .r    { animation: 0s linear infinite; animation-duration: 4.6s; }
+  .r0 { animation-name: row0; }
+  .r1 { animation-name: row1; }
+  .r2 { animation-name: row2; }
+  .r3 { animation-name: row3; }
+  @keyframes row0 {
+    0%, 15.2%      { opacity: 0.22; }
+    17.7%, 93% { opacity: 1; }
+    100%                 { opacity: 0.22; }
+  }
+  @keyframes row1 {
+    0%, 32.2%      { opacity: 0.22; }
+    34.7%, 93% { opacity: 1; }
+    100%                 { opacity: 0.22; }
+  }
+  @keyframes row2 {
+    0%, 49.8%      { opacity: 0.22; }
+    52.3%, 93% { opacity: 1; }
+    100%                 { opacity: 0.22; }
+  }
+  @keyframes row3 {
+    0%, 66.8%      { opacity: 0.22; }
+    69.3%, 93% { opacity: 1; }
+    100%                 { opacity: 0.22; }
+  }
+
+  .pass { animation: pass 4.6s infinite; }
+  @keyframes pass {
+    0%, 78%      { opacity: 0; transform: translateY(3px); }
+    81%, 93% { opacity: 1; transform: translateY(0); }
+    100%                 { opacity: 0; transform: translateY(3px); }
+  }
+
+  /* The beam. Travels only between 6% and 76%, then fades —
+     the remainder of the cycle is the hold that makes the result legible. */
+  .beam { animation: sweep 4.6s infinite; }
+  @keyframes sweep {
+    0%              { transform: translateY(0); opacity: 0; }
+    6%  { transform: translateY(0); opacity: 1; }
+    76%    { transform: translateY(182px); opacity: 1; }
+    82% { transform: translateY(182px); opacity: 0; }
+    100%            { transform: translateY(182px); opacity: 0; }
+  }
+
+  /* A slow lift on the whole bench. Three pixels — enough to stop the panel
+     reading as pasted onto the background, small enough not to compete with the
+     beam for attention. */
+  .bench { animation: lift 7s infinite ease-in-out; }
+  @keyframes lift {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+  }
+
+  .mote { animation: drift 9s var(--m) infinite ease-in-out; }
+  @keyframes drift {
+    0%, 100% { transform: translateY(6px); opacity: 0.15; }
+    50%      { transform: translateY(-14px); opacity: 0.55; }
+  }
+
+  /* Resolves to the same finished state the stylesheet-dropped case does: rows
+     lit, checks green, PASS shown, beam gone. The beam is the decoration, and
+     it is the only thing this costs. */
+  @media (prefers-reduced-motion: reduce) {
+    .r, .pass, .beam, .bench, .mote { animation: none; }
+    .beam { opacity: 0; }
+  }
+
+</style>
+
+<rect width="1200" height="420" fill="url(#bloom)"/>
+
+<g mask="url(#floorMask)" stroke="#1B2740" stroke-width="1" fill="none">
+<line x1="910" y1="334" x2="-900" y2="420"/>
+<line x1="910" y1="334" x2="-782" y2="420"/>
+<line x1="910" y1="334" x2="-664" y2="420"/>
+<line x1="910" y1="334" x2="-546" y2="420"/>
+<line x1="910" y1="334" x2="-428" y2="420"/>
+<line x1="910" y1="334" x2="-310" y2="420"/>
+<line x1="910" y1="334" x2="-192" y2="420"/>
+<line x1="910" y1="334" x2="-74" y2="420"/>
+<line x1="910" y1="334" x2="44" y2="420"/>
+<line x1="910" y1="334" x2="162" y2="420"/>
+<line x1="910" y1="334" x2="280" y2="420"/>
+<line x1="910" y1="334" x2="398" y2="420"/>
+<line x1="910" y1="334" x2="516" y2="420"/>
+<line x1="910" y1="334" x2="634" y2="420"/>
+<line x1="910" y1="334" x2="752" y2="420"/>
+<line x1="910" y1="334" x2="870" y2="420"/>
+<line x1="910" y1="334" x2="988" y2="420"/>
+<line x1="910" y1="334" x2="1106" y2="420"/>
+<line x1="910" y1="334" x2="1224" y2="420"/>
+<line x1="910" y1="334" x2="1342" y2="420"/>
+<line x1="910" y1="334" x2="1460" y2="420"/>
+<line x1="910" y1="334" x2="1578" y2="420"/>
+<line x1="910" y1="334" x2="1696" y2="420"/>
+<line x1="910" y1="334" x2="1814" y2="420"/>
+<line x1="910" y1="334" x2="1932" y2="420"/>
+<line x1="910" y1="334" x2="2050" y2="420"/>
+<line x1="910" y1="334" x2="2168" y2="420"/>
+<line x1="0" y1="334.9" x2="1200" y2="334.9"/>
+<line x1="0" y1="337.7" x2="1200" y2="337.7"/>
+<line x1="0" y1="342.6" x2="1200" y2="342.6"/>
+<line x1="0" y1="349.7" x2="1200" y2="349.7"/>
+<line x1="0" y1="359" x2="1200" y2="359"/>
+<line x1="0" y1="370.7" x2="1200" y2="370.7"/>
+<line x1="0" y1="384.7" x2="1200" y2="384.7"/>
+<line x1="0" y1="401.2" x2="1200" y2="401.2"/>
+<line x1="0" y1="420" x2="1200" y2="420"/>
+</g>
+
+<g class="mote-field">
+<circle cx="620" cy="70" r="0.9" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:0s"/>
+<circle cx="757" cy="281" r="1.4" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-1.4s"/>
+<circle cx="894" cy="212" r="1.8" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-2.7s"/>
+<circle cx="1031" cy="143" r="0.9" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-4.1s"/>
+<circle cx="1168" cy="74" r="1.4" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-5.5s"/>
+<circle cx="745" cy="285" r="1.8" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-6.8s"/>
+<circle cx="882" cy="216" r="0.9" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-8.2s"/>
+<circle cx="1019" cy="147" r="1.4" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-0.6s"/>
+<circle cx="1156" cy="78" r="1.8" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-2s"/>
+<circle cx="733" cy="289" r="0.9" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-3.3s"/>
+<circle cx="870" cy="220" r="1.4" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-4.7s"/>
+<circle cx="1007" cy="151" r="1.8" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-6.1s"/>
+<circle cx="1144" cy="82" r="0.9" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-7.4s"/>
+<circle cx="721" cy="293" r="1.4" fill="#5AA9FF" opacity="0.5" class="mote" style="--m:-8.8s"/>
+</g>
+
+<g class="bench">
+  <!-- Cast shadow, then the slab edge, then the face. The edge is a second
+       rounded rect offset down and right: enough to read as thickness without
+       the false perspective a skewed face would introduce at this size. -->
+  <rect x="690" y="92" width="452" height="252" rx="14"
+        fill="#000" opacity="0.55" filter="url(#drop)"/>
+  <rect x="693" y="75" width="452" height="252" rx="14" fill="#080C16"/>
+  <rect x="684" y="66" width="452" height="252" rx="14"
+        fill="url(#faceFill)" stroke="#26334D" stroke-width="1"/>
+  <rect x="724" y="66" width="372" height="1" fill="url(#rimLight)"/>
+
+  <text x="710" y="102" fill="#61728F" font-size="11" letter-spacing="2.2"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">COMPONENT AUDIT</text>
+
+  <g class="pass">
+    <rect x="1048" y="88" width="62" height="20" rx="10"
+          fill="#3DDC97" opacity="0.14"/>
+    <text x="1079" y="102" text-anchor="middle" fill="#3DDC97"
+          font-size="11" letter-spacing="1.6"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">PASS</text>
+  </g>
+
+  <rect x="710" y="116" width="400" height="1" fill="#26334D"/>
+
+  <g class="r r0">
+    <rect x="710" y="133" width="188" height="17" rx="4" fill="#7A93C4"/>
+    <rect x="710" y="156" width="112" height="7" rx="3.5" fill="#2E3B54"/>
+    <text x="1088" y="152" text-anchor="end" fill="#93A4C4" font-size="12.5"
+          letter-spacing="0.4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">type scale</text>
+    <circle cx="1105" cy="148" r="8" fill="#3DDC97" opacity="0.16"/>
+    <path d="M1101.4 148 l2.6 2.7 l4.6 -5.4" fill="none" stroke="#3DDC97"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g class="r r1">
+    <rect x="710" y="179" width="242" height="8" rx="4" fill="#7A93C4"/>
+    <rect x="710" y="194" width="186" height="8" rx="4" fill="#7A93C4" opacity="0.7"/>
+    <text x="1088" y="196" text-anchor="end" fill="#93A4C4" font-size="12.5"
+          letter-spacing="0.4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">contrast</text>
+    <circle cx="1105" cy="192" r="8" fill="#3DDC97" opacity="0.16"/>
+    <path d="M1101.4 192 l2.6 2.7 l4.6 -5.4" fill="none" stroke="#3DDC97"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g class="r r2">
+    <rect x="705" y="217" width="118" height="42" rx="12" fill="none"
+          stroke="#5AA9FF" stroke-width="2" opacity="0.85"/>
+    <rect x="710" y="222" width="108" height="32" rx="9" fill="#2B6FD4"/>
+    <rect x="728" y="234" width="72" height="8" rx="4" fill="#F2F6FF" opacity="0.85"/>
+    <text x="1088" y="242" text-anchor="end" fill="#93A4C4" font-size="12.5"
+          letter-spacing="0.4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">focus ring</text>
+    <circle cx="1105" cy="238" r="8" fill="#3DDC97" opacity="0.16"/>
+    <path d="M1101.4 238 l2.6 2.7 l4.6 -5.4" fill="none" stroke="#3DDC97"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g class="r r3">
+    <rect x="710" y="271" width="23" height="23" rx="6" fill="#7A93C4" opacity="1"/>
+    <rect x="740" y="271" width="23" height="23" rx="6" fill="#7A93C4" opacity="0.8"/>
+    <rect x="770" y="271" width="23" height="23" rx="6" fill="#7A93C4" opacity="0.7"/>
+    <rect x="800" y="271" width="23" height="23" rx="6" fill="#7A93C4" opacity="0.5"/>
+    <rect x="830" y="271" width="23" height="23" rx="6" fill="#7A93C4" opacity="0.4"/>
+    <text x="1088" y="286" text-anchor="end" fill="#93A4C4" font-size="12.5"
+          letter-spacing="0.4" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">oklch()</text>
+    <circle cx="1105" cy="282" r="8" fill="#3DDC97" opacity="0.16"/>
+    <path d="M1101.4 282 l2.6 2.7 l4.6 -5.4" fill="none" stroke="#3DDC97"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Three layers, and the order matters: a wide faint trail, a blurred core
+       for the bloom, then a hairline core on top so the beam still has a crisp
+       edge. Without the hairline the blur alone reads as a smudge.
+
+       The group RESTS at opacity 0 and the keyframes bring it in, so a dropped
+       stylesheet leaves no beam rather than a bright line parked across the
+       panel header. That was the one way the degraded frame differed from the
+       reduced-motion frame, and it is the kind of thing only a render catches. -->
+  <g class="beam" opacity="0">
+    <rect x="694" y="94" width="432" height="30" fill="url(#beamHaze)"/>
+    <rect x="694" y="123.5" width="432" height="1.6" fill="url(#beamFill)"
+          filter="url(#glow)"/>
+    <rect x="694" y="124" width="432" height="1" fill="url(#beamFill)"/>
+  </g>
+</g>
+
+<!-- Type is styled with presentation attributes for the same reason the panel
+     is: no webfont can be fetched here, so these are system stacks, and nothing
+     about how the words look depends on the stylesheet surviving. Two stacks
+     only — a serif for the wordmark, mono for everything technical. The previous
+     banner used four, which is how a 1200px image ends up with no voice. -->
+<g>
+  <rect x="72" y="112" width="64" height="2" fill="url(#accentRule)"/>
+  <text x="72" y="148" fill="#5AA9FF" letter-spacing="3.2"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">SKILL PACK FOR AI CODING AGENTS</text>
+  <text x="70" y="212" fill="#F2F6FF" letter-spacing="-1.4"
+        font-family="Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif" font-size="52">frontend-design-pro</text>
+  <text x="72" y="250" fill="#93A4C4" letter-spacing="0.2"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14.5">Taste you can put in CI.</text>
+  <text x="72" y="286" fill="#61728F" letter-spacing="0.5"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12.5">every rule machine-checked · every figure recomputed by a gate</text>
+</g>
+</svg>

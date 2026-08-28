@@ -7,16 +7,21 @@
   --fm-cloud: #f4f7fb;
   --fm-line: rgba(148, 163, 184, .28);
   --fm-shadow: 0 24px 80px rgba(15, 23, 42, .28);
+  --fm-layer-backdrop: 2000;
+  --fm-layer-trigger: 2010;
+  --fm-layer-drawer: 2020;
+  --fm-layer-dock: 2030;
+  --fm-layer-overlay: 2100;
 }
 
 .fm-hub-root, .fm-hub-root * { box-sizing: border-box; }
-.fm-hub-root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.fm-hub-root { font-family: "Segoe UI", Arial, sans-serif; }
 
 .fm-hub-trigger {
   position: fixed;
   left: 14px;
   bottom: 18px;
-  z-index: 2147483000;
+  z-index: var(--fm-layer-trigger);
   display: flex;
   align-items: center;
   gap: 9px;
@@ -50,7 +55,7 @@
 .fm-hub-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2147482990;
+  z-index: var(--fm-layer-backdrop);
   pointer-events: none;
   opacity: 0;
   background: rgba(3, 10, 24, .32);
@@ -61,7 +66,7 @@
 
 .fm-hub-drawer {
   position: fixed;
-  z-index: 2147483001;
+  z-index: var(--fm-layer-drawer);
   top: 12px;
   bottom: 12px;
   left: 12px;
@@ -160,7 +165,7 @@
 .fm-hub-overlay {
   position: fixed;
   inset: 0;
-  z-index: 2147483100;
+  z-index: var(--fm-layer-overlay);
   display: flex;
   flex-direction: column;
   visibility: hidden;
@@ -207,6 +212,17 @@
 .fm-hub-frame-loading.is-hidden { pointer-events: none; opacity: 0; }
 html.fm-hub-module-open, html.fm-hub-module-open body { overflow: hidden !important; }
 
+@media (prefers-reduced-motion: reduce) {
+  .fm-hub-trigger,
+  .fm-hub-backdrop,
+  .fm-hub-drawer,
+  .fm-hub-module,
+  .fm-hub-overlay,
+  .fm-hub-frame-loading { transition: none; }
+  .fm-hub-trigger:hover,
+  .fm-hub-module:hover { transform: none; }
+}
+
 @media (max-width: 660px) {
   .fm-hub-trigger-text { display: none; }
   .fm-hub-trigger { width: 46px; padding: 5px; }
@@ -247,7 +263,7 @@ html.floodman-branded .fm-replaced-brand-logo { width: auto !important; min-widt
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 2147483050;
+    z-index: var(--fm-layer-dock);
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;

@@ -16,6 +16,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parent
 
+REQUIRED_VIEWPORTS = [
+    (320, 568), (360, 640), (375, 667), (390, 844), (412, 915), (430, 932),
+    (540, 720), (667, 375), (844, 390), (768, 1024), (820, 1180),
+    (1024, 768), (1024, 1366), (1280, 720), (1366, 768), (1440, 900),
+    (1536, 864), (1920, 1080), (2560, 1440),
+]
+TRANSITION_VIEWPORTS = [(719, 900), (720, 900), (721, 900), (1099, 900), (1100, 900), (1101, 900)]
+
 
 class FakeProviders:
     def __init__(self) -> None:
@@ -438,6 +446,7 @@ def static_overlay_contracts() -> None:
     sources = {
         "pwa_js": (ROOT / "pwa" / "floodman-pwa.js").read_text(encoding="utf-8"),
         "pwa_css": (ROOT / "pwa" / "floodman-pwa.css").read_text(encoding="utf-8"),
+        "pwa_sw": (ROOT / "pwa" / "floodman-sw.js").read_text(encoding="utf-8"),
         "panel_js": (ROOT / "roomflow" / "floodman-panel.js").read_text(encoding="utf-8"),
         "panel_css": (ROOT / "roomflow" / "floodman-panel.css").read_text(encoding="utf-8"),
         "capture_js": (ROOT / "roomflow" / "capture" / "roomflow-capture.js").read_text(encoding="utf-8"),
@@ -452,6 +461,9 @@ def static_overlay_contracts() -> None:
     }
     assert "fm-pwa-toast-dismiss" in sources["pwa_js"] and "Dismiss notification" in sources["pwa_js"]
     assert ".fm-pwa-toast-dismiss" in sources["pwa_css"]
+    pwa_precache = sources["pwa_sw"].split("const PRECACHE = [", 1)[1].split("];", 1)[0]
+    assert "'/workspace'" not in pwa_precache and "'/full-erp'" not in pwa_precache
+    assert "Customer, document, API, Office, signing, and ERP responses remain network-only" in sources["pwa_sw"]
     assert "fm-rf-panel-dismissed" in sources["panel_js"]
     assert "floodman_roomflow_quick_start_dismissed_v1" in sources["panel_js"]
     assert "Dismiss quick start" in sources["panel_js"] and "Dismiss message" in sources["panel_js"]
@@ -505,6 +517,9 @@ def build_browser_app(main: Any) -> Any:
         "/floodman-pwa.js": ROOT / "pwa" / "floodman-pwa.js",
         "/floodman-sw.js": ROOT / "pwa" / "floodman-sw.js",
         "/floodman-workspace.css": ROOT / "pwa" / "workspace-mode.css",
+        "/floodman-offline.html": ROOT / "pwa" / "offline.html",
+        "/floodman-starting.html": ROOT / "hub" / "starting.html",
+        "/install-app": ROOT / "pwa" / "install.html",
         "/manifest.webmanifest": ROOT / "pwa" / "manifest.webmanifest",
         "/hub.css": ROOT / "hub" / "hub.css",
         "/hub.js": ROOT / "hub" / "hub.js",
@@ -555,6 +570,233 @@ def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
+
+
+def authenticate_browser_page(page: Any, base: str) -> None:
+    page.goto(base + "/login/local?next=/office/desktop", wait_until="domcontentloaded")
+    form = page.locator("form[action='/login']")
+    form.locator("input[name='email']").fill("owner@example.test")
+    form.locator("input[name='password']").fill("Floodman-Test-2026!")
+    form.locator("button").click()
+    page.wait_for_url(re.compile(r"/office/desktop"))
+
+
+def assert_layout_contract(page: Any, label: str, *, office_shell: bool = False) -> None:
+    contract_script = """() => {
+      const root = document.documentElement;
+      const viewportWidth = root.clientWidth;
+      const hiddenFocusable = Array.from(document.querySelectorAll('[aria-hidden="true"]')).flatMap(container =>
+        Array.from(container.querySelectorAll('a[href],button,input,select,textarea,[tabindex]'))
+          .filter(node => !node.disabled && node.tabIndex >= 0 && !node.closest('[inert]'))
+          .map(node => ({tag: node.tagName, id: node.id, text: (node.textContent || '').trim().slice(0, 60)}))
+      ).slice(0, 10);
+      const fixedOutside = Array.from(document.querySelectorAll('body *')).filter(node => {
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+        if (node.getAttribute('aria-hidden') === 'true' || node.closest('[aria-hidden="true"],[inert]')) return false;
+        if (style.position !== 'fixed' && style.position !== 'sticky') return false;
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && (rect.left < -2 || rect.right > viewportWidth + 2);
+      }).slice(0, 10).map(node => ({tag: node.tagName, id: node.id, className: String(node.className).slice(0, 80)}));
+      const uncloseableDialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(dialog => {
+        const style = getComputedStyle(dialog);
+        if (style.display === 'none' || style.visibility === 'hidden' || dialog.closest('[aria-hidden="true"]')) return false;
+        return !Array.from(dialog.querySelectorAll('button,[role="button"]')).some(button =>
+          /close|cancel|done|dismiss/i.test(`${button.getAttribute('aria-label') || ''} ${button.textContent || ''}`)
+        );
+      }).map(node => node.id || node.className || node.tagName);
+      const oversizedShellIcons = Array.from(document.querySelectorAll(
+        '.mobile-topbar svg,.mobile-bottom-nav svg,.sidebar-mobile-head svg'
+      )).filter(node => {
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || node.closest('[hidden],[inert]')) return false;
+        const rect = node.getBoundingClientRect();
+        return rect.width > 48 || rect.height > 48;
+      }).map(node => {
+        const rect = node.getBoundingClientRect();
+        return {className: String(node.parentElement?.className || ''), width: rect.width, height: rect.height};
+      });
+      return {
+        rootOverflow: root.scrollWidth - viewportWidth,
+        hiddenFocusable,
+        fixedOutside,
+        uncloseableDialogs,
+        oversizedShellIcons,
+        skipLinks: document.querySelectorAll('a.skip-link[href="#fm-main-content"]').length,
+        mainTargets: document.querySelectorAll('main#fm-main-content').length,
+      };
+    }"""
+    try:
+        result = page.evaluate(contract_script)
+    except Exception as error:
+        if "Execution context was destroyed" not in str(error):
+            raise
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(100)
+        result = page.evaluate(contract_script)
+    assert result["rootOverflow"] <= 2, f"root horizontal overflow ({label}): {result}"
+    assert not result["hiddenFocusable"], f"hidden controls remain keyboard-focusable ({label}): {result}"
+    assert not result["fixedOutside"], f"fixed or sticky surface is clipped ({label}): {result}"
+    assert not result["uncloseableDialogs"], f"visible dialog has no close path ({label}): {result}"
+    assert not result["oversizedShellIcons"], f"shell icon exceeded its visual bounds ({label}): {result}"
+    if office_shell:
+        assert result["skipLinks"] == 1 and result["mainTargets"] == 1, f"Office landmarks missing ({label}): {result}"
+
+
+def layout_browser_matrix(playwright: Any, base: str, portal_token: str) -> None:
+    representative_routes = [
+        ("/office/desktop?desktop=1", True),
+        ("/office/mobile?mobile=1", True),
+        ("/office/settings", True),
+        ("/office/contacts", True),
+        ("/office/estimates/new", True),
+        ("/office/roomflow", True),
+        ("/office/roomflow/import", True),
+        (f"/customer/invoice/{portal_token}#messages", False),
+        ("/roomflow/", False),
+        ("/hub-fixture", False),
+        ("/office/settings?desktop=1", True),
+    ]
+    browser_matrix = [
+        ("chromium", playwright.chromium, REQUIRED_VIEWPORTS),
+        ("firefox", playwright.firefox, [(320, 568), (390, 844), (844, 390), (1024, 768), (1440, 900)]),
+        ("webkit", playwright.webkit, [(320, 568), (390, 844), (844, 390), (1024, 768), (1440, 900)]),
+    ]
+    evidence_root = os.environ.get("FLOODMAN_UI_EVIDENCE_DIR", "").strip()
+    evidence_path = Path(evidence_root) if evidence_root else None
+    if evidence_path:
+        evidence_path.mkdir(parents=True, exist_ok=True)
+
+    for browser_name, browser_type, viewports in browser_matrix:
+        browser = browser_type.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1440, "height": 900}, service_workers="block")
+        page = context.new_page()
+        page_errors: list[str] = []
+        console_errors: list[str] = []
+        page.on("pageerror", lambda error: page_errors.append(str(error)))
+        page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
+        authenticate_browser_page(page, base)
+        for width, height in viewports:
+            page.set_viewport_size({"width": width, "height": height})
+            for path, office_shell in representative_routes:
+                response = page.goto(base + path, wait_until="domcontentloaded")
+                assert response is None or response.status == 200, f"{browser_name} route failed at {width}x{height}: {path}"
+                page.wait_for_timeout(40)
+                assert_layout_contract(page, f"{browser_name} {width}x{height} {path}", office_shell=office_shell)
+                assert not page_errors, f"{browser_name} page errors at {width}x{height} {path}: {page_errors}"
+                assert not console_errors, f"{browser_name} console errors at {width}x{height} {path}: {console_errors}"
+                if evidence_path and browser_name == "chromium" and (width, height, path) in {
+                    (320, 568, "/office/mobile?mobile=1"),
+                    (390, 844, "/office/roomflow"),
+                    (1024, 768, "/office/desktop?desktop=1"),
+                    (1440, 900, "/office/settings"),
+                    (1440, 900, "/office/settings?desktop=1"),
+                }:
+                    slug = re.sub(r"[^a-z0-9]+", "-", path.lower()).strip("-") or "root"
+                    page.screenshot(path=evidence_path / f"{browser_name}-{width}x{height}-{slug}.png", full_page=True, animations="disabled")
+
+        context.close()
+        browser.close()
+
+    browser = playwright.chromium.launch(headless=True)
+    context = browser.new_context(viewport={"width": 1024, "height": 768}, service_workers="block")
+    page = context.new_page()
+    authenticate_browser_page(page, base)
+    page.goto(base + "/office/desktop?desktop=1", wait_until="domcontentloaded")
+    for width, height in TRANSITION_VIEWPORTS:
+        page.set_viewport_size({"width": width, "height": height})
+        page.wait_for_timeout(40)
+        assert_layout_contract(page, f"chromium transition {width}x{height}", office_shell=True)
+        menu_visible = page.locator(".mobile-topbar").is_visible()
+        sidebar_hidden = page.locator("#fm-office-sidebar").get_attribute("aria-hidden") == "true"
+        assert menu_visible == (width <= 1100), f"navigation transition mismatch at {width}px"
+        assert sidebar_hidden == (width <= 1100), f"sidebar accessibility transition mismatch at {width}px"
+
+    page.set_viewport_size({"width": 1024, "height": 768})
+    trigger = page.locator(".mobile-topbar [data-mobile-menu]")
+    trigger.click()
+    assert page.locator("#fm-office-sidebar").get_attribute("aria-hidden") == "false"
+    assert page.locator("#fm-office-sidebar").get_attribute("inert") is None
+    page.keyboard.press("Escape")
+    assert trigger.evaluate("node => node === document.activeElement"), "Office drawer did not restore trigger focus"
+
+    context.close()
+    context = browser.new_context(viewport={"width": 1024, "height": 768})
+    page = context.new_page()
+    authenticate_browser_page(page, base)
+    page.goto(base + "/office/desktop?desktop=1", wait_until="domcontentloaded")
+    page.evaluate("navigator.serviceWorker.ready")
+    page.reload(wait_until="domcontentloaded")
+    page.wait_for_function("Boolean(navigator.serviceWorker.controller)")
+    cached_paths = page.evaluate("""async () => (await Promise.all((await caches.keys()).map(async name =>
+      (await (await caches.open(name)).keys()).map(request => new URL(request.url).pathname)
+    ))).flat()""")
+    assert "/workspace" not in cached_paths and "/full-erp" not in cached_paths
+    assert not any(path.startswith("/office/") for path in cached_paths), f"private Office page entered PWA cache: {cached_paths}"
+    workers = context.service_workers
+    assert workers, "PWA service worker did not start"
+    offline_cache = workers[0].evaluate("""async () => { const response = await caches.match('/floodman-offline.html'); return response ? {status: response.status, text: await response.text()} : null; }""")
+    assert offline_cache and offline_cache["status"] == 200 and "Floodman is offline" in offline_cache["text"], f"offline cache missing: caches={cached_paths} response={offline_cache}"
+    context.set_offline(True)
+    page.goto(base + "/office/settings", wait_until="domcontentloaded")
+    assert page.get_by_role("heading", name="Floodman is offline").is_visible()
+    context.set_offline(False)
+    page.goto(base + "/floodman-offline.html", wait_until="domcontentloaded")
+    assert page.get_by_role("heading", name="Floodman is offline").is_visible()
+
+    standalone = browser.new_context(viewport={"width": 390, "height": 844})
+    standalone.add_init_script("""(() => { const original = window.matchMedia.bind(window); window.matchMedia = query => query === '(display-mode: standalone)' ? {matches:true,media:query,onchange:null,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){},dispatchEvent(){return true}} : original(query); })();""")
+    standalone_page = standalone.new_page()
+    authenticate_browser_page(standalone_page, base)
+    standalone_page.goto(base + "/office/mobile?mobile=1", wait_until="domcontentloaded")
+    assert standalone_page.locator("html.fm-pwa-standalone").count() == 1
+    assert_layout_contract(standalone_page, "chromium PWA standalone 390x844", office_shell=True)
+    standalone.close()
+
+    reflow = browser.new_context(viewport={"width": 640, "height": 450}, device_scale_factor=2, service_workers="block")
+    reflow_page = reflow.new_page()
+    authenticate_browser_page(reflow_page, base)
+    for path in ("/office/settings?desktop=1", "/office/estimates/new?desktop=1", "/office/roomflow?desktop=1"):
+        reflow_page.goto(base + path, wait_until="domcontentloaded")
+        assert_layout_contract(reflow_page, f"chromium 200-percent reflow proxy {path}", office_shell=True)
+    reflow_page.goto(base + "/office/settings?mobile=1", wait_until="domcontentloaded")
+    reflow_page.locator(".card").first.evaluate("node => node.prepend('L' .repeat(512))")
+    assert_layout_contract(reflow_page, "chromium long unbroken content", office_shell=True)
+    reflow.close()
+
+    keyboard = browser.new_context(viewport={"width": 390, "height": 844}, service_workers="block")
+    keyboard_page = keyboard.new_page()
+    authenticate_browser_page(keyboard_page, base)
+    keyboard_page.goto(base + "/office/estimates/new?mobile=1", wait_until="domcontentloaded")
+    keyboard_page.set_viewport_size({"width": 390, "height": 480})
+    keyboard_field = keyboard_page.locator("input:not([type='hidden']),textarea").last
+    keyboard_field.evaluate("node => { node.focus(); node.scrollIntoView({block:'nearest'}); }")
+    keyboard_page.wait_for_timeout(100)
+    keyboard_bounds = keyboard_field.evaluate("""node => {
+      const rect = node.getBoundingClientRect();
+      const nav = document.querySelector('.mobile-bottom-nav');
+      const navRect = nav && getComputedStyle(nav).display !== 'none' ? nav.getBoundingClientRect() : null;
+      return {top: rect.top, bottom: rect.bottom, viewport: innerHeight, navTop: navRect ? navRect.top : innerHeight};
+    }""")
+    assert keyboard_bounds["top"] >= 0 and keyboard_bounds["bottom"] <= keyboard_bounds["navTop"] + 1, f"focused field is obscured by virtual-keyboard layout: {keyboard_bounds}"
+    assert_layout_contract(keyboard_page, "chromium virtual keyboard 390x480", office_shell=True)
+    keyboard.close()
+
+    accessibility = browser.new_context(viewport={"width": 1440, "height": 900}, service_workers="block")
+    accessibility_page = accessibility.new_page()
+    authenticate_browser_page(accessibility_page, base)
+    accessibility_page.goto(base + "/office/settings?desktop=1", wait_until="domcontentloaded")
+    accessibility_page.evaluate("document.activeElement?.blur()")
+    accessibility_page.keyboard.press("Tab")
+    assert accessibility_page.locator("a.skip-link").evaluate("node => node === document.activeElement"), "skip link is not the first keyboard stop"
+    accessibility_page.keyboard.press("Enter")
+    assert accessibility_page.locator("#fm-main-content").evaluate("node => node === document.activeElement"), "skip link did not move focus to main content"
+    accessibility_page.emulate_media(reduced_motion="reduce", forced_colors="active")
+    accessibility_page.reload(wait_until="domcontentloaded")
+    assert_layout_contract(accessibility_page, "chromium reduced motion and forced colors", office_shell=True)
+    accessibility.close()
+    context.close()
+    browser.close()
 
 
 def browser_smoke(main: Any) -> None:
@@ -784,6 +1026,7 @@ def browser_smoke(main: Any) -> None:
                 overflow = mobile_page.evaluate("""Array.from(document.querySelectorAll('body *')).filter(node=>{const r=node.getBoundingClientRect();return r.right>document.documentElement.clientWidth+2||r.left<-2}).slice(0,12).map(node=>({tag:node.tagName,className:node.className,text:(node.textContent||'').trim().slice(0,80),left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right,scrollWidth:node.scrollWidth,clientWidth:node.clientWidth}))""")
                 assert not overflow, f"customer portal horizontal overflow at {width}px: {overflow}"
 
+            layout_browser_matrix(playwright, base, portal_invoice["public_token"])
             mobile_page.close()
             desktop.close()
             browser.close()

@@ -98,7 +98,7 @@ private fun LoginScreen(viewModel: MainViewModel, snackbar: SnackbarHostState) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var localAccount by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), contentAlignment = Alignment.Center) {
         Card(Modifier.widthIn(max = 480.dp)) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(Icons.Default.WaterDrop, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(48.dp))
@@ -122,7 +122,7 @@ private fun LoginScreen(viewModel: MainViewModel, snackbar: SnackbarHostState) {
 
 @Composable
 private fun LockedScreen(onUnlock: () -> Unit, onLogout: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), contentAlignment = Alignment.Center) {
         Card {
             Column(Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(Icons.Default.Lock, null, Modifier.size(56.dp))

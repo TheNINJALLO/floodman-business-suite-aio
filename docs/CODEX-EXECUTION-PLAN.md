@@ -17,6 +17,16 @@
 - **Settings usability complete (2026-08-15).** Every staff-visible CRM, setup, provider, company, catalog, import, RoomFlow, Android, and iOS settings surface is inventoried. Central guided setup, plain labels, safe Detroit defaults, server validation, owner/installer progressive disclosure, dismissible help/feedback, and owner-only stable RoomFlow import pass keyboard, close, desktop, mobile, source, package, and native readiness gates.
 - **v4.6.10 web update complete locally (2026-08-15).** The distinct server/web and Pterodactyl identity lets an existing v4.6.9 host recognize the settings/usability update. Source/browser tests, deterministic artifacts, extracted-package tests, hashes, inventory, and verification pass while the additive Mobile API, native app versions, RoomFlow pin, and external signing/device/macOS/staging boundaries remain unchanged.
 
+## Phase 1B — comprehensive interface hardening and fresh-server package
+
+- **Windows/local implementation complete; external acceptance remains open (2026-08-28).** WEB-007 extends rather than reopens WEB-002. It passes small-phone through ultrawide and transition-width coverage, distinct mobile/desktop workspace behavior, installed-PWA and offline states, keyboard/focus/reflow/accessibility checks, Android native-shell build gates, Apple source readiness, deterministic visual evidence, and a complete same-identity v4.7.1 fresh-server Pterodactyl handoff.
+- Preserve the clean `b3cf9c2` baseline, current server/native identities, Mobile API, RoomFlow pin, ports 9000–9004, `FLOODMAN_SUITE_READY`, private staff-surface boundary, and persistent `server/data` behavior.
+- Install and validate the five authorized project-local UI/testing skills without making them production dependencies. Record exact upstream commits and licenses in `.agents/skills/SOURCES.md`.
+- The architecture and audit are recorded in `docs/UI-LAYOUT-HARDENING.md`; no replacement framework or alternate application was introduced.
+- Repairs proceed from shared shell/cascade/layer tokens through Hub, RoomFlow, PWA privacy, and native safe areas. The existing browser harness now enforces the expanded contract.
+- All applicable source, browser, PWA, accessibility, visual, Android, Apple-readiness, inventory, package, checksum, and repository gates are recorded. Current macOS/device/live-node results remain BLK-015/BLK-006/BLK-005, never passes.
+- The matched fresh-server runtime ZIP, canonical `mobile-start.sh`, egg, setup guide, and checksums are complete without deployment or identity changes.
+
 ## Phase 2 — RoomFlow and Supabase
 
 - **Complete (2026-08-12).** Fetched and verified only the pinned RoomFlow commit in the ignored vendor location: 1,032 tracked files, clean checkout.
