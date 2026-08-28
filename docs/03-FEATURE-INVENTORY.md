@@ -98,7 +98,7 @@
 
 ### PWA
 
-- Private Tailscale access
+- External HTTPS proxy integration with staff-only access policy
 - Separate desktop and mobile layouts
 - Adaptive launcher and explicit mode switching
 - Dark/light/system preference data

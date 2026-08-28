@@ -95,8 +95,15 @@ require(list(egg.get("docker_images", {}).values()) == [package.BASE_IMAGE], "Pt
 expected_installer = package.build_installer_script(launcher_text, version)
 require(egg.get("scripts", {}).get("installation", {}).get("script") == expected_installer, "Pterodactyl egg embeds a stale launcher")
 variables = {value.get("env_variable"): value for value in egg.get("variables", [])}
-require(not (set(variables) & package.OBSOLETE_EGG_VARIABLES), "Pterodactyl egg retains obsolete source/public URL variables")
-require("TAILSCALE_HOSTNAME" in variables, "Pterodactyl egg does not expose the Tailscale hostname")
+require(not (set(variables) & package.REMOVED_EGG_VARIABLES), "Pterodactyl egg retains removed source or Tailscale variables")
+for _, env_variable, default_value, _ in package.EXTERNAL_URL_VARIABLES:
+    require(env_variable in variables, f"Pterodactyl egg does not expose {env_variable}")
+    require(
+        variables.get(env_variable, {}).get("default_value") == default_value,
+        f"Pterodactyl egg has the wrong default for {env_variable}",
+    )
+for marker in ("TAILSCALE_", "tailscaled", "pkgs.tailscale.com", "tailscale serve", "tailscale funnel"):
+    require(marker.lower() not in launcher_text.lower(), f"Canonical launcher retains removed Tailscale marker: {marker}")
 require(
     variables.get("FLOODMAN_OWNER_PASSWORD", {}).get("default_value") == "REPLACE_ME_12345!",
     "Pterodactyl egg does not use the rejected Owner password placeholder",

@@ -12,14 +12,14 @@ RELEASES = ROOT / "deployment" / "releases"
 RUNTIME = RELEASES / "floodman-operations-runtime-v4.7.1.zip"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.1.json"
-GUIDE = ROOT / "deployment" / "pterodactyl" / "FRESH-SERVER-SETUP-v4.7.1-WEB007.md"
-BUNDLE_NAME = "floodman-operations-new-server-v4.7.1-web007-20260828.zip"
-CHECKSUM_NAME = "SHA256SUMS-WEB007-20260828"
+GUIDE = ROOT / "deployment" / "pterodactyl" / "FRESH-SERVER-SETUP-v4.7.1-HTTPS001.md"
+BUNDLE_NAME = "floodman-operations-new-server-v4.7.1-https001-20260828.zip"
+CHECKSUM_NAME = "SHA256SUMS-HTTPS001-20260828"
 ZIP_TIMESTAMP = (2026, 8, 28, 0, 0, 0)
 EXPECTED = {
-    RUNTIME: "2775227e411ae5ecbc80d9eee88509864971d5988f1510af77e4fdc9bce9b989",
-    LAUNCHER: "bc3adee529c84e79ab1db03ff169b89e40339e22970eea4873e4650768a3d0fd",
-    EGG: "d1e8b08e7793f8d659c310362795a17cb89040ea3f27f58762e207c1e1c4931f",
+    RUNTIME: "de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b",
+    LAUNCHER: "bacc8f2d982b3702258f2b718243bae428c2b3a80caade63407c01cfb3481fe8",
+    EGG: "004c93f9094889d6de08a29070a577bee715b29e85e78cab84c964fb626acc43",
 }
 
 

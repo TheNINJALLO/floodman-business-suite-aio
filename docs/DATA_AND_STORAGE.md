@@ -91,4 +91,4 @@ Before the dedicated-server move:
 5. Verify record counts and random customer/job/payment/document samples.
 6. Verify signed-document hashes and external mappings.
 7. Run the complete lifecycle acceptance test.
-8. Only then cut over DNS/Tailscale clients.
+8. Only then cut over DNS and external HTTPS proxy clients.

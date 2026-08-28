@@ -6,7 +6,7 @@
 2. Run physical Android Depth and guided-mode compatibility tests against a staging v4.7.1 server.
 3. Run the iOS alpha03 unsigned simulator workflow.
 4. Verify a clean v4.7.1 install and a v4.7.0-to-v4.7.1 upgrade on a staging Pterodactyl node.
-5. Verify Full ERP login, desktop, mobile, PWA cache updates, and Tailscale HTTPS behavior.
+5. Verify Full ERP login, desktop, mobile, PWA cache updates, and `oninetwork.com` HTTPS proxy behavior.
 6. Test estimate and invoice PDF generation with and without RoomFlow layout images.
 7. Test backup, restore, and rollback.
 

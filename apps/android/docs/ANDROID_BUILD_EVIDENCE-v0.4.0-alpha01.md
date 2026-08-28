@@ -81,3 +81,26 @@ Fresh artifact checksums:
 | `app/build/outputs/bundle/release/app-release.aab` | 6,972,900 | `f29cf2ace8462797eeee5ed5e219290f97326c25911f939ebe8129dcfc092714` |
 
 These files are local pre-signing outputs. Physical-device layout/capture, clean install/upgrade, public HTTPS, signing, and Play upload remain BLK-006/BLK-007.
+
+## HTTPS001 `oninetwork.com` endpoint rerun — 2026-08-28
+
+The unchanged `0.4.0-alpha01`/build 13 app was rebuilt after replacing the default Mobile API origin with `https://api.oninetwork.com/mobile-api/`. Both generated debug and release `BuildConfig` files contain that exact HTTPS origin.
+
+| Gate | Result |
+|---|---|
+| Temurin 17.0.20+8 / Gradle 8.13 / SDK 36.1.0 | PASS |
+| `clean compileDebugKotlin testDebugUnitTest lintDebug assembleDebug assembleRelease bundleRelease` | PASS; 115 tasks (112 executed) in 9m33s |
+| Unit XML | PASS; 8 tests, 0 failures/errors/skips |
+| Debug lint XML | PASS; 27 advisories, 0 error/fatal findings |
+| Endpoint embedding | PASS; debug and release `BuildConfig` use `https://api.oninetwork.com/mobile-api/` |
+| Signing state | PASS; debug APK verifies with APK Signature Scheme v2 and one signer; release APK and AAB are intentionally unsigned |
+
+Fresh artifact checksums:
+
+| Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| `app/build/outputs/apk/debug/app-debug.apk` | 71,157,967 | `13e341a8f34dab2d57aa2cfe83cf7d60c6f056467fa5c065eb626c4a517d68ae` |
+| `app/build/outputs/apk/release/app-release-unsigned.apk` | 6,615,467 | `d3818b1d9cb8687e82ffeb2646463bd708729585df9c068adb6a19c3e1ff2a91` |
+| `app/build/outputs/bundle/release/app-release.aab` | 6,972,436 | `5207a3f2d7f64a1f003b2252e73ab1785ab7bc659fcbd31e70954bc6d053a057` |
+
+This rerun proves local compilation, unit/lint/package completion, and correct endpoint embedding. It does not claim physical-device capture, live DNS/certificate/proxy acceptance, clean install/upgrade, production signing, or Play upload.

@@ -25,19 +25,13 @@ http {
         '' close;
     }
 
-    # Preserve the browser-facing HTTPS scheme through Tailscale Serve. Some
-    # proxy versions omit X-Forwarded-Proto or report the loopback HTTP hop;
-    # the private :8443-:8447 listeners are nevertheless HTTPS to the user.
-    map $http_host $fm_tls_port {
-        default 0;
-        ~*:844[3-7]$ 1;
-    }
-
-    map "$fm_tls_port|$http_x_forwarded_proto" $fm_public_scheme {
+    # Preserve the browser-facing scheme supplied by the external HTTPS proxy.
+    # When the header is absent, retain the actual connection scheme so local
+    # startup probes continue to work over loopback HTTP.
+    map $http_x_forwarded_proto $fm_public_scheme {
         default $scheme;
-        ~^1\| https;
-        ~^0\|https$ https;
-        ~^0\|http$ http;
+        ~*^https$ https;
+        ~*^http$ http;
     }
 
     # Internal static server for the genuine Gauzy Angular application.
@@ -53,13 +47,13 @@ http {
 
     # Public Floodman Operations Hub on the primary Pterodactyl allocation.
     server {
-        listen 127.0.0.1:${SERVER_PORT} default_server;
+        listen 0.0.0.0:${SERVER_PORT} default_server;
         server_name _;
 
         add_header X-Content-Type-Options "nosniff" always;
         add_header Referrer-Policy "same-origin" always;
-        # Keep redirects relative so Tailscale's HTTPS origin and :8443 port
-        # survive the internal HTTP proxy hop.
+        # Keep redirects relative so the external HTTPS hostname survives the
+        # proxy's internal HTTP hop.
         absolute_redirect off;
 
         # Stable private entry point. The root opens the adaptive Floodman
@@ -79,7 +73,7 @@ http {
 
         # Same-origin health probe for the Office workspace. The PWA uses this
         # instead of navigator.onLine, which can incorrectly report offline on
-        # private Tailscale-only connections.
+        # proxied HTTPS connections.
         location = /office-health/live {
             access_log off;
             proxy_pass http://127.0.0.1:8700/health/live;

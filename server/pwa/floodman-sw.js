@@ -83,7 +83,7 @@ async function networkNavigation(request) {
   try {
     return await fetchWithDeadline(request, deadline);
   } catch (_) {
-    // A private Tailscale connection can be healthy even when the browser's
+    // A private proxied connection can be healthy even when the browser's
     // generic internet flag is false. Ask the actual Floodman services before
     // displaying an offline page.
     const hubOnline = await healthOk('/health/live');

@@ -37,7 +37,7 @@ struct LoginView: View {
                 Section {
                     Label("Floodman Operations", systemImage: "drop.fill")
                         .font(.title.bold())
-                    Text("Secure staff access through the encrypted Floodman Mobile API. The Apple app does not require Tailscale.")
+                    Text("Secure staff access through the encrypted Floodman Mobile API at api.oninetwork.com.")
                 }
                 Section("Sign in") {
                     TextField("Email", text: $email)

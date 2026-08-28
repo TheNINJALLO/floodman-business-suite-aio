@@ -22,7 +22,7 @@
     "customer CSV and archive ZIP import",
     "signed documents attached to customer files",
     "installable private PWA and full phone/tablet interface",
-    "quiet Pterodactyl console and Tailscale Serve private HTTPS compatibility",
+    "quiet Pterodactyl console and external HTTPS reverse-proxy compatibility",
     "America/Detroit time zone"
   ],
   "mode": "Pterodactyl AIO runtime overlay",

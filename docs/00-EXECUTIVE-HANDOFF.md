@@ -27,7 +27,7 @@ The approved estimate is a four-page Floodman document with customer/property de
 
 ## Deployment model
 
-The testing deployment is one Pterodactyl server using ports 9000 through 9004. Staff web surfaces are private through Tailscale. Public customer signing, payment pages, and the narrow native-app API are exposed through an HTTPS gateway. Native apps do not require Tailscale on every phone.
+The testing deployment is one Pterodactyl server using ports 9000 through 9004. An external HTTPS reverse proxy provides the `oninetwork.com` certificates, hostname routing, and staff access policy. Public exposure remains limited to customer signing/payment/token routes and the narrow native-app API; staff and Engineering surfaces require proxy access control.
 
 ## Important status boundary
 

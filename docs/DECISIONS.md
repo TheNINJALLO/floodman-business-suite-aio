@@ -242,3 +242,14 @@
 - Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit. This work does not invent a successor release identity.
 - Package boundary: A deterministic same-identity v4.7.1 fresh-install runtime/launcher/egg may be rebuilt from the reviewed source because the destination is a new server and the current request explicitly asks for the complete setup package. Preserve the previously released v4.7.1 artifacts as checksum-addressed historical evidence before producing any refreshed installation bundle; never silently relabel different bytes as the prior published artifact.
 - External boundary: Do not deploy, touch live data, expose staff surfaces publicly, publish a Git branch or image, sign/upload native apps, or claim macOS, physical-device, live-node, backup/restore, or production acceptance without their actual gates.
+
+## DEC-033 — Replace Tailscale with operator-managed external HTTPS
+
+- Date: 2026-08-28
+- Authorization: After selecting `oninetwork.com` and four HTTPS subdomains, the user explicitly directed removal of Tailscale from the system.
+- Topology: The launcher no longer downloads, authenticates, starts, monitors, or configures Tailscale Serve/Funnel. The Pterodactyl egg requires canonical HTTPS URLs for `floodman.oninetwork.com`, `sign.oninetwork.com`, `api.oninetwork.com`, and `lab.oninetwork.com`; Mailpit stays loopback-only.
+- API routing: Allocation 9004 becomes an Nginx gateway so `/mobile-api/` reaches Floodman Office while existing workflow API traffic reaches the orchestrator on loopback port 8701. This avoids sending native clients to the wrong application.
+- Security boundary: The operator's HTTPS proxy owns certificates, HTTP-to-HTTPS redirects, forwarding headers, WebSockets, and access rules. Staff ERP/PWA, signing administration, workflow administration/docs, and Engineering must be protected. Only reviewed customer-token, recipient-signing, provider-webhook, and device-authenticated Mobile API routes may be public.
+- Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum clients, RoomFlow pin, and America/Detroit. The new-server bundle receives a distinct HTTPS001 evidence suffix instead of inventing a release version.
+- Preservation: Record the prior WEB-007 runtime, launcher, egg, and outer-bundle hashes before rebuilding current v4.7.1 filenames. Do not delete existing live data or retired network state during an upgrade.
+- External boundary: Local validation cannot prove DNS, certificates, proxy access policy, clean install/restart, backup/restore, physical devices, signing/store upload, or production deployment. No live service is modified and no remote push is authorized by this decision.

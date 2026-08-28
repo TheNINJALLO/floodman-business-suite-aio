@@ -26,7 +26,7 @@
 
 - [ ] Compile, unit tests, lint, APK, and AAB pass
 - [ ] Debug and release signatures recorded
-- [ ] Public HTTPS login works without Tailscale
+- [ ] `oninetwork.com` HTTPS login and proxy access policy work from an approved external client
 - [ ] Estimate/invoice/payment lifecycle passes
 - [ ] RoomFlow workspace, import, layout, and sync pass
 - [ ] Device revocation passes

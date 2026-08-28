@@ -77,6 +77,15 @@
 - Publish only the feature branch and a draft pull request over the previously authorized authenticated HTTPS/REST path. Do not dispatch or claim a production deployment, container-image publication, signing/store upload, live provider/data operation, staging result, or device acceptance.
 - **Complete.** Release commit `ca9cd35` is published on `feature/roomflow-capture`; draft PR #1 targets `main`. Linux source run `32494582232`, Android run `32494662846`, and unsigned iOS simulator run `32494665766` pass. The main branch, server-image publication, signing/store, live deployment, and production boundaries remain untouched.
 
+## Phase 3C — external HTTPS migration
+
+- Remove the Tailscale download, bootstrap, Serve, Funnel, watchdog, and Supervisor processes from the current launcher.
+- Require explicit canonical HTTPS origins for `floodman.oninetwork.com`, `sign.oninetwork.com`, `api.oninetwork.com`, and `lab.oninetwork.com` in the Pterodactyl egg.
+- Keep Mailpit loopback-only. Route native `/mobile-api/` requests correctly through allocation 9004 while keeping the workflow API on an internal loopback port.
+- Point Android and Apple fallback API configuration at `https://api.oninetwork.com/mobile-api/` without changing protected release identities.
+- Preserve the WEB-007 and published v4.7.1 artifact hashes before producing a separately checksum-addressed HTTPS001 fresh-server bundle.
+- Require source smokes, native readiness/build checks, deterministic packaging, internal manifests, shell/egg verification, and repository verification. Do not claim live DNS/TLS/proxy or staging acceptance locally.
+
 ## Phase 4 — iOS
 
 - **Local readiness complete (2026-08-13); compiler gate blocked by BLK-004.** Verified project generation inputs, plist/ATS, all icon slots, HTTPS/minimum-version/capability enforcement, device-bound session storage, coordinated refresh, and PDF MIME/signature validation.

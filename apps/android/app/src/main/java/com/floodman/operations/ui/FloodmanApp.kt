@@ -103,7 +103,7 @@ private fun LoginScreen(viewModel: MainViewModel, snackbar: SnackbarHostState) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Icon(Icons.Default.WaterDrop, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(48.dp))
                 Text("Floodman Operations", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Secure staff access. The Android app connects through encrypted HTTPS and does not require the Tailscale app.")
+                Text("Secure staff access through the encrypted Floodman API at api.oninetwork.com.")
                 OutlinedTextField(email, { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next))
                 OutlinedTextField(password, { password = it }, label = { Text("Password") }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (email.isNotBlank() && password.isNotBlank()) viewModel.login(email, password, localAccount) }))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1510,7 +1510,7 @@ private fun SettingsScreen(viewModel: MainViewModel) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Security", fontWeight = FontWeight.Bold)
                 Text("Cleartext HTTP is disabled. Session secrets are encrypted with Android Keystore. Refresh requests are signed by this registered device.")
-                Text("The private Floodman PWA remains available through Tailscale separately from this app.")
+                Text("The Floodman web workspace remains separate from this app and is protected by the company HTTPS access policy.")
             }
         }
         Button(onClick = viewModel::logout, Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Sign out and remove this device session") }

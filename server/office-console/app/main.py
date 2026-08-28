@@ -1080,7 +1080,7 @@ async def _dashboard_state(timeout_seconds: float = 3.5) -> dict[str, Any]:
     """Return the durable dashboard immediately even if a provider is warming up.
 
     Desktop navigation is controlled by a service worker. A long provider timeout
-    can look like a lost network connection even though the private Tailscale
+    can look like a lost network connection even though the private proxied
     route is healthy. Bound only the optional provider snapshot; the durable
     Floodman Office records remain available through ``_merge_archive_state``.
     """

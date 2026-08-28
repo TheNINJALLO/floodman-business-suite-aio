@@ -48,7 +48,7 @@ The authoritative workflow is `.github/workflows/build-android.yml`. Local 0.4.0
 
 ## Required acceptance test
 
-1. Sign in with Tailscale disabled on the phone.
+1. Sign in through `https://api.oninetwork.com/mobile-api/`.
 2. Confirm server capability negotiation succeeds.
 3. Search and open customers and properties.
 4. Create, edit, send, authorize, accept, pay, and convert an estimate.

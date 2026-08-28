@@ -10,7 +10,7 @@
 ## Data safety
 
 - Never delete, reset, recreate, or migrate a live database without an explicit backup, restore plan, migration script, and approval.
-- Never include `Clients.csv`, live exports, `office-state.json`, signed documents, payment records, Tailscale state, or production logs in source control.
+- Never include `Clients.csv`, live exports, `office-state.json`, signed documents, payment records, retired network-overlay state, or production logs in source control.
 - All migrations must be idempotent where feasible and must record their version.
 - RoomFlow Supabase imports must use stable source identifiers and must update rather than duplicate existing records.
 
@@ -22,7 +22,7 @@
 
 ## Authentication and public exposure
 
-- The staff PWA and Full ERP are private Tailscale surfaces by default.
+- The staff PWA, Full ERP, signing administration, API documentation, and Engineering Sandbox must be protected by the external HTTPS proxy's staff access policy.
 - Public access is limited to the customer portal, signing, payments, and the narrow Mobile API gateway.
 - Native apps must require HTTPS, validate the server capability contract, and use short-lived access tokens plus rotating refresh tokens.
 - Do not add a public administrative endpoint or database endpoint.

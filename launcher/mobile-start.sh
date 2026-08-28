@@ -139,295 +139,75 @@ cleanup_previous_suite
 
 
 # ---------------------------------------------------------------------------
-# Private HTTPS through Tailscale Serve
+# External HTTPS reverse-proxy topology
 # ---------------------------------------------------------------------------
-ts_version="${TAILSCALE_VERSION:-$(cat "$overlay_root/tailscale/STABLE_VERSION" 2>/dev/null || printf '1.102.2')}"
-ts_root='/home/container/runtime/tailscale'
-ts_bin="$ts_root/bin"
-ts_cache="$ts_root/cache"
-ts_state='/home/container/data/tailscale'
-ts_run='/home/container/run/tailscale'
-ts_socket="$ts_run/tailscaled.sock"
-ts_logs='/home/container/logs/tailscale'
-ts_auth_file='/home/container/config/tailscale-auth-key.txt'
-ts_hostname_file='/home/container/config/tailscale-hostname.txt'
-ts_urls_file='/home/container/config/tailscale-private-urls.txt'
-ts_public_signing_status_file='/home/container/config/public-signing-status.txt'
-ts_public_signing_ready_marker='/home/container/run/public-signing-ready'
-mkdir -p "$ts_bin" "$ts_cache" "$ts_state" "$ts_run" "$ts_logs" /home/container/config
-
-if [ -s "$ts_hostname_file" ]; then
-  ts_hostname="$(tr -d '\r\n' < "$ts_hostname_file")"
-else
-  ts_hostname="${TAILSCALE_HOSTNAME:-floodman-operations}"
-fi
-ts_hostname="$(printf '%s' "$ts_hostname" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-$//' | cut -c1-63)"
-[ -n "$ts_hostname" ] || ts_hostname='floodman-operations'
-printf '%s\n' "$ts_hostname" > "$ts_hostname_file"
-chmod 0600 "$ts_hostname_file" 2>/dev/null || true
-
-install_tailscale() {
-  current=''
-  if [ -x "$ts_bin/tailscale" ]; then
-    current="$($ts_bin/tailscale version 2>/dev/null | head -n1 | tr -d 'v' || true)"
+# TLS terminates in the user's HTTPS proxy. Floodman validates and publishes
+# canonical HTTPS URLs, while the proxy owns certificates and access policy.
+normalize_https_url() {
+  label="$1"
+  value="${2%/}"
+  if ! printf '%s' "$value" | grep -Eq '^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[^[:space:]?#]*)?$'; then
+    die "$label must be a complete https:// URL without credentials, query parameters, or fragments."
   fi
-  [ "$current" = "$ts_version" ] && [ -x "$ts_bin/tailscaled" ] && return 0
-
-  case "$(uname -m)" in
-    x86_64|amd64) ts_arch='amd64' ;;
-    aarch64|arm64) ts_arch='arm64' ;;
-    *) die "This Tailscale package supports Pterodactyl AMD64 or ARM64 nodes; detected $(uname -m)." ;;
-  esac
-
-  archive="tailscale_${ts_version}_${ts_arch}.tgz"
-  archive_path="$ts_cache/$archive"
-  checksum_path="$archive_path.sha256"
-  base_url="https://pkgs.tailscale.com/stable"
-  temp_extract="$ts_cache/extract-$ts_version-$ts_arch"
-
-  log "Downloading the official Tailscale stable runtime v$ts_version for $ts_arch..."
-  curl -fsSL --retry 3 --connect-timeout 20 --max-time 300 \
-    -o "$archive_path.part" "$base_url/$archive" \
-    || die 'Could not download Tailscale from the official package server. Confirm the Pterodactyl container has outbound HTTPS access.'
-  curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 \
-    -o "$checksum_path" "$base_url/$archive.sha256" \
-    || die 'Could not download the official Tailscale checksum.'
-  mv "$archive_path.part" "$archive_path"
-
-  expected="$(awk 'NF {print $1; exit}' "$checksum_path")"
-  actual="$(sha256sum "$archive_path" | awk '{print $1}')"
-  [ -n "$expected" ] && [ "$actual" = "$expected" ] \
-    || die 'The downloaded Tailscale archive did not match the official SHA-256 checksum.'
-
-  rm -rf "$temp_extract"
-  mkdir -p "$temp_extract"
-  tar -xzf "$archive_path" -C "$temp_extract" || die 'Could not extract the verified Tailscale archive.'
-  extracted="$(find "$temp_extract" -mindepth 1 -maxdepth 1 -type d -name 'tailscale_*' | head -n1)"
-  [ -x "$extracted/tailscale" ] && [ -x "$extracted/tailscaled" ] \
-    || die 'The verified Tailscale archive did not contain the expected binaries.'
-  cp "$extracted/tailscale" "$ts_bin/tailscale"
-  cp "$extracted/tailscaled" "$ts_bin/tailscaled"
-  chmod 0755 "$ts_bin/tailscale" "$ts_bin/tailscaled"
-  rm -rf "$temp_extract"
-  log "Installed Tailscale $($ts_bin/tailscale version | head -n1)."
+  printf '%s' "$value"
 }
 
-start_bootstrap_tailscaled() {
-  rm -f "$ts_socket"
-  "$ts_bin/tailscaled" \
-    --tun=userspace-networking \
-    --statedir="$ts_state" \
-    --socket="$ts_socket" \
-    --port=0 \
-    >"$ts_logs/tailscaled-bootstrap.log" 2>&1 &
-  ts_boot_pid=$!
-  waited=0
-  while ! "$ts_bin/tailscale" --socket="$ts_socket" status --json >/dev/null 2>&1; do
-    kill -0 "$ts_boot_pid" 2>/dev/null || {
-      tail -n 80 "$ts_logs/tailscaled-bootstrap.log" >&2 || true
-      die 'The Tailscale daemon stopped during bootstrap.'
-    }
-    [ "$waited" -lt 90 ] || die 'Tailscale did not create its control socket within 90 seconds.'
-    sleep 2
-    waited=$((waited + 2))
-  done
+url_host() {
+  value="${1#https://}"
+  value="${value%%/*}"
+  printf '%s' "${value%%:*}"
 }
 
-stop_bootstrap_tailscaled() {
-  if [ "${ts_boot_pid:-}" ]; then
-    kill "$ts_boot_pid" 2>/dev/null || true
-    wait "$ts_boot_pid" 2>/dev/null || true
-    ts_boot_pid=''
-  fi
-  rm -f "$ts_socket"
-}
+FLOODMAN_PUBLIC_URL="$(normalize_https_url 'Main Floodman URL' "${FLOODMAN_PUBLIC_URL:-https://floodman.oninetwork.com}")"
+FLOODMAN_DOCUMENSO_URL="$(normalize_https_url 'Floodman Signing URL' "${FLOODMAN_DOCUMENSO_URL:-https://sign.oninetwork.com}")"
+FLOODMAN_CUSTOMER_PUBLIC_URL="$(normalize_https_url 'Customer portal URL' "${FLOODMAN_CUSTOMER_PUBLIC_URL:-https://floodman.oninetwork.com/customer}")"
+FLOODMAN_MOBILE_API_PUBLIC_URL="$(normalize_https_url 'Mobile API URL' "${FLOODMAN_MOBILE_API_PUBLIC_URL:-https://api.oninetwork.com/mobile-api}")"
+FLOODMAN_API_PUBLIC_URL="$(normalize_https_url 'Workflow API URL' "${FLOODMAN_API_PUBLIC_URL:-https://api.oninetwork.com}")"
+FLOODMAN_ENGINEERING_URL="$(normalize_https_url 'Engineering URL' "${FLOODMAN_ENGINEERING_URL:-https://lab.oninetwork.com}")"
+FLOODMAN_DOCUMENSO_PRIVATE_URL="$FLOODMAN_DOCUMENSO_URL"
+FLOODMAN_MAILPIT_URL="http://127.0.0.1:${MAILPIT_PORT}"
+ROOMFLOW_WEB_URL="${FLOODMAN_PUBLIC_URL}/roomflow/"
+FLOODMAN_ROOMFLOW_URL="$ROOMFLOW_WEB_URL"
+FLOODMAN_PUBLIC_SCHEME='https'
+FLOODMAN_PUBLIC_HOST="$(url_host "$FLOODMAN_PUBLIC_URL")"
 
-wait_for_tailscale_running() {
-  waited=0
-  while :; do
-    status_json="$($ts_bin/tailscale --socket="$ts_socket" status --json 2>/dev/null || printf '{}')"
-    backend="$(printf '%s' "$status_json" | jq -r '.BackendState // empty')"
-    [ "$backend" = 'Running' ] && return 0
-    if [ "$backend" = 'NeedsMachineAuth' ]; then
-      log 'The Tailscale server is waiting for device approval. Approve floodman-operations in Tailscale Admin → Machines.'
-    fi
-    [ "$waited" -lt 300 ] || die "Tailscale did not enter Running state (last state: ${backend:-unknown})."
-    sleep 3
-    waited=$((waited + 3))
-  done
-}
+export FLOODMAN_PUBLIC_SCHEME FLOODMAN_PUBLIC_HOST FLOODMAN_PUBLIC_URL
+export FLOODMAN_DOCUMENSO_URL FLOODMAN_CUSTOMER_PUBLIC_URL FLOODMAN_MOBILE_API_PUBLIC_URL
+export FLOODMAN_DOCUMENSO_PRIVATE_URL FLOODMAN_API_PUBLIC_URL FLOODMAN_MAILPIT_URL FLOODMAN_ENGINEERING_URL
+export ROOMFLOW_WEB_URL FLOODMAN_ROOMFLOW_URL
 
-configure_tailscale_serve() {
-  serve_log="$ts_logs/serve-bootstrap.log"
-  : > "$serve_log"
-  "$ts_bin/tailscale" --socket="$ts_socket" serve reset >>"$serve_log" 2>&1 || true
-  for spec in \
-    '8443:http://127.0.0.1:9000' \
-    '8444:http://127.0.0.1:9001' \
-    '8445:http://127.0.0.1:9004' \
-    '8446:http://127.0.0.1:9002' \
-    '8447:http://127.0.0.1:9003'
-  do
-    serve_port="${spec%%:*}"
-    serve_target="${spec#*:}"
-    if ! "$ts_bin/tailscale" --socket="$ts_socket" serve --bg --yes --https="$serve_port" "$serve_target" >>"$serve_log" 2>&1; then
-      cat "$serve_log" >&2
-      die 'Tailscale Serve could not enable private HTTPS. In Tailscale Admin → DNS, enable MagicDNS and HTTPS Certificates, then restart Floodman.'
-    fi
-  done
-}
+mkdir -p /home/container/config
+cat > /home/container/config/external-https-urls.txt <<EXTERNAL_URLS
+Floodman Operations external HTTPS URLs
 
+Main PWA and ERP: $FLOODMAN_PUBLIC_URL
+Integrated RoomFlow: $ROOMFLOW_WEB_URL
+Customer portal and payments: $FLOODMAN_CUSTOMER_PUBLIC_URL
+Floodman Signing: $FLOODMAN_DOCUMENSO_URL
+Android and Apple Mobile API: $FLOODMAN_MOBILE_API_PUBLIC_URL
+Workflow API: $FLOODMAN_API_PUBLIC_URL
+Engineering Sandbox: $FLOODMAN_ENGINEERING_URL/lab
 
-configure_public_signing_funnel() {
-  funnel_log="$ts_logs/funnel-bootstrap.log"
-  : > "$funnel_log"
-  rm -f "$ts_public_signing_ready_marker"
-  "$ts_bin/tailscale" --socket="$ts_socket" funnel reset >>"$funnel_log" 2>&1 || true
-
-  # A single loopback gateway owns every public path. This prevents the root
-  # signing proxy from swallowing /mobile-api requests and returning HTML.
-  if "$ts_bin/tailscale" --socket="$ts_socket" funnel --bg --yes --https=443 http://127.0.0.1:9010 >>"$funnel_log" 2>&1; then
-    touch "$ts_public_signing_ready_marker"
-    cat > "$ts_public_signing_status_file" <<FUNNEL_ACTIVE
-status=active
-public_url=https://${ts_fqdn}
-customer_url=https://${ts_fqdn}/customer
-mobile_api_url=https://${ts_fqdn}/mobile-api
-customer_payments=active
-mobile_api=active
-message=The Floodman public gateway routes signing, customer payments, and the device-authenticated Android API through one HTTPS Funnel.
-FUNNEL_ACTIVE
-    chmod 0640 "$ts_public_signing_status_file" 2>/dev/null || true
-    "$ts_bin/tailscale" --socket="$ts_socket" funnel status --json >>"$funnel_log" 2>&1 || true
-    return 0
-  fi
-
-  reason="$(tail -n 20 "$funnel_log" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' | cut -c1-900)"
-  cat > "$ts_public_signing_status_file" <<FUNNEL_PENDING
-status=pending
-public_url=https://${ts_fqdn}
-message=Tailscale Funnel permission is not active yet. The private staff system will continue running. Add the funnel node attribute in Tailscale Access controls, then restart Floodman or wait for the watchdog retry.
-detail=$reason
-FUNNEL_PENDING
-  chmod 0640 "$ts_public_signing_status_file" 2>/dev/null || true
-  return 1
-}
-
-install_tailscale
-start_bootstrap_tailscaled
-trap 'stop_bootstrap_tailscaled' EXIT INT TERM
-
-# Give a persisted node a moment to restore its control-plane state before
-# deciding that fresh authentication is required.
-settle=0
-while :; do
-  status_json="$($ts_bin/tailscale --socket="$ts_socket" status --json 2>/dev/null || printf '{}')"
-  backend="$(printf '%s' "$status_json" | jq -r '.BackendState // empty')"
-  case "$backend" in
-    Running|Stopped|NeedsLogin|NeedsMachineAuth) break ;;
-  esac
-  [ "$settle" -lt 30 ] || break
-  sleep 2
-  settle=$((settle + 2))
-done
-
-case "$backend" in
-  Running)
-    ;;
-  NeedsMachineAuth)
-    log 'The saved Tailscale node is waiting for approval; no new auth key is required.'
-    ;;
-  Stopped)
-    log 'Re-enabling the saved Tailscale node...'
-    "$ts_bin/tailscale" --socket="$ts_socket" up \
-      --hostname="$ts_hostname" \
-      --accept-dns=false \
-      >"$ts_logs/tailscale-up.log" 2>&1 \
-      || { cat "$ts_logs/tailscale-up.log" >&2 || true; die 'Could not re-enable the saved Tailscale node.'; }
-    ;;
-  *)
-    [ -s "$ts_auth_file" ] || die 'Create /home/container/config/tailscale-auth-key.txt with a one-off, non-ephemeral Tailscale auth key, then restart Floodman.'
-    chmod 0600 "$ts_auth_file" 2>/dev/null || true
-    log "Registering $ts_hostname as a private Tailscale server..."
-    if ! "$ts_bin/tailscale" --socket="$ts_socket" up \
-        --auth-key="file:$ts_auth_file" \
-        --hostname="$ts_hostname" \
-        --accept-dns=false \
-        >"$ts_logs/tailscale-up.log" 2>&1; then
-      cat "$ts_logs/tailscale-up.log" >&2 || true
-      die 'Tailscale authentication failed. Create a new auth key and replace config/tailscale-auth-key.txt.'
-    fi
-    # One-off auth keys are automatically revoked by Tailscale after use. Remove
-    # the local copy as soon as the persistent node state has been created.
-    rm -f "$ts_auth_file"
-    ;;
-esac
-
-wait_for_tailscale_running
-status_json="$($ts_bin/tailscale --socket="$ts_socket" status --json)"
-ts_fqdn="$(printf '%s' "$status_json" | jq -r '.Self.DNSName // empty' | sed 's/\.$//')"
-[ -n "$ts_fqdn" ] || die 'Tailscale connected but did not return a MagicDNS HTTPS hostname.'
-configure_tailscale_serve
-if configure_public_signing_funnel; then
-  funnel_bootstrap_state='active'
-else
-  funnel_bootstrap_state='pending'
-  log 'Public customer signing is pending Tailscale Funnel permission. Floodman staff services will continue starting.'
-  log 'Tailscale JSON allow-all rules do not grant Funnel by themselves; the separate nodeAttrs funnel attribute is required.'
-fi
-
-TAILSCALE_MAIN_URL="https://${ts_fqdn}:8443"
-TAILSCALE_PUBLIC_SIGNING_URL="https://${ts_fqdn}"
-TAILSCALE_CUSTOMER_URL="https://${ts_fqdn}/customer"
-TAILSCALE_MOBILE_API_URL="https://${ts_fqdn}/mobile-api"
-TAILSCALE_SIGNING_ADMIN_URL="https://${ts_fqdn}:8444"
-TAILSCALE_API_URL="https://${ts_fqdn}:8445"
-TAILSCALE_MAILPIT_URL="https://${ts_fqdn}:8446"
-TAILSCALE_ENGINEERING_URL="https://${ts_fqdn}:8447"
-
-cat > "$ts_urls_file" <<TS_URLS
-Floodman Operations private HTTPS URLs
-
-Main PWA: $TAILSCALE_MAIN_URL
-Integrated RoomFlow: $TAILSCALE_MAIN_URL/roomflow/
-Install app: $TAILSCALE_MAIN_URL/install-app
-Public customer signing: $TAILSCALE_PUBLIC_SIGNING_URL
-Public estimates, invoices, receipts, and payments: $TAILSCALE_CUSTOMER_URL
-Android app API (no Tailscale app required): $TAILSCALE_MOBILE_API_URL
-Public signing status: $funnel_bootstrap_state (see config/public-signing-status.txt)
-Private signing administration: $TAILSCALE_SIGNING_ADMIN_URL
-Floodman API: $TAILSCALE_API_URL/docs
-Test email: $TAILSCALE_MAILPIT_URL
-Engineering Sandbox: $TAILSCALE_ENGINEERING_URL/lab
-
-The Main PWA, RoomFlow, API, Mailpit, Engineering, and private signing administration require Tailscale. The public customer-signing URL does not require Tailscale.
-TS_URLS
-chmod 0600 "$ts_urls_file" 2>/dev/null || true
-
-export FLOODMAN_PUBLIC_SCHEME='https'
-export FLOODMAN_PUBLIC_HOST="$ts_fqdn"
-export FLOODMAN_PUBLIC_URL="$TAILSCALE_MAIN_URL"
-export FLOODMAN_DOCUMENSO_URL="$TAILSCALE_PUBLIC_SIGNING_URL"
-export FLOODMAN_CUSTOMER_PUBLIC_URL="$TAILSCALE_CUSTOMER_URL"
-export FLOODMAN_MOBILE_API_PUBLIC_URL="$TAILSCALE_MOBILE_API_URL"
-export FLOODMAN_DOCUMENSO_PRIVATE_URL="$TAILSCALE_SIGNING_ADMIN_URL"
-export FLOODMAN_API_PUBLIC_URL="$TAILSCALE_API_URL"
-export FLOODMAN_MAILPIT_URL="$TAILSCALE_MAILPIT_URL"
-export FLOODMAN_ENGINEERING_URL="$TAILSCALE_ENGINEERING_URL"
-export ROOMFLOW_WEB_URL="${TAILSCALE_MAIN_URL}/roomflow/"
-export FLOODMAN_ROOMFLOW_URL="$ROOMFLOW_WEB_URL"
-export TAILSCALE_PRIVATE_ENABLED='true'
-export TAILSCALE_PRIVATE_FQDN="$ts_fqdn"
-printf '%s\n' "$TAILSCALE_PUBLIC_SIGNING_URL" > /home/container/config/public-signing-url.txt
-printf '%s\n' "$TAILSCALE_CUSTOMER_URL" > /home/container/config/public-customer-url.txt
-printf '%s\n' "$TAILSCALE_MOBILE_API_URL" > /home/container/config/android-mobile-api.txt
-chmod 0640 /home/container/config/public-signing-url.txt /home/container/config/public-customer-url.txt /home/container/config/android-mobile-api.txt 2>/dev/null || true
-log "Private staff HTTPS is ready at $TAILSCALE_MAIN_URL"
-if [ "$funnel_bootstrap_state" = active ]; then
-  log "Public customer signing is ready at $TAILSCALE_PUBLIC_SIGNING_URL"
-else
-  log "Public customer signing is not active yet. Floodman remains online privately; see config/public-signing-status.txt."
-fi
+The HTTPS reverse proxy must protect staff, signing administration, API documentation, and Engineering routes. Mailpit remains loopback-only and has no public hostname.
+EXTERNAL_URLS
+cat > /home/container/config/public-signing-status.txt <<PUBLIC_HTTPS_CONFIGURED
+status=configured
+public_url=$FLOODMAN_DOCUMENSO_URL
+customer_url=$FLOODMAN_CUSTOMER_PUBLIC_URL
+mobile_api_url=$FLOODMAN_MOBILE_API_PUBLIC_URL
+message=External HTTPS URLs are configured. Confirm proxy certificates, forwarding, and access policy before production use.
+PUBLIC_HTTPS_CONFIGURED
+printf '%s\n' "$FLOODMAN_DOCUMENSO_URL" > /home/container/config/public-signing-url.txt
+printf '%s\n' "$FLOODMAN_CUSTOMER_PUBLIC_URL" > /home/container/config/public-customer-url.txt
+printf '%s\n' "$FLOODMAN_MOBILE_API_PUBLIC_URL" > /home/container/config/android-mobile-api.txt
+chmod 0640 \
+  /home/container/config/external-https-urls.txt \
+  /home/container/config/public-signing-status.txt \
+  /home/container/config/public-signing-url.txt \
+  /home/container/config/public-customer-url.txt \
+  /home/container/config/android-mobile-api.txt \
+  2>/dev/null || true
+log "External HTTPS topology configured for $FLOODMAN_PUBLIC_HOST; no bundled overlay-network runtime is installed or started."
 
 # ---------------------------------------------------------------------------
 # Floodman Android device/session security
@@ -748,21 +528,19 @@ cat > "$hotfix/floodman-status.html" <<'STATUS_PAGE'
 <body><main>
   <div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0ea5e9">Floodman Operations</div>
   <h1>Runtime status</h1>
-  <p class="muted">This page checks the Floodman Operations Hub, Floodman ERP API, Floodman workflow API, signing, test email, and Engineering Sandbox from the same browser you are using.</p>
+  <p class="muted">This page checks the Floodman Operations Hub, ERP API, native Mobile API, signing, and Engineering Sandbox from the same browser you are using.</p>
   <div id="checks" class="grid"><div class="row"><b>Checks</b><span>running…</span></div></div>
   <div class="actions"><a class="primary" href="/full-erp?target=login">Open Floodman login</a><button class="secondary" id="again">Run again</button></div>
   <p class="muted" style="font-size:12px;margin-top:18px">Release pterodactyl-mobile-v4.7.1</p>
 </main>
 <script>
 (() => {
-  const base = `${location.protocol}//${location.hostname}`;
   const checks = [
     ['Main Hub', `${location.origin}/health/live`],
     ['Floodman ERP API', `${location.origin}/api/auth/authenticated`, true],
-    ['Floodman API', `${base}:8445/health/ready`],
-    ['Documenso', `${base}:8444/api/health`, true],
-    ['Mailpit', `${base}:8446/api/v1/info`, true],
-    ['Engineering Sandbox', `${base}:8447/health/live`]
+    ['Native Mobile API', 'https://api.oninetwork.com/mobile-api/v1/health'],
+    ['Floodman Signing', 'https://sign.oninetwork.com/api/health', true],
+    ['Engineering Sandbox', 'https://lab.oninetwork.com/health/live']
   ];
   const root = document.getElementById('checks');
   async function probe(label, url, allow4xx) {
@@ -847,7 +625,7 @@ mkdir -p "$FM_HOME/runtime/hub"
 envsubst '${HUB_TITLE} ${HUB_RELEASE} ${HUB_OFFICE_URL} ${HUB_ROOMFLOW_URL} ${HUB_DOCUMENSO_URL} ${HUB_MAILPIT_URL} ${HUB_ENGINEERING_URL} ${HUB_API_URL} ${HUB_COMPETITOR_URL} ${HUB_SYNC_STATUS_URL} ${HUB_REMOTE_ACCESS_ENABLED} ${HUB_REMOTE_DOCUMENSO_PORT} ${HUB_REMOTE_MAILPIT_PORT} ${HUB_REMOTE_ENGINEERING_PORT} ${HUB_REMOTE_API_PORT} ${HUB_REMOTE_DOCUMENSO_URL} ${HUB_REMOTE_MAILPIT_URL} ${HUB_REMOTE_ENGINEERING_URL} ${HUB_REMOTE_API_URL}' \
   < "$FM_HOME/runtime/floodman-v4.7.1/app-overlay/floodman-operations-v4.7.1/hub/hub-config.js.template" \
   > "$FM_HOME/runtime/hub/floodman-hub-config.js"
-envsubst '${SERVER_PORT} ${HUB_RELEASE}' \
+envsubst '${SERVER_PORT} ${FLOODMAN_API_PORT} ${HUB_RELEASE}' \
   < "$FM_HOME/runtime/floodman-v4.7.1/nginx.conf.template" \
   > "$FM_CONFIG/nginx.conf"
 
@@ -859,16 +637,18 @@ START_HUB
 cp "$overlay_root/aio/nginx.conf.template" "$hotfix/nginx.conf.template"
 
 
-# Add a dedicated loopback-only public gateway. Tailscale Funnel points only to
-# this listener, so /mobile-api can never fall through to Floodman Signing.
+# Add a dedicated API gateway on the allocated API port. The external HTTPS
+# proxy maps api.oninetwork.com to this listener. Mobile API traffic is sent to
+# Office; the existing workflow API remains behind the same authenticated API
+# origin so current callbacks and integrations keep working.
 python3 - "$hotfix/nginx.conf.template" <<'PY_PUBLIC_GATEWAY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-if "listen 127.0.0.1:9010;" not in text:
-    gateway = '\n\n    # Public customer gateway. Only signing, customer portal/payment pages, and\n    # the Android Mobile API are exposed. Floodman Office stays private.\n    server {\n        listen 127.0.0.1:9010;\n        server_name floodman-public-gateway;\n\n        access_log off;\n        client_max_body_size 50m;\n        add_header X-Content-Type-Options "nosniff" always;\n        add_header Referrer-Policy "same-origin" always;\n\n        location = /__floodman_public_gateway_health {\n            default_type application/json;\n            add_header Cache-Control "no-store" always;\n            return 200 \'{"status":"ok","service":"floodman-public-gateway","release":"v4.7.1"}\';\n        }\n\n        location = /mobile-api {\n            return 308 /mobile-api/;\n        }\n\n        location ^~ /mobile-api/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n            add_header Cache-Control "no-store" always;\n        }\n\n        location = /customer {\n            return 308 /customer/;\n        }\n\n        location ^~ /customer/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n        }\n\n        # Every other path belongs to Floodman Signing. Office, ERP, Mailpit,\n        # Engineering, and private API documentation are not reachable here.\n        location / {\n            proxy_pass http://127.0.0.1:9001;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto https;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 300s;\n            proxy_send_timeout 300s;\n            proxy_buffering off;\n        }\n    }\n'
+if "listen 0.0.0.0:${FLOODMAN_API_PORT};" not in text:
+    gateway = '\n\n    # External HTTPS API gateway. The upstream proxy terminates TLS and must\n    # restrict public access to the Mobile API, required webhooks, and customer\n    # token routes. Workflow administration and API docs require staff access.\n    server {\n        listen 0.0.0.0:${FLOODMAN_API_PORT};\n        server_name _;\n\n        access_log off;\n        client_max_body_size 50m;\n        add_header X-Content-Type-Options "nosniff" always;\n        add_header Referrer-Policy "same-origin" always;\n\n        location = /__floodman_public_gateway_health {\n            default_type application/json;\n            add_header Cache-Control "no-store" always;\n            return 200 \'{"status":"ok","service":"floodman-external-api-gateway","release":"v4.7.1"}\';\n        }\n\n        location = /mobile-api {\n            return 308 /mobile-api/;\n        }\n\n        location ^~ /mobile-api/ {\n            proxy_pass http://127.0.0.1:8700;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto $fm_public_scheme;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 180s;\n            proxy_send_timeout 180s;\n            proxy_buffering off;\n            add_header Cache-Control "no-store" always;\n        }\n\n        location / {\n            proxy_pass http://127.0.0.1:8701;\n            proxy_http_version 1.1;\n            proxy_set_header Host $http_host;\n            proxy_set_header X-Real-IP $remote_addr;\n            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n            proxy_set_header X-Forwarded-Proto $fm_public_scheme;\n            proxy_set_header X-Forwarded-Host $http_host;\n            proxy_set_header Upgrade $http_upgrade;\n            proxy_set_header Connection $connection_upgrade;\n            proxy_read_timeout 300s;\n            proxy_send_timeout 300s;\n            proxy_buffering off;\n        }\n    }\n'
     index = text.rfind("\n}")
     if index < 0:
         raise SystemExit("Could not locate the Nginx http block terminator")
@@ -878,7 +658,7 @@ PY_PUBLIC_GATEWAY
 
 
 
-cat > "$hotfix/start-documenso-private.sh" <<'START_DOCUMENSO_PRIVATE'
+cat > "$hotfix/start-documenso-external.sh" <<'START_DOCUMENSO_EXTERNAL'
 #!/bin/sh
 set -eu
 . /opt/floodman/aio/common.sh
@@ -902,13 +682,13 @@ if [ ! -s "$cert" ]; then
   chmod 0600 "$cert"
   rm -rf "$tmp"
 fi
-fm_log "Starting Floodman Signing privately on 127.0.0.1:$DOCUMENSO_PORT..."
+fm_log "Starting Floodman Signing on the allocated proxy target port $DOCUMENSO_PORT..."
 cd /opt/documenso/apps/remix
 export PATH="/opt/documenso-runtime/usr/local/bin:$PATH"
 npx prisma migrate deploy --schema ../../packages/prisma/schema.prisma
-export HOSTNAME=127.0.0.1
+export HOSTNAME=0.0.0.0
 exec node build/server/main.js
-START_DOCUMENSO_PRIVATE
+START_DOCUMENSO_EXTERNAL
 
 cat > "$hotfix/start-mailpit-private.sh" <<'START_MAILPIT_PRIVATE'
 #!/bin/sh
@@ -917,7 +697,7 @@ set -eu
 exec /usr/local/bin/mailpit --listen "127.0.0.1:${MAILPIT_PORT}" --smtp "127.0.0.1:1026" --database "$FM_DATA/mailpit/mailpit.db" --max 1000
 START_MAILPIT_PRIVATE
 
-cat > "$hotfix/start-engineering-private.sh" <<'START_ENGINEERING_PRIVATE'
+cat > "$hotfix/start-engineering-external.sh" <<'START_ENGINEERING_EXTERNAL'
 #!/bin/sh
 set -eu
 . /opt/floodman/aio/common.sh
@@ -926,10 +706,10 @@ overlay="$FM_HOME/runtime/floodman-v4.7.1/app-overlay/floodman-operations-v4.7.1
 [ -r "$overlay/app/main.py" ] || fm_die 'The Floodman Engineering Sandbox v4.7.1 overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/local-lab:$overlay:/opt/floodman/local-lab"
-exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "$ENGINEERING_PORT" --no-access-log
-START_ENGINEERING_PRIVATE
+exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port "$ENGINEERING_PORT" --proxy-headers --forwarded-allow-ips '*' --no-access-log
+START_ENGINEERING_EXTERNAL
 
-cat > "$hotfix/start-orchestrator-private.sh" <<'START_ORCHESTRATOR_PRIVATE'
+cat > "$hotfix/start-orchestrator-internal.sh" <<'START_ORCHESTRATOR_INTERNAL'
 #!/bin/sh
 set -eu
 . /opt/floodman/aio/common.sh
@@ -938,145 +718,8 @@ overlay="$FM_HOME/runtime/floodman-v4.7.1/app-overlay/floodman-operations-v4.7.1
 [ -r "$overlay/app/main.py" ] || fm_die 'The Floodman API v4.7.1 overlay is missing.'
 cd "$overlay"
 export PYTHONPATH="/opt/pydeps/orchestrator:$overlay:/opt/floodman/orchestrator"
-exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port "$FLOODMAN_API_PORT" --proxy-headers --forwarded-allow-ips '*' --no-access-log
-START_ORCHESTRATOR_PRIVATE
-
-cat > "$hotfix/start-tailscaled.sh" <<'START_TAILSCALED'
-#!/bin/sh
-set -eu
-ts_bin='/home/container/runtime/tailscale/bin'
-ts_state='/home/container/data/tailscale'
-ts_run='/home/container/run/tailscale'
-ts_socket="$ts_run/tailscaled.sock"
-mkdir -p "$ts_state" "$ts_run" /home/container/logs/tailscale
-rm -f "$ts_socket"
-exec "$ts_bin/tailscaled" \
-  --tun=userspace-networking \
-  --statedir="$ts_state" \
-  --socket="$ts_socket" \
-  --port=0
-START_TAILSCALED
-
-cat > "$hotfix/start-tailscale-serve.sh" <<'START_TAILSCALE_SERVE'
-#!/bin/sh
-set -eu
-ts='/home/container/runtime/tailscale/bin/tailscale'
-socket='/home/container/run/tailscale/tailscaled.sock'
-log='/home/container/logs/tailscale/serve-watchdog.log'
-mkdir -p /home/container/logs/tailscale
-
-wait_running() {
-  while :; do
-    state="$($ts --socket="$socket" status --json 2>/dev/null | jq -r '.BackendState // empty' || true)"
-    [ "$state" = 'Running' ] && return 0
-    if [ "$state" = 'NeedsLogin' ]; then
-      printf '[Floodman][Tailscale] Re-authentication is required. Create config/tailscale-auth-key.txt and restart the server.\n' >&2
-    fi
-    sleep 3
-  done
-}
-
-apply_routes() {
-  : > "$log"
-  for spec in \
-    '8443:http://127.0.0.1:9000' \
-    '8444:http://127.0.0.1:9001' \
-    '8445:http://127.0.0.1:9004' \
-    '8446:http://127.0.0.1:9002' \
-    '8447:http://127.0.0.1:9003'
-  do
-    port="${spec%%:*}"
-    target="${spec#*:}"
-    "$ts" --socket="$socket" serve --bg --yes --https="$port" "$target" >>"$log" 2>&1 || return 1
-  done
-}
-
-while :; do
-  wait_running
-  if apply_routes; then
-    printf '[Floodman][Tailscale] Private HTTPS Serve routes are active.\n'
-    while sleep 60; do
-      state="$($ts --socket="$socket" status --json 2>/dev/null | jq -r '.BackendState // empty' || true)"
-      [ "$state" = 'Running' ] || break
-      "$ts" --socket="$socket" serve status --json >/dev/null 2>&1 || break
-    done
-  else
-    printf '[Floodman][Tailscale] Could not apply Serve routes; retrying in 30 seconds.\n' >&2
-    tail -n 40 "$log" >&2 2>/dev/null || true
-    sleep 30
-  fi
-done
-START_TAILSCALE_SERVE
-
-cat > "$hotfix/start-tailscale-funnel.sh" <<'START_TAILSCALE_FUNNEL'
-#!/bin/sh
-set -eu
-ts='/home/container/runtime/tailscale/bin/tailscale'
-socket='/home/container/run/tailscale/tailscaled.sock'
-log='/home/container/logs/tailscale/funnel-watchdog.log'
-status_file='/home/container/config/public-signing-status.txt'
-ready_marker='/home/container/run/public-signing-ready'
-mkdir -p /home/container/logs/tailscale /home/container/config /home/container/run
-last_state=''
-
-wait_running() {
-  while :; do
-    state="$($ts --socket="$socket" status --json 2>/dev/null | jq -r '.BackendState // empty' || true)"
-    [ "$state" = 'Running' ] && return 0
-    sleep 3
-  done
-}
-
-record_pending() {
-  reason="$(tail -n 20 "$log" 2>/dev/null | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g' | cut -c1-900)"
-  cat > "$status_file" <<FUNNEL_PENDING
-status=pending
-message=Tailscale Funnel permission is not active yet. Private Floodman remains available through Tailscale Serve. Add nodeAttrs attr funnel in Tailscale Access controls.
-detail=$reason
-FUNNEL_PENDING
-  chmod 0640 "$status_file" 2>/dev/null || true
-  rm -f "$ready_marker"
-}
-
-record_active() {
-  fqdn="$($ts --socket="$socket" status --json 2>/dev/null | jq -r '.Self.DNSName // empty' | sed 's/\.$//' || true)"
-  cat > "$status_file" <<FUNNEL_ACTIVE
-status=active
-public_url=https://${fqdn}
-customer_url=https://${fqdn}/customer
-mobile_api_url=https://${fqdn}/mobile-api
-customer_payments=active
-mobile_api=active
-message=The Floodman public gateway routes signing, customer payments, and the device-authenticated Android API through one HTTPS Funnel.
-FUNNEL_ACTIVE
-  chmod 0640 "$status_file" 2>/dev/null || true
-  touch "$ready_marker"
-}
-
-while :; do
-  wait_running
-  : > "$log"
-  if "$ts" --socket="$socket" funnel --bg --yes --https=443 http://127.0.0.1:9010 >>"$log" 2>&1; then
-    record_active
-    if [ "$last_state" != 'active' ]; then
-      printf '[Floodman][Tailscale] Public Floodman gateway is active on HTTPS port 443.\n'
-    fi
-    last_state='active'
-    while sleep 60; do
-      state="$($ts --socket="$socket" status --json 2>/dev/null | jq -r '.BackendState // empty' || true)"
-      [ "$state" = 'Running' ] || break
-      "$ts" --socket="$socket" funnel status --json >/dev/null 2>&1 || break
-    done
-  else
-    record_pending
-    if [ "$last_state" != 'pending' ]; then
-      printf '[Floodman][Tailscale] Public gateway is pending Funnel permission. The private staff system remains online. See config/public-signing-status.txt.\n' >&2
-    fi
-    last_state='pending'
-    sleep 300
-  fi
-done
-START_TAILSCALE_FUNNEL
+exec python3 -m uvicorn app.main:app --host 127.0.0.1 --port 8701 --proxy-headers --forwarded-allow-ips '*' --no-access-log
+START_ORCHESTRATOR_INTERNAL
 
 cat > "$hotfix/suite-monitor.sh" <<'SUITE_MONITOR'
 #!/bin/sh
@@ -1101,16 +744,14 @@ fm_wait_http "http://127.0.0.1:${SERVER_PORT}/floodman-boot-guard.js" 120 false 
 fm_wait_http "http://127.0.0.1:${SERVER_PORT}/api/auth/authenticated" 120 true || fm_die 'The Hub cannot reach the Floodman ERP authentication endpoint.'
 fm_wait_http "http://127.0.0.1:${SERVER_PORT}/roomflow/" 300 false || fm_die 'Integrated RoomFlow did not become ready.'
 fm_wait_tcp 127.0.0.1 3000 600 || fm_die 'Floodman ERP API did not open port 3000.'
-fm_wait_http "http://127.0.0.1:${FLOODMAN_API_PORT}/health/ready" 180 false || fm_die 'Floodman API is unavailable.'
+fm_wait_http 'http://127.0.0.1:8701/health/ready' 180 false || fm_die 'Floodman workflow API is unavailable.'
 fm_wait_http "http://127.0.0.1:${DOCUMENSO_PORT}/api/health" 600 true || fm_die 'Floodman Signing is unavailable.'
-fm_wait_http 'http://127.0.0.1:9010/__floodman_public_gateway_health' 600 false || fm_die 'Floodman public gateway is unavailable.'
-fm_wait_http 'http://127.0.0.1:9010/mobile-api/v1/health' 600 false || fm_die 'Floodman Android Mobile API gateway is unavailable.'
+fm_wait_http "http://127.0.0.1:${FLOODMAN_API_PORT}/__floodman_public_gateway_health" 600 false || fm_die 'Floodman external API gateway is unavailable.'
+fm_wait_http "http://127.0.0.1:${FLOODMAN_API_PORT}/mobile-api/v1/health" 600 false || fm_die 'Floodman native Mobile API gateway is unavailable.'
 fm_wait_http "http://127.0.0.1:${MAILPIT_PORT}/api/v1/info" 120 true || fm_die 'Test Email Inbox is unavailable.'
 fm_wait_http "http://127.0.0.1:${ENGINEERING_PORT}/health/live" 120 false || fm_die 'Engineering Sandbox is unavailable.'
 fm_wait_http 'http://127.0.0.1:8100/health/live' 180 false || fm_die 'Messaging AI is unavailable.'
 fm_wait_http 'http://127.0.0.1:8090/health/ready' 600 false || fm_die 'Competitor Intelligence is unavailable.'
-/home/container/runtime/tailscale/bin/tailscale --socket=/home/container/run/tailscale/tailscaled.sock serve status --json >/dev/null 2>&1 || fm_die 'Tailscale private HTTPS is unavailable.'
-
 waited=0
 while [ ! -f "$FM_RUN/owner-linked" ]; do
   [ "$waited" -lt 300 ] || fm_die 'Floodman Owner was not linked to the operations modules.'
@@ -1125,15 +766,10 @@ printf 'Direct login: %s/floodman-login\n' "$MAIN_PUBLIC_URL"
 printf 'Full Floodman ERP: %s/full-erp\n' "$MAIN_PUBLIC_URL"
 printf 'Integrated RoomFlow: %s\n' "$ROOMFLOW_WEB_URL"
 printf 'Browser status: %s/floodman-status.html\n' "$MAIN_PUBLIC_URL"
-if [ -f "$FM_RUN/public-signing-ready" ]; then
-  printf 'Public customer signing: %s\n' "$DOCUMENSO_PUBLIC_URL"
-  printf 'Public customer documents and payments: %s\n' "${FLOODMAN_CUSTOMER_PUBLIC_URL:-${DOCUMENSO_PUBLIC_URL}/customer}"
-  printf 'Android app API: %s\n' "${FLOODMAN_MOBILE_API_PUBLIC_URL:-${DOCUMENSO_PUBLIC_URL}/mobile-api}"
-else
-  printf 'Public customer signing: pending Tailscale Funnel permission; staff services are ready.\n'
-  printf 'Private signing administration: %s\n' "${FLOODMAN_DOCUMENSO_PRIVATE_URL:-https://${TAILSCALE_PRIVATE_FQDN:-localhost}:8444}"
-fi
-printf 'Test Email Inbox: %s\n' "$MAILPIT_PUBLIC_URL"
+printf 'Floodman Signing: %s\n' "$DOCUMENSO_PUBLIC_URL"
+printf 'Customer documents and payments: %s\n' "$FLOODMAN_CUSTOMER_PUBLIC_URL"
+printf 'Android and Apple Mobile API: %s\n' "$FLOODMAN_MOBILE_API_PUBLIC_URL"
+printf 'Test Email Inbox: loopback only on port %s\n' "$MAILPIT_PORT"
 printf 'Engineering Sandbox: %s/lab\n' "$ENGINEERING_PUBLIC_URL"
 printf 'Floodman API: %s/docs\n' "$API_PUBLIC_URL"
 printf 'Owner: %s\n' "$FLOODMAN_OWNER_EMAIL"
@@ -1179,13 +815,13 @@ while :; do
     report_state erp failed 'Floodman ERP browser/API route'
   fi
 
-  if curl -fsS --max-time 5 "http://127.0.0.1:${FLOODMAN_API_PORT}/health/ready" >/dev/null 2>&1; then
+  if curl -fsS --max-time 5 'http://127.0.0.1:8701/health/ready' >/dev/null 2>&1; then
     report_state api ok 'Floodman API'
   else
     report_state api failed 'Floodman API'
   fi
 
-  if curl -fsS --max-time 5 'http://127.0.0.1:9010/mobile-api/v1/health' >/dev/null 2>&1; then
+  if curl -fsS --max-time 5 "http://127.0.0.1:${FLOODMAN_API_PORT}/mobile-api/v1/health" >/dev/null 2>&1; then
     report_state mobile_api ok 'Android Mobile API gateway'
   else
     report_state mobile_api failed 'Android Mobile API gateway'
@@ -1197,22 +833,14 @@ while :; do
     report_state competitor failed 'Competitor Intelligence'
   fi
 
-  if /home/container/runtime/tailscale/bin/tailscale --socket=/home/container/run/tailscale/tailscaled.sock serve status --json >/dev/null 2>&1; then
-    report_state tailscale ok 'Tailscale private HTTPS'
-  else
-    report_state tailscale failed 'Tailscale private HTTPS'
-  fi
 done
 SUITE_MONITOR
 
 chmod 0755 \
-  "$hotfix/start-documenso-private.sh" \
+  "$hotfix/start-documenso-external.sh" \
   "$hotfix/start-mailpit-private.sh" \
-  "$hotfix/start-engineering-private.sh" \
-  "$hotfix/start-orchestrator-private.sh" \
-  "$hotfix/start-tailscaled.sh" \
-  "$hotfix/start-tailscale-serve.sh" \
-  "$hotfix/start-tailscale-funnel.sh" \
+  "$hotfix/start-engineering-external.sh" \
+  "$hotfix/start-orchestrator-internal.sh" \
   "$hotfix/start-competitor-api.sh" \
   "$hotfix/start-competitor-scheduler.sh" \
   "$hotfix/start-office-console.sh" \
@@ -1221,68 +849,16 @@ chmod 0755 \
 
 # Reuse the application Supervisor layout, replacing only patched processes.
 sed \
-  -e "s#^command=/opt/floodman/aio/start-documenso.sh\$#command=$hotfix/start-documenso-private.sh#" \
+  -e "s#^command=/opt/floodman/aio/start-documenso.sh\$#command=$hotfix/start-documenso-external.sh#" \
   -e "s#^command=/opt/floodman/aio/start-mailpit.sh\$#command=$hotfix/start-mailpit-private.sh#" \
-  -e "s#^command=/opt/floodman/aio/start-local-lab.sh\$#command=$hotfix/start-engineering-private.sh#" \
-  -e "s#^command=/opt/floodman/aio/start-orchestrator-api.sh\$#command=$hotfix/start-orchestrator-private.sh#" \
+  -e "s#^command=/opt/floodman/aio/start-local-lab.sh\$#command=$hotfix/start-engineering-external.sh#" \
+  -e "s#^command=/opt/floodman/aio/start-orchestrator-api.sh\$#command=$hotfix/start-orchestrator-internal.sh#" \
   -e "s#^command=/opt/floodman/aio/start-competitor-api.sh\$#command=$hotfix/start-competitor-api.sh#" \
   -e "s#^command=/opt/floodman/aio/start-competitor-scheduler.sh\$#command=$hotfix/start-competitor-scheduler.sh#" \
   -e "s#^command=/opt/floodman/aio/start-office-console.sh\$#command=$hotfix/start-office-console.sh#" \
   -e "s#^command=/opt/floodman/aio/start-hub.sh\$#command=$hotfix/start-hub.sh#" \
   -e "s#^command=/opt/floodman/aio/suite-monitor.sh\$#command=$hotfix/suite-monitor.sh#" \
   "$base/supervisord.conf" > "$hotfix/supervisord.conf"
-
-
-cat >> "$hotfix/supervisord.conf" <<SUPERVISOR_TAILSCALE
-
-[program:tailscaled]
-command=$hotfix/start-tailscaled.sh
-priority=1
-autostart=true
-autorestart=true
-startsecs=5
-startretries=30
-stopasgroup=true
-killasgroup=true
-stdout_logfile=/home/container/logs/tailscaled.log
-stdout_logfile_maxbytes=10485760
-stdout_logfile_backups=3
-stderr_logfile=/home/container/logs/tailscaled-error.log
-stderr_logfile_maxbytes=10485760
-stderr_logfile_backups=3
-
-[program:tailscale-serve]
-command=$hotfix/start-tailscale-serve.sh
-priority=6
-autostart=true
-autorestart=true
-startsecs=5
-startretries=30
-stopasgroup=true
-killasgroup=true
-stdout_logfile=/home/container/logs/tailscale-serve.log
-stdout_logfile_maxbytes=5242880
-stdout_logfile_backups=3
-stderr_logfile=/home/container/logs/tailscale-serve-error.log
-stderr_logfile_maxbytes=5242880
-stderr_logfile_backups=3
-
-[program:tailscale-funnel]
-command=$hotfix/start-tailscale-funnel.sh
-priority=7
-autostart=true
-autorestart=true
-startsecs=5
-startretries=30
-stopasgroup=true
-killasgroup=true
-stdout_logfile=/home/container/logs/tailscale-funnel.log
-stdout_logfile_maxbytes=5242880
-stdout_logfile_backups=3
-stderr_logfile=/home/container/logs/tailscale-funnel-error.log
-stderr_logfile_maxbytes=5242880
-stderr_logfile_backups=3
-SUPERVISOR_TAILSCALE
 
 # Keep all original secret generation and service configuration. Replace only
 # the runtime release and final Supervisor file.
@@ -1291,8 +867,17 @@ sed \
   -e "s#exec supervisord -n -c /opt/floodman/aio/supervisord.conf#exec supervisord -n -c $hotfix/supervisord.conf#" \
   "$base/start-suite.sh" > "$hotfix/start-suite.sh"
 chmod 0755 "$hotfix/start-suite.sh"
-# Public customer signing is exposed through Funnel. Disable public account creation.
+# External signing is reachable through the HTTPS proxy. Disable public account creation.
 sed -i 's/NEXT_PUBLIC_DISABLE_SIGNUP="false"/NEXT_PUBLIC_DISABLE_SIGNUP="true"/' "$hotfix/start-suite.sh"
+# Replace the retired overlay-network fallback ports retained by the pinned base
+# image with the actual Pterodactyl allocations. Remote browser links normally
+# use the explicit HTTPS URLs above; these values are only compatibility input.
+sed -i \
+  -e 's/HUB_REMOTE_DOCUMENSO_PORT="[0-9][0-9]*"/HUB_REMOTE_DOCUMENSO_PORT="$DOCUMENSO_PORT"/' \
+  -e 's/HUB_REMOTE_MAILPIT_PORT="[0-9][0-9]*"/HUB_REMOTE_MAILPIT_PORT="$MAILPIT_PORT"/' \
+  -e 's/HUB_REMOTE_ENGINEERING_PORT="[0-9][0-9]*"/HUB_REMOTE_ENGINEERING_PORT="$ENGINEERING_PORT"/' \
+  -e 's/HUB_REMOTE_API_PORT="[0-9][0-9]*"/HUB_REMOTE_API_PORT="$FLOODMAN_API_PORT"/' \
+  "$hotfix/start-suite.sh"
 # Normalize the integrated RoomFlow URL and export the public topology so every
 # Supervisor child receives the same values.
 sed -i 's#^: "${ROOMFLOW_WEB_URL:=.*}"#: "${ROOMFLOW_WEB_URL:=/roomflow/}"#' "$hotfix/start-suite.sh"
@@ -1303,16 +888,17 @@ export MAIN_PUBLIC_URL DOCUMENSO_PUBLIC_URL MAILPIT_PUBLIC_URL ENGINEERING_PUBLI
 fi
 
 # Fail clearly if the upstream image layout changes.
-grep -Fq "command=$hotfix/start-documenso-private.sh" "$hotfix/supervisord.conf" || die 'Could not privatize Floodman Signing.'
+grep -Fq "command=$hotfix/start-documenso-external.sh" "$hotfix/supervisord.conf" || die 'Could not configure the Floodman Signing proxy target.'
 grep -Fq "command=$hotfix/start-mailpit-private.sh" "$hotfix/supervisord.conf" || die 'Could not privatize the test email inbox.'
-grep -Fq "command=$hotfix/start-engineering-private.sh" "$hotfix/supervisord.conf" || die 'Could not privatize the Engineering Sandbox.'
-grep -Fq "command=$hotfix/start-orchestrator-private.sh" "$hotfix/supervisord.conf" || die 'Could not privatize the Floodman API.'
-grep -Fq 'listen 127.0.0.1:${SERVER_PORT}' "$hotfix/nginx.conf.template" || die 'Could not restrict the Floodman Hub to private loopback access.'
-grep -Fq "command=$hotfix/start-tailscaled.sh" "$hotfix/supervisord.conf" || die 'Could not install the Tailscale daemon.'
-grep -Fq "command=$hotfix/start-tailscale-serve.sh" "$hotfix/supervisord.conf" || die 'Could not install Tailscale Serve.'
-grep -Fq "command=$hotfix/start-tailscale-funnel.sh" "$hotfix/supervisord.conf" || die 'Could not install the public signing Funnel watchdog.'
-grep -Fqi 'private staff system remains online' "$hotfix/start-tailscale-funnel.sh" || die 'Could not install non-blocking Funnel fallback behavior.'
+grep -Fq "command=$hotfix/start-engineering-external.sh" "$hotfix/supervisord.conf" || die 'Could not configure the Engineering proxy target.'
+grep -Fq "command=$hotfix/start-orchestrator-internal.sh" "$hotfix/supervisord.conf" || die 'Could not configure the internal workflow API.'
+grep -Fq 'listen 0.0.0.0:${SERVER_PORT}' "$hotfix/nginx.conf.template" || die 'Could not expose the Floodman Hub to the external HTTPS proxy.'
+grep -Fq 'listen 0.0.0.0:${FLOODMAN_API_PORT}' "$hotfix/nginx.conf.template" || die 'Could not expose the native API gateway to the external HTTPS proxy.'
 grep -Fq 'NEXT_PUBLIC_DISABLE_SIGNUP="true"' "$hotfix/start-suite.sh" || die 'Could not disable public signing-service account creation.'
+grep -Fq 'HUB_REMOTE_DOCUMENSO_PORT="$DOCUMENSO_PORT"' "$hotfix/start-suite.sh" || die 'Could not align the signing Hub fallback with its allocation.'
+grep -Fq 'HUB_REMOTE_MAILPIT_PORT="$MAILPIT_PORT"' "$hotfix/start-suite.sh" || die 'Could not align the private inbox Hub fallback with its allocation.'
+grep -Fq 'HUB_REMOTE_ENGINEERING_PORT="$ENGINEERING_PORT"' "$hotfix/start-suite.sh" || die 'Could not align the Engineering Hub fallback with its allocation.'
+grep -Fq 'HUB_REMOTE_API_PORT="$FLOODMAN_API_PORT"' "$hotfix/start-suite.sh" || die 'Could not align the API Hub fallback with its allocation.'
 grep -Fq "command=$hotfix/start-office-console.sh" "$hotfix/supervisord.conf" || die 'Could not patch the responsive Floodman Office command.'
 grep -Fq "command=$hotfix/start-hub.sh" "$hotfix/supervisord.conf" || die 'Could not patch the Floodman Operations Hub command.'
 grep -Fq "command=$hotfix/start-competitor-api.sh" "$hotfix/supervisord.conf" || die 'Could not patch the Competitor Intelligence API command.'
@@ -1323,13 +909,13 @@ grep -Fq '/manifest.webmanifest' "$hotfix/nginx.conf.template" || die 'Could not
 grep -Fq 'location = /workspace' "$hotfix/nginx.conf.template" || die 'Could not install the adaptive desktop/mobile workspace launcher.'
 grep -Fq 'location = / {' "$hotfix/nginx.conf.template" || die 'Could not detach the private root from the upstream ERP readiness page.'
 grep -Fq 'return 302 /workspace?source=root&workspace=auto;' "$hotfix/nginx.conf.template" || die 'The private root does not open the adaptive Floodman workspace.'
-grep -Fq 'absolute_redirect off;' "$hotfix/nginx.conf.template" || die 'Workspace redirects would lose the Tailscale HTTPS origin.'
+grep -Fq 'absolute_redirect off;' "$hotfix/nginx.conf.template" || die 'Workspace redirects would lose the external HTTPS origin.'
 grep -Fq 'location = /full-erp' "$hotfix/nginx.conf.template" || die 'Could not isolate the optional upstream ERP behind /full-erp.'
 grep -Fq 'location = /floodman-workspace.css' "$hotfix/nginx.conf.template" || die 'Could not serve the explicit workspace layout stylesheet.'
 grep -Fq 'location = /floodman-boot-guard.js' "$hotfix/nginx.conf.template" || die 'Could not serve the full ERP authentication guard.'
 grep -Fq 'location = /floodman-status.html' "$hotfix/nginx.conf.template" || die 'Could not serve the full ERP runtime status page.'
 grep -Fq '/floodman-boot-guard.js?release=${HUB_RELEASE}' "$hotfix/nginx.conf.template" || die 'Could not inject the authentication guard into the full ERP browser.'
-grep -Fq 'map $http_host $fm_tls_port' "$hotfix/nginx.conf.template" || die 'Could not preserve the Tailscale HTTPS scheme for the full ERP browser.'
+grep -Fq 'map $http_x_forwarded_proto $fm_public_scheme' "$hotfix/nginx.conf.template" || die 'Could not preserve the external HTTPS scheme for the full ERP browser.'
 grep -Fq 'location = /erp-login' "$hotfix/nginx.conf.template" || die 'Could not install the direct ERP login shortcut.'
 grep -Fq 'location = /erp-home' "$hotfix/nginx.conf.template" || die 'Could not install the direct ERP dashboard shortcut.'
 grep -Fq 'http://0.0.0.0:${SERVER_PORT}' "$hotfix/nginx.conf.template" || die 'Could not install the final same-origin ERP browser URL rewrite.'
@@ -1460,7 +1046,8 @@ grep -Fq 'deposit_percent' "$overlay_root/office-console/app/main.py" || die 'Co
 grep -Fq 'build_estimate_pdf' "$overlay_root/office-console/app/pdf_documents.py" || die 'Could not install the Floodman estimate PDF template.'
 grep -Fq 'build_invoice_pdf' "$overlay_root/office-console/app/pdf_documents.py" || die 'Could not install the Floodman invoice PDF template.'
 grep -Fq 'Square.payments' "$overlay_root/office-console/app/customer_portal.py" || die 'Could not install the secure payment field.'
-grep -Fq 'http://127.0.0.1:9010' "$hotfix/start-tailscale-funnel.sh" || die 'Could not publish the Floodman public gateway through Tailscale Funnel.'
+grep -Fq 'proxy_pass http://127.0.0.1:8700;' "$hotfix/nginx.conf.template" || die 'Could not route the native Mobile API through the allocated API gateway.'
+grep -Fq 'proxy_pass http://127.0.0.1:8701;' "$hotfix/nginx.conf.template" || die 'Could not route workflow API traffic to its internal process.'
 
 grep -Fq 'API_PREFIX = "/mobile-api/v1"' "$overlay_root/office-console/app/mobile_api.py" \
   || die 'Could not install the Android Mobile API prefix.'
@@ -1476,7 +1063,7 @@ grep -Fq '$FM_HOME/runtime/floodman-v4.7.1/nginx.conf.template' "$hotfix/start-h
 if grep -Fq 'app-overlay/floodman-operations-v4.7.1/aio/nginx.conf.template' "$hotfix/start-hub.sh"; then
   die 'The Floodman Hub still points at the pre-gateway Nginx template.'
 fi
-grep -Fq 'listen 127.0.0.1:9010;' "$hotfix/nginx.conf.template" || die 'Could not install the loopback-only Floodman public gateway.'
+grep -Fq 'listen 0.0.0.0:${FLOODMAN_API_PORT};' "$hotfix/nginx.conf.template" || die 'Could not install the external Floodman API gateway.'
 grep -Fq 'location ^~ /mobile-api/' "$hotfix/nginx.conf.template" || die 'Could not route the Android API through the Floodman public gateway.'
 grep -Fq 'location ^~ /customer/' "$hotfix/nginx.conf.template" || die 'Could not route customer payment pages through the Floodman public gateway.'
 grep -Fq 'floodman-mobile.env' "$hotfix/start-office-console.sh" || die 'Could not load the persistent Android device/session key.'
@@ -1524,9 +1111,6 @@ PYTHONPATH="/opt/pydeps/office-console:$overlay_root/office-console:/opt/floodma
 # rebuild it with same-origin URLs. Databases and configuration are untouched.
 rm -rf /home/container/runtime/gauzy-web
 
-stop_bootstrap_tailscaled
-trap - EXIT INT TERM
-
 export TZ=America/Detroit
-log "Floodman v4.7.1 validated the stable root selector, true desktop shell, service-aware online detection, separate mobile shell, authentication-aware /full-erp launcher and injected ERP boot guard, matched Android alpha11 runtime, RoomFlow workspaces, guarded PDFs, estimates, invoices, payments, calendar, and public API at $TAILSCALE_MAIN_URL..."
+log "Floodman v4.7.1 validated the external HTTPS topology, stable root selector, true desktop shell, service-aware online detection, separate mobile shell, authentication-aware /full-erp launcher and injected ERP boot guard, matched native alpha11 runtime, RoomFlow workspaces, guarded PDFs, estimates, invoices, payments, calendar, and API at $FLOODMAN_PUBLIC_URL..."
 exec sh "$hotfix/start-suite.sh"

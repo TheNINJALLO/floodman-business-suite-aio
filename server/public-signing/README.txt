@@ -1,7 +1,7 @@
 Floodman public customer signing
 
-Public URL: https://<tailscale-node>.<tailnet>.ts.net
-Local target: http://127.0.0.1:9001
-Technology: Tailscale Funnel on HTTPS port 443
+Public URL: https://sign.oninetwork.com
+Proxy target: Pterodactyl allocation 9001
+Technology: external HTTPS reverse proxy
 
-Only the signing application is public. Floodman Office, RoomFlow, Mailpit, Engineering, and the private API remain limited to the tailnet. Customer signing links do not require Tailscale. Public account signup is disabled.
+Only recipient signing routes are public. Protect signing administration in the external proxy. Floodman Office, RoomFlow, Mailpit, Engineering, workflow administration, and API documentation remain staff-only. Public account signup is disabled.

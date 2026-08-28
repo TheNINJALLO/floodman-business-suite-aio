@@ -110,7 +110,7 @@
 ## K. Android
 
 1. Install clean debug/release build.
-2. Sign in with Tailscale off.
+2. Sign in through `https://api.oninetwork.com/mobile-api/` with the external HTTPS proxy active.
 3. Enroll, refresh, revoke and re-enroll device.
 4. Test all main modules and theme modes.
 5. Open PDFs only when they pass PDF validation.

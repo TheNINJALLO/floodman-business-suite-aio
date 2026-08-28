@@ -4,10 +4,10 @@
 Floodman Android app
   | HTTPS only
   v
-https://<Floodman Funnel host>/mobile-api
-  | Tailscale Funnel, public path only
+https://api.oninetwork.com/mobile-api/
+  | external HTTPS proxy, public device-authenticated path only
   v
-Floodman public gateway on 127.0.0.1:9010
+Floodman API gateway on allocation 9004
   | /mobile-api/*
   v
 Floodman Office Mobile API on 127.0.0.1:8700
@@ -17,17 +17,17 @@ Floodman customers, properties, schedules, estimates, invoices,
 payments, documents, RoomFlow mappings, tasks, and time data
 ```
 
-The staff PWA remains separate and private:
+The staff PWA remains separate and protected:
 
 ```text
-Approved Tailscale staff device
+Approved staff browser through the HTTPS proxy access policy
   v
-https://<Floodman node>.ts.net:8443
+https://floodman.oninetwork.com
   v
 Floodman PWA and full RoomFlow drawing workspace
 ```
 
-The Android app does not install or invoke Tailscale. Funnel is currently the server-side HTTPS gateway. The API origin can later move to `https://api.floodman.com/mobile-api/` without changing the app architecture.
+The Android app connects directly to the external HTTPS proxy. The server package does not install or invoke an overlay-network client. The proxy must expose `/mobile-api/` while protecting workflow administration and API documentation.
 
 ## RoomFlow
 

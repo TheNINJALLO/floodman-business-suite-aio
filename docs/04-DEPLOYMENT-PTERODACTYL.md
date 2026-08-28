@@ -11,19 +11,20 @@ Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-21 artifacts are regenerated from the verified current source. The egg installs the matched v4.7.1 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the licensed-pricing workflow, customer portal conversations, payment/message administrator alerts, suite-owned RoomFlow Capture, unified authentication/workspaces, the stable Supabase importer, and checksum-verified offline RoomFlow assets. The v4.7.0 files remain frozen rollback evidence; `release-artifacts/` remains historical handoff provenance.
+The 2026-08-28 HTTPS001 artifacts are regenerated from the verified current source. The egg installs the matched v4.7.1 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the licensed-pricing workflow, customer portal conversations, payment/message administrator alerts, suite-owned RoomFlow Capture, unified authentication/workspaces, the stable Supabase importer, and checksum-verified offline RoomFlow assets. It no longer downloads, launches, or configures Tailscale. The v4.7.0 files and the earlier WEB-007 hashes remain frozen rollback evidence; `release-artifacts/` remains historical handoff provenance.
 
 Current deployable SHA-256 values:
 
 ```text
-2e05a7c5386dda7931ee81cdf931585392903b94d9d93848357fc9f9546445ec  floodman-operations-runtime-v4.7.1.zip
-bc3adee529c84e79ab1db03ff169b89e40339e22970eea4873e4650768a3d0fd  mobile-start-v4.7.1.sh
-d1e8b08e7793f8d659c310362795a17cb89040ea3f27f58762e207c1e1c4931f  egg-floodman-operations-mobile-v4.7.1.json
+de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b  floodman-operations-runtime-v4.7.1.zip
+bacc8f2d982b3702258f2b718243bae428c2b3a80caade63407c01cfb3481fe8  mobile-start-v4.7.1.sh
+004c93f9094889d6de08a29070a577bee715b29e85e78cab84c964fb626acc43  egg-floodman-operations-mobile-v4.7.1.json
+1f29b20afcb738f340368b49567eab55a8e583d2e686f8df7b5a1cd3c5803244  floodman-operations-new-server-v4.7.1-https001-20260828.zip
 ```
 
 The current launcher retains the 2026-08-18 startup-preflight repair and verifies every fixed `$overlay_root` assertion against the exact source packaged in the ZIP. Do not combine a launcher, runtime, or egg from different version rows.
 
-Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.
+Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and configure the six `https://` URL fields for `oninetwork.com`. The external proxy must protect staff, signing administration, API documentation, and Engineering routes. No overlay-network key is required.
 
 To reproduce these artifacts from the approved v4.7.1 source:
 
@@ -56,7 +57,7 @@ Keep these under persistent Pterodactyl storage:
 /home/container/backups
 ```
 
-Do not bake live customer data, PostgreSQL files, Tailscale state, payment credentials, or signing records into the image.
+Do not bake live customer data, PostgreSQL files, retired network-overlay state, payment credentials, or signing records into the image.
 
 ## Preferred migration to source-built image
 
