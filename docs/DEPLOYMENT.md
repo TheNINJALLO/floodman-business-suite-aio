@@ -8,7 +8,7 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 `mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, externally proxied Nginx/Supervisor configuration, upstream services, health checks and final readiness marker. It does not download or launch Tailscale.
 
-The current files in `deployment/releases/` provide the distinct v4.7.1 runtime and launcher. Upload `floodman-operations-runtime-v4.7.1.zip` and `mobile-start-v4.7.1.sh` (renamed to `mobile-start.sh` on the panel) and use the matched v4.7.1 egg when importing a new Pterodactyl definition. Verify `SHA256SUMS` before upload. The frozen v4.7.0 files remain rollback evidence. This local package result is not a claim that staging install/upgrade/restart, backup/restore, live routes, or production deployment passed.
+The current files in `deployment/releases/` provide the distinct v4.7.1 runtime and launcher. For a new server, import the matched v4.7.1 egg: its installer writes `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. A node without access to `raw.githubusercontent.com` can instead receive the runtime ZIP manually. The frozen v4.7.0 files remain rollback evidence. This local package result is not a claim that staging install/upgrade/restart, backup/restore, live routes, or production deployment passed.
 
 Expected terminal marker:
 

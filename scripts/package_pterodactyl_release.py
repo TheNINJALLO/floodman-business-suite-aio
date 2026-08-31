@@ -20,6 +20,11 @@ BASE_IMAGE = (
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
 ZIP_TIMESTAMP = (2026, 8, 21, 0, 0, 0)
+RUNTIME_SOURCE_COMMIT = "65d097f911ced8aec0edec129d535492ab4663f2"
+RUNTIME_SOURCE_URL = (
+    "https://raw.githubusercontent.com/TheNINJALLO/floodman-business-suite-aio/"
+    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.1.zip"
+)
 
 EXCLUDED_RUNTIME_PATHS = {
     "MANIFEST.sha256",
@@ -163,7 +168,7 @@ def package_runtime(version: str) -> tuple[Path, int]:
     return destination, len(files)
 
 
-def build_installer_script(launcher: str, version: str) -> str:
+def build_installer_script(launcher: str, version: str, runtime_sha256: str) -> str:
     sentinel = "FLOODMAN_LAUNCHER_V4610"
     if sentinel in launcher:
         raise RuntimeError(f"Launcher unexpectedly contains reserved heredoc marker {sentinel}")
@@ -171,6 +176,25 @@ def build_installer_script(launcher: str, version: str) -> str:
 set -eu
 apk add --no-cache ca-certificates coreutils curl unzip >/dev/null
 mkdir -p /mnt/server/data /mnt/server/config /mnt/server/backups /mnt/server/diagnostics /mnt/server/logs
+runtime_path='/mnt/server/floodman-operations-runtime-v{version}.zip'
+runtime_temp="$runtime_path.download"
+runtime_url='{RUNTIME_SOURCE_URL}'
+runtime_sha256='{runtime_sha256}'
+if [ -f "$runtime_path" ]; then
+  printf '%s  %s\n' "$runtime_sha256" "$runtime_path" | sha256sum -c - >/dev/null \
+    || {{ echo 'Existing Floodman runtime ZIP does not match this egg. Refusing to overwrite it.' >&2; exit 1; }}
+  echo 'Verified the existing Floodman runtime ZIP.'
+else
+  rm -f "$runtime_temp"
+  trap 'rm -f "$runtime_temp"' EXIT INT TERM
+  curl --fail --location --retry 3 --connect-timeout 15 --max-time 300 \
+    "$runtime_url" --output "$runtime_temp"
+  printf '%s  %s\n' "$runtime_sha256" "$runtime_temp" | sha256sum -c - >/dev/null \
+    || {{ echo 'Downloaded Floodman runtime ZIP failed SHA-256 verification.' >&2; exit 1; }}
+  mv "$runtime_temp" "$runtime_path"
+  trap - EXIT INT TERM
+  echo 'Downloaded and verified the pinned Floodman runtime ZIP.'
+fi
 cat > /mnt/server/mobile-start.sh <<'{sentinel}'
 {launcher.rstrip()}
 {sentinel}
@@ -179,7 +203,7 @@ cat > /mnt/server/README-MOBILE.txt <<'README'
 Floodman Operations v{version} Pterodactyl installer
 
 Before the first start:
-1. Upload floodman-operations-runtime-v{version}.zip to the server root. Do not extract it.
+1. Confirm floodman-operations-runtime-v{version}.zip is present. The installer downloads and verifies it when missing.
 2. Set the company and Owner fields in Startup. Replace every example value.
 3. Confirm primary allocation 9000 and additional allocations 9001 through 9004.
 4. Set all six external HTTPS URLs and configure the four proxy hostnames before first start.
@@ -187,7 +211,7 @@ Before the first start:
 
 Persistent data and generated secrets remain under data/ and config/.
 README
-echo 'Floodman Operations v{version} launcher installed. Upload the matching runtime ZIP and configure Startup/external HTTPS before pressing Start.'
+echo 'Floodman Operations v{version} launcher and verified runtime installed. Configure Startup/external HTTPS before pressing Start.'
 """
 
 
@@ -206,16 +230,16 @@ def external_url_variable(
     }
 
 
-def update_egg(version: str, launcher: str) -> None:
+def update_egg(version: str, launcher: str, runtime_sha256: str) -> None:
     egg = json.loads(EGG.read_text(encoding="utf-8"))
     egg["name"] = f"Floodman Operations AIO v{version}"
     egg["description"] = (
-        f"Floodman Operations staging AIO v{version}. Installs the matched cumulative launcher and requires "
-        f"floodman-operations-runtime-v{version}.zip in the server root. TLS and staff access policy are supplied by an external HTTPS proxy."
+        f"Floodman Operations staging AIO v{version}. Installs the matched cumulative launcher and downloads "
+        f"the pinned, checksum-verified runtime ZIP when it is missing. TLS and staff access policy are supplied by an external HTTPS proxy."
     )
     egg["docker_images"] = {"Floodman AIO base 3.2.2 (pinned)": BASE_IMAGE}
     egg["startup"] = "bash ./mobile-start.sh"
-    egg["scripts"]["installation"]["script"] = build_installer_script(launcher, version)
+    egg["scripts"]["installation"]["script"] = build_installer_script(launcher, version, runtime_sha256)
 
     variables = [
         value
@@ -267,7 +291,7 @@ def main() -> None:
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)
     runtime, count = package_runtime(version)
-    update_egg(version, launcher)
+    update_egg(version, launcher, sha256_file(runtime))
     checksums = write_release_checksums(version)
     print(f"Packaged {runtime.relative_to(ROOT)} with {count} tracked runtime files plus its internal manifest.")
     print(f"Synchronized {release_launcher.relative_to(ROOT)} and {EGG.relative_to(ROOT)}.")

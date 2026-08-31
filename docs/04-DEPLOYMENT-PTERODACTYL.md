@@ -11,15 +11,15 @@ Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-28 HTTPS001 artifacts are regenerated from the verified current source. The egg installs the matched v4.7.1 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes the licensed-pricing workflow, customer portal conversations, payment/message administrator alerts, suite-owned RoomFlow Capture, unified authentication/workspaces, the stable Supabase importer, and checksum-verified offline RoomFlow assets. It no longer downloads, launches, or configures Tailscale. The v4.7.0 files and the earlier WEB-007 hashes remain frozen rollback evidence; `release-artifacts/` remains historical handoff provenance.
+The HTTPS001 egg installs the matched v4.7.1 launcher and downloads the missing runtime ZIP from immutable GitHub commit `65d097f911ced8aec0edec129d535492ab4663f2`, verifying SHA-256 before moving it into `/home/container`. An existing matching ZIP is retained; a mismatch stops installation without overwriting the file. The package includes the licensed-pricing workflow, customer portal conversations, payment/message administrator alerts, suite-owned RoomFlow Capture, unified authentication/workspaces, the stable Supabase importer, and checksum-verified offline RoomFlow assets. It no longer downloads, launches, or configures Tailscale. The v4.7.0 files and the earlier WEB-007 hashes remain frozen rollback evidence; `release-artifacts/` remains historical handoff provenance.
 
 Current deployable SHA-256 values:
 
 ```text
 de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b  floodman-operations-runtime-v4.7.1.zip
 bacc8f2d982b3702258f2b718243bae428c2b3a80caade63407c01cfb3481fe8  mobile-start-v4.7.1.sh
-004c93f9094889d6de08a29070a577bee715b29e85e78cab84c964fb626acc43  egg-floodman-operations-mobile-v4.7.1.json
-1f29b20afcb738f340368b49567eab55a8e583d2e686f8df7b5a1cd3c5803244  floodman-operations-new-server-v4.7.1-https001-20260828.zip
+f941362b0758882da32f87970c2239554053c4f56e680d1a3008c9cdd0380e83  egg-floodman-operations-mobile-v4.7.1.json
+dd94e0c1379eeece0f11dc3214291449a957f06f5eede327cbed957b8774f794  floodman-operations-new-server-v4.7.1-https001-20260828.zip
 ```
 
 The current launcher retains the 2026-08-18 startup-preflight repair and verifies every fixed `$overlay_root` assertion against the exact source packaged in the ZIP. Do not combine a launcher, runtime, or egg from different version rows.

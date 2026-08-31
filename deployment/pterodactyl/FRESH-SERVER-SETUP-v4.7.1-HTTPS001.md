@@ -92,15 +92,17 @@ Keep the time zone as `America/Detroit`. Keep ports `9001` through `9004` matche
 
 No Tailscale hostname, key file, machine approval, Serve rule, or Funnel permission is required.
 
-## 6. Upload and verify
+## 6. Automatic runtime download and verification
 
-Upload the runtime to:
+During Pterodactyl installation, the egg downloads the runtime from the immutable GitHub commit recorded in the installer when this file is missing:
 
 ```text
 /home/container/floodman-operations-runtime-v4.7.1.zip
 ```
 
-The egg installs `mobile-start.sh`. Upload the supplied copy with that exact name only if the install script did not create it. Compare the files to the supplied `SHA256SUMS` before first start.
+The installer verifies SHA-256 before moving the download into place. If a runtime ZIP already exists, it is retained only when its checksum matches; a mismatched file stops installation and is never overwritten. The egg also installs `mobile-start.sh`.
+
+If the Pterodactyl node cannot reach `raw.githubusercontent.com`, upload the supplied runtime ZIP with that exact filename before reinstalling the server. Do not extract it. Compare manually uploaded files to the supplied `SHA256SUMS` before first start.
 
 ## 7. First start
 

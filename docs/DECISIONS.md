@@ -253,3 +253,11 @@
 - Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum clients, RoomFlow pin, and America/Detroit. The new-server bundle receives a distinct HTTPS001 evidence suffix instead of inventing a release version.
 - Preservation: Record the prior WEB-007 runtime, launcher, egg, and outer-bundle hashes before rebuilding current v4.7.1 filenames. Do not delete existing live data or retired network state during an upgrade.
 - External boundary: Local validation cannot prove DNS, certificates, proxy access policy, clean install/restart, backup/restore, physical devices, signing/store upload, or production deployment. No live service is modified and no remote push is authorized by this decision.
+
+## DEC-034 — Pin the egg runtime download to an immutable public commit
+
+- Date: 2026-08-31
+- Decision: The current Pterodactyl egg downloads `floodman-operations-runtime-v4.7.1.zip` only when it is absent, using immutable Git commit `65d097f911ced8aec0edec129d535492ab4663f2` and required SHA-256 `de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b`.
+- Safety: The installer verifies the complete download before an atomic move. An existing matching ZIP is retained; an existing mismatch stops installation and is not overwritten.
+- Credentials: The pinned source was verified anonymously accessible, so the egg stores no GitHub token or other repository credential. Manual upload remains the fallback when a node cannot reach `raw.githubusercontent.com`.
+- Boundary: A successful remote GET and installer syntax check do not claim that the target Pterodactyl node completed installation or startup; BLK-005 remains open.
