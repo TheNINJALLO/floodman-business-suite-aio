@@ -85,6 +85,10 @@ def run() -> None:
 
     hub_config = (ROOT / "server" / "hub" / "hub-config.js.template").read_text(encoding="utf-8")
     suite = (ROOT / "server" / "aio" / "start-suite.sh").read_text(encoding="utf-8")
+    hub = (ROOT / "server" / "hub" / "hub.js").read_text(encoding="utf-8")
+    require('voiceUrl: "${HUB_VOICE_URL}"' in hub_config, "Hub config is missing Voice AIO")
+    require("https://aicall.oninetwork.com" in suite, "Suite startup is missing the Voice AIO URL")
+    require("AI Call Center" in hub, "Hub navigation is missing Voice AIO")
     for retired_port in ("8443", "8444", "8445", "8446", "8447"):
         require(retired_port not in hub_config, f"Hub config retains retired port {retired_port}")
         require(retired_port not in suite, f"suite startup retains retired port {retired_port}")

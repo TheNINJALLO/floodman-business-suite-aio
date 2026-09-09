@@ -67,6 +67,7 @@
     {
       section: 'Floodman Operations',
       items: [
+        { label: 'AI Call Center', icon: '☎', url: normalize(config.voiceUrl, 'https://aicall.oninetwork.com'), description: 'Live calls, transcripts, intake, users, notifications, email delivery, and voice settings.', external: true },
         { label: 'Desktop Operations', icon: '▥', url: `${office}/office/desktop?desktop=1`, description: 'Desktop command center with the full sidebar, dense tables, and multi-column workflows.', desktop: true },
         { label: 'Mobile Operations', icon: '▣', url: `${office}/office/mobile?mobile=1`, description: 'Dedicated phone and tablet workspace with large touch controls.', mobile: true },
         { label: 'Install Floodman App', icon: '⇩', url: `${hubOrigin}/install-app`, description: 'Install the Android, iPhone, iPad, Windows, or macOS web app.' },
