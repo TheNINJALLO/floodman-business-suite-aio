@@ -12,7 +12,7 @@ d8c3bb39c1d5ed0aa2c2a04e7690728afb157ad1bca12dea0bfb01e08ea1e9e1  ./aio/start-co
 35ca39fd1265da0cc76978812c428a2636737636781d777c3ac061ca7ddbf925  ./aio/start-competitor-scheduler.sh
 bdb2463f8d2d6110b30b93c84d99f1664cfb971e74779529f49dfa8f0a71370b  ./aio/start-documenso.sh
 eade17ffe4f3f186d21272bd2bfe14183ac4a88f0c18c531ab201df2f6e89778  ./aio/start-gauzy-api.sh
-8023d51c57a26f44c2f9b305fcc107c8e4c7b026b6e6800e19386c69f3ab9cb5  ./aio/start-hub.sh
+97b67613a79f8804c452000248a68927343ce24cff8699d80304080b43e13d89  ./aio/start-hub.sh
 a10b71c5cd3a2bbda7e50c7928141f1769856fd1e00f76f8b5e009cb6107d73f  ./aio/start-local-lab.sh
 e1c6471659ece5e7d6a3d4bea7071d798811268f5873432a9ab2b9f5a5876645  ./aio/start-mailpit.sh
 525d8b7375f10e3fecd6804b1a7982ddb1f67de31e84c58aea3305ae2b0aef71  ./aio/start-messaging-ai.sh
@@ -20,7 +20,7 @@ e1c6471659ece5e7d6a3d4bea7071d798811268f5873432a9ab2b9f5a5876645  ./aio/start-ma
 7d995166cb7170e049930a591410f927b3f80809d28c9d734c3bc005039b7c50  ./aio/start-orchestrator-api.sh
 9794251dd787c3584ff99af4ba6dd48b9db507d5e9cd6a0e82289d4530875049  ./aio/start-orchestrator-worker.sh
 dd20bcd5ba7dc153e0e2758f6303f60d49f13ef1f5786171dc37d19e63e6a2ea  ./aio/start-postgres.sh
-d76ee90ab744b85cec64e6b7df05b6833cec4376a4e0dda72de5421f2e2be481  ./aio/start-suite.sh
+e551a512e16b8a28df848d6d72d84c764c460f212c2af7b708254ad8dc2d51de  ./aio/start-suite.sh
 290f03c98a4e01a686acd5b03330df2065a7c9040aeff556e83a80739c86e53f  ./aio/suite-monitor.sh
 895bc9c81af8fea06d81213f059a9a9ee4feba219d12ebc1ae8fdcc9f604f2b8  ./aio/supervisord.conf
 66de5ad132e693095c1153604aabdd94b6f4674d84a55f27dfcf762d80e08871  ./competitor-intel/app/__init__.py
@@ -41,9 +41,9 @@ c41b4aae33130c7a77016373be53ba1f1268d45ce2e35ef5fa3db8721da977a4  ./database/ini
 2744f54390c8fd4347a8f9e007faa8beb7ed9953be52b6d35be3ddab91ff8436  ./database/migrations/005_ai_call_intakes.sql
 30a3964800256bd70c0fb8fcdee908fd2bfae71f8c24e62e703a33c89f3f3038  ./hub/brand/floodman-mark.svg
 2857af30a97cb4802e61584ffe00a4316d14f44abfdd7533a325153787545a09  ./hub/brand/floodman-wordmark.svg
-6612e6a50c7b34de89c4b67630692f44912200ce96c305e1eef6d5c893c907a7  ./hub/hub-config.js.template
+6431d8a90485b96f2bfe3bdd81b1b79a02daa4200d7d4b100738741334ebdf49  ./hub/hub-config.js.template
 8b23cba81c11252a8d37ab8f82836dfd3a12ac4c7a0f088bcf4e042b64e5368a  ./hub/hub.css
-d99b9fb5fde23eb3e4b5cb34d0a712bed88afec7dbf204e949d3aeb3687ba3fd  ./hub/hub.js
+28b5083fb6e0c146a3510b189b22950b9422c90a2410631a4579d22f234b2356  ./hub/hub.js
 de5894974b899790424d704f4abc7d4d4dd29f4544fde49183b14a469723eff8  ./hub/starting.html
 a70e0160944c212b6cc13a886ddea6f22245b2374aff64a2284282947bb07a1e  ./hub/third-party-notices.html
 532ff7bfa193b95509812d447e3fb906aa14a8862219c33cf6c3bce384896f8e  ./local-lab/app/__init__.py
