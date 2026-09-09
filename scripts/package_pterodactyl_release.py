@@ -20,7 +20,7 @@ BASE_IMAGE = (
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
 ZIP_TIMESTAMP = (2026, 9, 8, 0, 0, 0)
-RUNTIME_SOURCE_COMMIT = "65d097f911ced8aec0edec129d535492ab4663f2"
+RUNTIME_SOURCE_COMMIT = "b81f9db3bbfa221dd2e439ad28624b3066fe8b0e"
 RUNTIME_SOURCE_URL = (
     "https://raw.githubusercontent.com/TheNINJALLO/floodman-business-suite-aio/"
     f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.2.zip"

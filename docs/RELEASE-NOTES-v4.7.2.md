@@ -22,3 +22,11 @@ This package does not replace the separate Twilio/Asterisk voice runtime. Voice 
 ## Deployment
 
 Use the matched v4.7.2 runtime, launcher, and egg only. Preserve the v4.7.1 files for rollback. Create a Pterodactyl backup before upload, then require `FLOODMAN_SUITE_READY`, service health, restart persistence, and fictional signed-intake verification before wider use.
+
+```text
+f8d3d07ff885ecde57703abba1567d151ecc4419c5afb4a73bcb5f91a054f177  floodman-operations-runtime-v4.7.2.zip
+f8169ed1d039ec94db8d8fecaf8708e3d322d1dea489dff09afd2766f81c3c96  mobile-start-v4.7.2.sh
+714d991ca0b3cb7c1e223bc90a710cd9cb046d56117dbddd9069cb9496fb2810  egg-floodman-operations-mobile-v4.7.2.json
+```
+
+The egg retrieves the runtime from immutable source commit `b81f9db3bbfa221dd2e439ad28624b3066fe8b0e`.
