@@ -2,7 +2,9 @@ name: Build Floodman server image
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/roomflow-capture
     paths:
       - 'server/**'
       - 'containers/**'
