@@ -20,7 +20,7 @@ e1c6471659ece5e7d6a3d4bea7071d798811268f5873432a9ab2b9f5a5876645  ./aio/start-ma
 7d995166cb7170e049930a591410f927b3f80809d28c9d734c3bc005039b7c50  ./aio/start-orchestrator-api.sh
 9794251dd787c3584ff99af4ba6dd48b9db507d5e9cd6a0e82289d4530875049  ./aio/start-orchestrator-worker.sh
 dd20bcd5ba7dc153e0e2758f6303f60d49f13ef1f5786171dc37d19e63e6a2ea  ./aio/start-postgres.sh
-e551a512e16b8a28df848d6d72d84c764c460f212c2af7b708254ad8dc2d51de  ./aio/start-suite.sh
+579d13afd2c33f6f0a5bd1ee25e76a38362917187b37a40b59c7cdcf7aa7d014  ./aio/start-suite.sh
 290f03c98a4e01a686acd5b03330df2065a7c9040aeff556e83a80739c86e53f  ./aio/suite-monitor.sh
 895bc9c81af8fea06d81213f059a9a9ee4feba219d12ebc1ae8fdcc9f604f2b8  ./aio/supervisord.conf
 66de5ad132e693095c1153604aabdd94b6f4674d84a55f27dfcf762d80e08871  ./competitor-intel/app/__init__.py

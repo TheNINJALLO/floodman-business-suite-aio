@@ -261,7 +261,8 @@ fi
 
 # Ensure writable persistent storage for the upstream applications.
 if [ ! -e "$FM_DATA/gauzy-files/.seeded" ]; then
-  cp -a /opt/floodman/gauzy-public-seed/. "$FM_DATA/gauzy-files/" 2>/dev/null || true
+  cp -R --no-preserve=mode,ownership,timestamps \
+    /opt/floodman/gauzy-public-seed/. "$FM_DATA/gauzy-files/" 2>/dev/null || true
   touch "$FM_DATA/gauzy-files/.seeded"
 fi
 mkdir -p "$FM_DATA/gauzy-import"
