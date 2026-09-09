@@ -14,16 +14,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 RELEASES = ROOT / "deployment" / "releases"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.1.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.2.json"
 BASE_IMAGE = (
     "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@"
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
-ZIP_TIMESTAMP = (2026, 8, 21, 0, 0, 0)
+ZIP_TIMESTAMP = (2026, 9, 8, 0, 0, 0)
 RUNTIME_SOURCE_COMMIT = "65d097f911ced8aec0edec129d535492ab4663f2"
 RUNTIME_SOURCE_URL = (
     "https://raw.githubusercontent.com/TheNINJALLO/floodman-business-suite-aio/"
-    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.1.zip"
+    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.2.zip"
 )
 
 EXCLUDED_RUNTIME_PATHS = {
@@ -282,11 +282,11 @@ def write_release_checksums(version: str) -> Path:
 
 def main() -> None:
     version = (SERVER / "VERSION").read_text(encoding="utf-8").strip()
-    if version != "4.7.1":
-        raise SystemExit(f"This reviewed packager is fixed to v4.7.1; found {version!r}")
+    if version != "4.7.2":
+        raise SystemExit(f"This reviewed packager is fixed to v4.7.2; found {version!r}")
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    if "[Floodman Mobile v4.7.1]" not in launcher:
-        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.1")
+    if "[Floodman Mobile v4.7.2]" not in launcher:
+        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.2")
 
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)

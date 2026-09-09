@@ -5,12 +5,12 @@ The live test deployment uses one Pterodactyl server allocation with Floodman's 
 ## Current matched release
 
 ```text
-Server:  Floodman Operations 4.7.1
+Server:  Floodman Operations 4.7.2
 Android local release: 0.4.0-alpha01 / build 13
 Apple source candidate: 0.1.0-alpha03
 ```
 
-The current upload files in `deployment/releases/` are the user-authorized WEB-007 fresh-server build of v4.7.1. They retain the server identity because this is a new-server handoff, not an in-place version update. The originally published 2026-08-21 v4.7.1 hashes are preserved in `SHA256SUMS-v4.7.1-published-20260821` and release commit `ca9cd35`; do not mix those bytes with the current runtime checksum. The frozen v4.7.0 runtime and launcher remain beside them as rollback evidence.
+The current upload files in `deployment/releases/` are the matched v4.7.2 update. Every v4.7.1 runtime, launcher, egg, and recorded checksum remains frozen rollback evidence and must not be overwritten or combined with v4.7.2 files.
 
 ## Startup
 
@@ -18,16 +18,16 @@ The current upload files in `deployment/releases/` are the user-authorized WEB-0
 bash ./mobile-start.sh
 ```
 
-Import `egg-floodman-operations-mobile-v4.7.1.json`, then upload the two current files from `deployment/releases/` to `/home/container`:
+For an existing server, follow `UPDATE-v4.7.2.md` and upload the matched files from `deployment/releases/` to `/home/container`:
 
 ```text
-mobile-start-v4.7.1.sh -> mobile-start.sh
-floodman-operations-runtime-v4.7.1.zip (do not extract)
+mobile-start-v4.7.2.sh -> mobile-start.sh
+floodman-operations-runtime-v4.7.2.zip (do not extract)
 ```
 
-The egg installs the same current launcher automatically on a fresh server. The ZIP remains a separate upload so its SHA-256 can be verified before startup. Set a non-placeholder Owner password and create `config/tailscale-auth-key.txt` with a one-off non-ephemeral auth key before the first start.
+The v4.7.2 egg installs the same launcher and downloads the pinned runtime only when it is absent, verifying SHA-256 before atomic placement. No Tailscale key is used. Keep the external HTTPS proxy and existing startup variables intact during an in-place update.
 
-For a new node, use `FRESH-SERVER-SETUP-v4.7.1-WEB007.md` or extract `floodman-operations-new-server-v4.7.1-web007-20260828.zip`. The outer handoff already contains the launcher named `mobile-start.sh`, the exact runtime filename, the egg, setup guide, and matched component checksums.
+The dated v4.7.1 fresh-server guides and bundles are historical rollback/setup evidence, not current v4.7.2 upload inputs.
 
 ### 2026-08-18 launcher repair
 
@@ -54,4 +54,4 @@ If startup stops at `ERROR: Could not install the integrated RoomFlow section ed
 7. Verify `/mobile-api/v1/health`, `/office-health/live`, private desktop/mobile routes, signing, and one PDF.
 8. Roll back the launcher and runtime only if the matching release fails. Never delete data directories as a repair shortcut.
 
-The v4.7.1 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. The v4.7.0 files, `release-artifacts/`, and Git history are rollback provenance, not the current upload source.
+The v4.7.2 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Older versioned files, `release-artifacts/`, and Git history are rollback provenance, not current upload sources.

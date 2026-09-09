@@ -1,5 +1,8 @@
 name,default_expressions,referenced_by,reference_count
 AI_CALLBACK_URL,"""http://127.0.0.1:9004/internal/v1/ai/reports""",server/competitor-intel/app/config.py | server/orchestrator/app/config.py,2
+AI_CALLING_HMAC_KEYS,"_required(""AI_HMAC_KEYS""",server/orchestrator/app/config.py,1
+AI_CALLING_PROVIDER,"""deterministic""",server/orchestrator/app/config.py,1
+AI_CALLING_WEBHOOK_URL,"f""{public_url}/webhooks/ai-calling/{ai_calling_provider}"",",server/orchestrator/app/config.py,1
 AI_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh | server/database/init/10-ai-role.sh,3
 AI_DB_USER,,server/database/init/10-ai-role.sh,1
 AI_HMAC_KEYS,"""""",server/office-console/app/config.py,1

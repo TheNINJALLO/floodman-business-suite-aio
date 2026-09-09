@@ -51,6 +51,15 @@ if [ "$baseline" != "3.0.0" ]; then
   psql -h 127.0.0.1 -p 5432 -U floodman -d floodman -v ON_ERROR_STOP=1 -f /opt/floodman/database/init/00-floodman-baseline.sql
 fi
 
+# Additive migrations are versioned separately from the immutable fresh-install
+# baseline. Rollback files are documentation/operator tools and are never run.
+for migration in /opt/floodman/database/migrations/[0-9][0-9][0-9]_*.sql; do
+  [ -f "$migration" ] || continue
+  case "$migration" in *.rollback.sql) continue ;; esac
+  fm_log "Applying additive database migration $(basename "$migration")..."
+  psql -h 127.0.0.1 -p 5432 -U floodman -d floodman -v ON_ERROR_STOP=1 -f "$migration"
+done
+
 # The restricted intelligence grants require the PostgreSQL administrator.
 export PGPASSWORD="$POSTGRES_ADMIN_PASSWORD"
 psql -h "$FM_RUN/postgres" -p 5432 -U postgres -d floodman \
@@ -60,7 +69,7 @@ GRANT CONNECT ON DATABASE floodman TO floodman_intel;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO floodman_intel;
 GRANT SELECT,INSERT,UPDATE ON TABLE competitor_targets,competitor_snapshots,competitor_reports TO floodman_intel;
-REVOKE ALL ON TABLE workflow_jobs,workflow_documents,workflow_payments,external_mappings,webhook_events,idempotency_keys,audit_events,outbox_events,portal_access_log,ar_cases,message_threads,message_events,payment_promises,collection_holds,ai_message_decisions,staff_alerts,ar_digest_runs,communication_consents FROM floodman_intel;
+REVOKE ALL ON TABLE workflow_jobs,workflow_documents,workflow_payments,external_mappings,webhook_events,idempotency_keys,audit_events,outbox_events,portal_access_log,ar_cases,message_threads,message_events,payment_promises,collection_holds,ai_message_decisions,staff_alerts,ar_digest_runs,communication_consents,call_intakes,call_intake_events FROM floodman_intel;
 SQL
 
 touch "$FM_RUN/databases-ready"

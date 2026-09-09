@@ -2,6 +2,16 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.7.2
+
+- Added signed, replay-safe AI call events with deterministic local fixtures and canonical customer, property, intake, job, RoomFlow, estimate, task, appointment, and notification identifiers.
+- Added provisional and ambiguous-caller review paths; only provider-verified phone matches can attach a call to an existing customer.
+- Added an authenticated call-intake queue and accessible real-time screen-pop for signed-in staff.
+- Added durable role/workspace notifications, privacy-bounded email notices, best-effort SMS delivery, mobile notification feed support, and a push-token registration boundary.
+- Added owner-managed team accounts with email-as-username, password, roles, disable controls, and an optional E.164 call-alert phone.
+- Added an idempotent database migration and rollback/restore guide. AI-created estimates remain unpublished, unpriced, and zero-dollar until staff review.
+- Advanced only the server/web/Pterodactyl identity. Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum clients, and the RoomFlow pin remain unchanged.
+
 ## 4.7.1
 
 - Added safe PLX recognition and an authorized CSV preview/confirm workflow for stable, non-duplicating insurance pricing updates.

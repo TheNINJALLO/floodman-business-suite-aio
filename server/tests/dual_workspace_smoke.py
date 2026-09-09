@@ -59,7 +59,7 @@ def run() -> None:
     assert "/floodman-boot-guard.js?release=${HUB_RELEASE}" in nginx
     assert "http://0.0.0.0:${SERVER_PORT}" in nginx
     assert "proxy_pass http://127.0.0.1:8700/health/live" in nginx
-    assert "/home/container/runtime/floodman-v4.7.1/app-overlay/floodman-operations-v4.7.1/" in nginx
+    assert "/home/container/runtime/floodman-v4.7.2/app-overlay/floodman-operations-v4.7.2/" in nginx
     assert "/home/container/runtime/floodman-v4.1.0/" not in nginx
 
     pwa_js = (root / "pwa" / "floodman-pwa.js").read_text(encoding="utf-8")
@@ -82,7 +82,7 @@ def run() -> None:
             "DOCUMENTS_PATH": temp + "/documents",
             "OFFICE_AUTH_ENABLED": "false",
             "FLOODMAN_MOBILE_TOKEN_SECRET": "x" * 64,
-            "FLOODMAN_RELEASE": "pterodactyl-mobile-v4.7.1",
+            "FLOODMAN_RELEASE": "pterodactyl-mobile-v4.7.2",
             "GAUZY_FULL_SYNC_ENABLED": "false",
             "FLOODMAN_PAYMENTS_ENABLED": "false",
             "INTERNAL_HMAC_KEYS": "v1:MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=",
@@ -106,7 +106,7 @@ def run() -> None:
     assert desktop.status_code == 200, desktop.text
     assert "DESKTOP OPERATIONS WORKSPACE" in desktop.text
     assert "Open mobile workspace" in desktop.text
-    assert "floodman-workspace.css?release=4.7.1" in desktop.text
+    assert "floodman-workspace.css?release=4.7.2" in desktop.text
     assert "document.documentElement.dataset.workspace=mode" in desktop.text
 
     mobile = client.get("/office/mobile?mobile=1")

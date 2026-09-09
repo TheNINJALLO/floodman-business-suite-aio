@@ -1,10 +1,10 @@
 {
   "service": "floodman-pwa",
-  "release": "4.7.1",
+  "release": "4.7.2",
   "manifest": "/manifest.webmanifest",
   "service_worker": "/floodman-sw.js",
   "install_page": "/install-app",
-  "start_url": "/workspace?source=pwa&release=4.7.1",
+  "start_url": "/workspace?source=pwa&release=4.7.2",
   "https_required_for_public_install": true,
   "desktop_url": "/office/desktop?desktop=1",
   "mobile_url": "/office/mobile?mobile=1",

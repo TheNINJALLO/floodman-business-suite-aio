@@ -8,8 +8,8 @@ from .auth import has_permission
 
 
 PWA_HEAD = """<meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><meta name='apple-mobile-web-app-title' content='Floodman'><link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/floodman-pwa-icons/apple-touch-icon-180.png'><link rel='icon' type='image/png' sizes='192x192' href='/floodman-pwa-icons/icon-192.png'><link rel='stylesheet' href='/floodman-pwa.css'>"""
-PWA_BODY = "<script defer src='/floodman-pwa.js?release=4.7.1'></script>"
-WORKSPACE_CSS = "<link rel='stylesheet' href='/floodman-workspace.css?release=4.7.1'>"
+PWA_BODY = "<script defer src='/floodman-pwa.js?release=4.7.2'></script>"
+WORKSPACE_CSS = "<link rel='stylesheet' href='/floodman-workspace.css?release=4.7.2'>"
 
 WORKSPACE_HEAD = """<script>(function(){var q=new URLSearchParams(location.search),path=location.pathname,key='floodmanWorkspaceMode',mode='auto';try{mode=localStorage.getItem(key)||'auto'}catch(e){}if(q.get('workspace')==='auto'){mode='auto';try{localStorage.removeItem(key);localStorage.removeItem('floodmanDesktopMode')}catch(e){}}if(path==='/office/desktop'||q.get('desktop')==='1')mode='desktop';else if(path==='/office/mobile'||q.get('mobile')==='1')mode='mobile';if(mode!=='desktop'&&mode!=='mobile'){var ua=String(navigator.userAgent||''),ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));mode=handheld?'mobile':'desktop'}document.documentElement.dataset.workspace=mode;try{if(path==='/office/desktop'||q.get('desktop')==='1')localStorage.setItem(key,'desktop');if(path==='/office/mobile'||q.get('mobile')==='1')localStorage.setItem(key,'mobile');if(mode==='desktop')localStorage.setItem('floodmanDesktopMode','1');else localStorage.removeItem('floodmanDesktopMode')}catch(e){}})();</script>"""
 
@@ -24,6 +24,7 @@ NAV_GROUPS = [
         ("/office/signing", "Signing Suite", "signing", "documents.view"),
     ]),
     ("Customers & Jobs", [
+        ("/office/calls", "AI Call Intake", "calls", "call_intakes.view"),
         ("/office/contacts", "Contacts", "contacts", "contacts.view"),
         ("/office/properties", "Properties", "properties", "properties.view"),
         ("/office/roomflow", "RoomFlow Estimator", "roomflow", "estimates.view"),
@@ -592,6 +593,76 @@ OFFICE_JS = r"""
     });
     render();
   });
+
+  const callDrawer = document.getElementById('fm-call-intake-drawer');
+  if (callDrawer) {
+    const close = callDrawer.querySelector('[data-call-intake-dismiss]');
+    const open = callDrawer.querySelector('[data-call-intake-open]');
+    const fields = {
+      name: callDrawer.querySelector('[data-call-name]'),
+      phone: callDrawer.querySelector('[data-call-phone]'),
+      reason: callDrawer.querySelector('[data-call-reason]'),
+      status: callDrawer.querySelector('[data-call-status]'),
+      property: callDrawer.querySelector('[data-call-property]'),
+    };
+    let activeId = '';
+    let returnFocus = null;
+    const hideCall = (remember = true) => {
+      if (remember && activeId) { try { sessionStorage.setItem('floodmanDismissedCallIntake', activeId); } catch (_) {} }
+      callDrawer.hidden = true;
+      callDrawer.setAttribute('aria-hidden', 'true');
+      callDrawer.setAttribute('inert', '');
+      if (returnFocus?.focus) returnFocus.focus();
+    };
+    const showCall = (item) => {
+      if (!item?.id) return;
+      let dismissed = '';
+      try { dismissed = sessionStorage.getItem('floodmanDismissedCallIntake') || ''; } catch (_) {}
+      if (dismissed === item.id) return;
+      const caller = item.caller || {};
+      const property = item.property || {};
+      activeId = String(item.id);
+      fields.name.textContent = caller.name || [caller.first_name, caller.last_name].filter(Boolean).join(' ') || 'Incoming caller';
+      fields.phone.textContent = caller.phone_e164 || caller.phone || 'Phone unavailable';
+      fields.reason.textContent = item.summary || item.service_reason || 'The assistant is still collecting details.';
+      fields.status.textContent = item.review_status === 'REVIEW_REQUIRED' ? 'Human review needed' : (item.status || 'ACTIVE').replaceAll('_', ' ');
+      fields.property.textContent = [property.street, property.city, property.state, property.postal_code].filter(Boolean).join(', ') || 'Service property still being collected';
+      open.href = `/office/calls/${encodeURIComponent(activeId)}`;
+      returnFocus = document.activeElement;
+      callDrawer.hidden = false;
+      callDrawer.setAttribute('aria-hidden', 'false');
+      callDrawer.removeAttribute('inert');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const noticeKey = `floodmanCallNotification:${activeId}`;
+          if (!sessionStorage.getItem(noticeKey)) {
+            new Notification(`Floodman incoming call: ${fields.name.textContent}`, { body: fields.reason.textContent, tag: `floodman-call-${activeId}` });
+            sessionStorage.setItem(noticeKey, '1');
+          }
+        } catch (_) {}
+      }
+      window.requestAnimationFrame(() => close?.focus());
+    };
+    close?.addEventListener('click', () => hideCall(true));
+    document.querySelectorAll('[data-enable-call-notifications]').forEach((button) => button.addEventListener('click', async () => {
+      if (!('Notification' in window)) { button.textContent = 'Browser notifications unavailable'; return; }
+      const permission = await Notification.requestPermission();
+      button.textContent = permission === 'granted' ? 'Browser notifications enabled' : 'Browser notifications not enabled';
+    }));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !callDrawer.hidden) { event.preventDefault(); hideCall(true); }
+    });
+    fetch('/office/api/call-intakes/latest', { credentials: 'same-origin', cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => showCall(payload?.item)).catch(() => {});
+    if ('EventSource' in window) {
+      const source = new EventSource('/office/api/call-intakes/events');
+      source.addEventListener('call-intake', (event) => {
+        try { showCall(JSON.parse(event.data)); } catch (_) {}
+      });
+      window.addEventListener('pagehide', () => source.close(), { once: true });
+    }
+  }
 })();
 
 """
@@ -609,6 +680,8 @@ BASE_CSS = r"""
 @media(max-width:560px){.roomflow-toolbar .actions{grid-template-columns:1fr}.roomflow-frame{height:clamp(280px,calc(100dvh - 280px),640px);min-height:0}}
 @media(max-width:420px){main{padding-left:9px;padding-right:9px}.mobile-topbar{padding-left:9px;padding-right:9px}.card{padding:12px}.page-header h1{font-size:23px}.mobile-bottom-nav a,.mobile-bottom-nav button{font-size:9px}.mobile-bottom-nav .mobile-nav-icon{font-size:18px}tbody td{grid-template-columns:96px minmax(0,1fr);padding:9px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.call-intake-drawer{position:fixed;right:18px;bottom:18px;z-index:var(--layer-toast);width:min(430px,calc(100vw - 36px));max-height:min(680px,calc(100dvh - 36px));overflow:auto;border:1px solid #3f86b5;border-radius:18px;background:linear-gradient(160deg,#153552,#0a1728 74%);box-shadow:0 24px 80px #000c;padding:18px}.call-intake-drawer[hidden]{display:none}.call-intake-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.call-intake-kicker{display:block;color:#6ed0ff;font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}.call-intake-close{flex:0 0 auto;width:44px;min-height:44px;padding:0;border-radius:50%;background:#263e59;font-size:22px}.call-intake-identity{margin:14px 0;padding:13px;border:1px solid #315776;border-radius:12px;background:#071422}.call-intake-identity b,.call-intake-identity span{display:block}.call-intake-identity span{margin-top:4px;color:var(--muted)}.call-intake-fact{margin:10px 0}.call-intake-fact small{display:block;color:#8fa9c4;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}.call-intake-drawer .actions{margin-top:15px}@media(max-width:560px){.call-intake-drawer{right:8px;bottom:calc(76px + var(--safe-bottom));width:calc(100vw - 16px);max-height:calc(100dvh - 92px - var(--safe-bottom));border-radius:15px;padding:15px}}
 
 
 /* Professional customer workspace and scalable entity selectors */
@@ -687,6 +760,17 @@ def layout(
         user_box = ""
         mobile_user = "Secure operations"
 
+    call_intake_drawer = ""
+    if user is not None and has_permission(user, "call_intakes.view"):
+        call_intake_drawer = """
+<aside id='fm-call-intake-drawer' class='call-intake-drawer' role='dialog' aria-modal='false' aria-labelledby='fm-call-intake-title' aria-describedby='fm-call-intake-reason' aria-hidden='true' inert hidden>
+  <div class='call-intake-head'><div><span class='call-intake-kicker'>Live call intake</span><h2 id='fm-call-intake-title' data-call-name>Incoming caller</h2></div><button type='button' class='call-intake-close' data-call-intake-dismiss aria-label='Dismiss call card'>×</button></div>
+  <div class='call-intake-identity'><b data-call-phone>Phone unavailable</b><span data-call-status>Active</span></div>
+  <div class='call-intake-fact'><small>Reason for calling</small><div id='fm-call-intake-reason' data-call-reason>The assistant is collecting details.</div></div>
+  <div class='call-intake-fact'><small>Service property</small><div data-call-property>Still being collected</div></div>
+  <div class='actions'><a class='button' data-call-intake-open href='/office/calls'>Open unified call card</a><a class='button secondary' href='/office/calls'>View queue</a></div>
+</aside>"""
+
     mobile_links: list[str] = []
     for href, label, icon, key, permission in MOBILE_PRIMARY:
         if user is not None and not has_permission(user, permission):
@@ -708,4 +792,4 @@ def layout(
 <div class='brand desktop-brand'>Floodman Operations</div><div class='subbrand'>Created by Josh Aldrich · {esc(release)}</div><nav>{nav}</nav>
 <div class='side-note'><b>BUSINESS STAGING</b><br>Floodman runs in clean non-demo mode. Square, SMS, customer email, and production signatures remain local or sandboxed until explicitly connected.</div>{user_box}
 </aside><main id='fm-main-content' tabindex='-1'><header class='page-header'><div><h1>{esc(title)}</h1><div class='muted'>One command center for Floodman ERP, signing, receivables, RoomFlow, customer files, and AI intelligence.</div></div><div class='header-meta actions'>{notification_chip}{setup_chip}</div></header>{notice_html}{content}<footer class='creator-footer'><b>Floodman Operations</b> · Created by Josh Aldrich · <a href='/floodman-third-party-notices.html' target='_blank' rel='noopener'>Third-party notices</a></footer></main></div>
-<nav class='mobile-bottom-nav' aria-label='Primary mobile navigation'>{mobile_bottom}</nav><script>{OFFICE_JS}</script>{PWA_BODY}</body></html>"""
+<nav class='mobile-bottom-nav' aria-label='Primary mobile navigation'>{mobile_bottom}</nav>{call_intake_drawer}<script>{OFFICE_JS}</script>{PWA_BODY}</body></html>"""

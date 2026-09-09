@@ -127,6 +127,11 @@ class Settings:
     internal_hmac_keys: dict[str, bytes]
     internal_hmac_max_age_seconds: int
     ai_hmac_keys: dict[str, bytes]
+    ai_calling_enabled: bool
+    ai_calling_approved: bool
+    ai_calling_provider: str
+    ai_calling_webhook_url: str
+    ai_calling_hmac_keys: dict[str, bytes]
     portal_token_secret: bytes
     portal_token_ttl_seconds: int
     roomflow_document_hosts: tuple[str, ...]
@@ -216,7 +221,7 @@ class Settings:
     webhook_max_body_bytes: int
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         environment = os.getenv("FLOODMAN_ENV", "development").strip().lower()
         production = environment == "production"
         portal_secret_raw = _required("PORTAL_TOKEN_SECRET")
@@ -231,6 +236,11 @@ class Settings:
         sms_compliance_approved = _boolean("SMS_COMPLIANCE_APPROVED", False)
         twilio_a2p_approved = _boolean("TWILIO_A2P_APPROVED", False)
         ai_customer_messaging_approved = _boolean("AI_CUSTOMER_MESSAGING_APPROVED", False)
+        ai_calling_enabled = _boolean("AI_CALLING_ENABLED", False)
+        ai_calling_approved = _boolean("AI_CALLING_APPROVED", False)
+        ai_calling_provider = os.getenv("AI_CALLING_PROVIDER", "deterministic").strip().lower()
+        if ai_calling_provider not in {"deterministic"}:
+            raise RuntimeError("AI_CALLING_PROVIDER must be deterministic until another reviewed adapter is installed")
         messaging_ai_provider = os.getenv("MESSAGING_AI_PROVIDER", "deterministic").strip().lower()
         if messaging_ai_provider not in {"deterministic", "openai"}:
             raise RuntimeError("MESSAGING_AI_PROVIDER must be deterministic or openai")
@@ -240,8 +250,18 @@ class Settings:
             raise RuntimeError(
                 "AI_CUSTOMER_MESSAGING_APPROVED must be true before customer messages may use an external AI provider"
             )
+        if production and ai_calling_enabled and not ai_calling_approved:
+            raise RuntimeError("AI_CALLING_APPROVED must be true before external call events are enabled in production")
 
         public_url = _validate_https("PUBLIC_BASE_URL", _required("PUBLIC_BASE_URL"), production)
+        ai_calling_webhook_url = os.getenv(
+            "AI_CALLING_WEBHOOK_URL",
+            f"{public_url}/webhooks/ai-calling/{ai_calling_provider}",
+        ).rstrip("/")
+        if ai_calling_enabled:
+            ai_calling_webhook_url = _validate_https("AI_CALLING_WEBHOOK_URL", ai_calling_webhook_url, production)
+            if ai_calling_webhook_url != f"{public_url}/webhooks/ai-calling/{ai_calling_provider}":
+                raise RuntimeError("AI_CALLING_WEBHOOK_URL must match the configured provider route")
         square_notification = _validate_https(
             "SQUARE_WEBHOOK_NOTIFICATION_URL", _required("SQUARE_WEBHOOK_NOTIFICATION_URL"), production
         )
@@ -310,6 +330,13 @@ class Settings:
             internal_hmac_keys=parse_hmac_keyring(_required("INTERNAL_HMAC_KEYS")),
             internal_hmac_max_age_seconds=_integer("INTERNAL_HMAC_MAX_AGE_SECONDS", 300, 30),
             ai_hmac_keys=parse_hmac_keyring(_required("AI_HMAC_KEYS")),
+            ai_calling_enabled=ai_calling_enabled,
+            ai_calling_approved=ai_calling_approved,
+            ai_calling_provider=ai_calling_provider,
+            ai_calling_webhook_url=ai_calling_webhook_url,
+            ai_calling_hmac_keys=parse_hmac_keyring(
+                os.getenv("AI_CALLING_HMAC_KEYS", _required("AI_HMAC_KEYS"))
+            ),
             portal_token_secret=portal_secret,
             portal_token_ttl_seconds=_integer("PORTAL_TOKEN_TTL_SECONDS", 30 * 86400, 300),
             roomflow_document_hosts=_csv("ROOMFLOW_DOCUMENT_HOSTS"),

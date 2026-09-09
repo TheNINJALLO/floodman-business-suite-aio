@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from .ai_calling import provider_for
 from .config import Settings, get_settings
 from .db import database_ready, transaction
 from .logging_json import configure_logging
@@ -23,6 +24,7 @@ from .repository import (
     NotFoundError,
     add_change_order,
     add_completion,
+    audit,
     begin_idempotency,
     complete_idempotency,
     enqueue,
@@ -31,6 +33,7 @@ from .repository import (
     get_document_by_envelope,
     get_job,
     get_job_by_square_invoice,
+    ingest_call_event,
     log_portal_access,
     portal_payload,
     record_webhook,
@@ -146,6 +149,10 @@ async def ai_auth(request: Request) -> str:
     return await _verify_hmac(request, settings.ai_hmac_keys)
 
 
+async def ai_calling_auth(request: Request) -> str:
+    return await _verify_hmac(request, settings.ai_calling_hmac_keys)
+
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -191,9 +198,54 @@ def health_ready() -> JSONResponse:
     document_path_ok = settings.documents_path.exists() and settings.documents_path.is_dir()
     ready = database_ready() and document_path_ok
     return JSONResponse(
-        {"status": "ready" if ready else "not_ready", "database": database_ready(), "document_path": document_path_ok},
+        {
+            "status": "ready" if ready else "not_ready",
+            "database": database_ready(),
+            "document_path": document_path_ok,
+            "capabilities": {
+                "messaging_ai": {
+                    "enabled": settings.messaging_ai_enabled,
+                    "provider": settings.messaging_ai_provider,
+                    "customer_use_approved": settings.ai_customer_messaging_approved or not settings.production,
+                    "human_review_fallback": True,
+                },
+                "competitor_intelligence": {
+                    "enabled": bool(settings.ai_service_url),
+                    "untrusted_content_isolated": True,
+                    "human_review_fallback": True,
+                },
+                "ai_calling": {
+                    "enabled": settings.ai_calling_enabled,
+                    "approved": settings.ai_calling_approved,
+                    "effective_use_allowed": settings.ai_calling_approved or not settings.production,
+                    "provider": settings.ai_calling_provider,
+                    "signed_webhooks": True,
+                    "human_review_fallback": True,
+                }
+            },
+        },
         status_code=200 if ready else 503,
     )
+
+
+@app.post("/webhooks/ai-calling/{provider_name}")
+async def ai_calling_webhook(provider_name: str, request: Request) -> JSONResponse:
+    if not settings.ai_calling_enabled:
+        raise HTTPException(status_code=503, detail="AI calling webhook intake is disabled")
+    if provider_name != settings.ai_calling_provider:
+        raise HTTPException(status_code=404, detail="AI calling provider is not configured")
+    await ai_calling_auth(request)
+    body = await request.body()
+    try:
+        raw = json.loads(body)
+        if not isinstance(raw, dict):
+            raise ValueError("event body must be a JSON object")
+        event = provider_for(provider_name).normalize(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    with transaction() as conn:
+        result = ingest_call_event(conn, event, body)
+    return JSONResponse(result, status_code=202 if result.get("accepted") else 200)
 
 
 @app.post("/internal/v1/jobs/sync-estimate")

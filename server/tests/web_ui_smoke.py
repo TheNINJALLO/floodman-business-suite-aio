@@ -28,6 +28,7 @@ TRANSITION_VIEWPORTS = [(719, 900), (720, 900), (721, 900), (1099, 900), (1100, 
 class FakeProviders:
     def __init__(self) -> None:
         self.sent_emails: list[dict[str, Any]] = []
+        self.sent_sms: list[dict[str, str]] = []
 
     async def lab_state(self) -> dict[str, Any]:
         return {
@@ -77,6 +78,10 @@ class FakeProviders:
         self.sent_emails.append(dict(message))
         return {"status": "SENT", "to": message.get("to"), "subject": message.get("subject")}
 
+    async def send_sms(self, phone: str, body: str) -> dict[str, Any]:
+        self.sent_sms.append({"phone": phone, "body": body})
+        return {"status": "SENT", "to": phone}
+
     async def record_payment(self, _payment: dict[str, Any]) -> dict[str, Any]:
         return {"ok": True}
 
@@ -97,10 +102,12 @@ class FakeProviders:
 
 def seed(main: Any) -> dict[str, Any]:
     owner = main.store.create_owner("UI Smoke Owner", "owner@example.test", "Floodman-Test-2026!")
+    owner = main.store.update_user(owner["id"], phone="+12315550199")
     workspace = main.ensure_roomflow_workspaces(main.store, actor_id=str(owner["id"]))[0]
     contact = main.store.create_record(
         "contacts",
         {
+            "workspace_id": workspace["id"],
             "name": "Alex Carter",
             "first_name": "Alex",
             "last_name": "Carter",
@@ -117,6 +124,7 @@ def seed(main: Any) -> dict[str, Any]:
     property_record = main.store.create_record(
         "properties",
         {
+            "workspace_id": workspace["id"],
             "contact_id": contact["id"],
             "name": "Carter Residence",
             "property_name": "Carter Residence",
@@ -210,11 +218,38 @@ def seed(main: Any) -> dict[str, Any]:
         },
         actor_id=owner["id"],
     )
-    return {"owner": owner, "contact": contact, "property": property_record, "estimate": estimate, "invoice": invoice, "payment": payment, "workspace": workspace, "roomflow_job": roomflow_job}
+    call_intake = main.store.project_call_intake({
+        "intake_id": "ui-call-intake",
+        "organization_id": "ui-smoke-organization",
+        "workspace_id": workspace["id"],
+        "provider": "deterministic",
+        "provider_call_id": "ui-call-provider-id",
+        "event_type": "caller-identified",
+        "event_sequence": 1,
+        "status": "ACTIVE",
+        "occurred_at": "2026-09-08T20:20:00+00:00",
+        "started_at": "2026-09-08T20:19:55+00:00",
+        "ended_at": None,
+        "caller": {"name": "Alex Carter", "first_name": "Alex", "last_name": "Carter", "email": "alex@example.test", "phone": "+12315550148", "phone_e164": "+12315550148", "phone_verified": True, "company": ""},
+        "property": {"name": "Carter Residence", "property_type": "Residential", "street": "1847 Pine Ridge Lane", "city": "Traverse City", "state": "MI", "postal_code": "49686", "country": "US", "insurer": "", "claim_number": ""},
+        "service_reason": "Basement waterproofing inspection",
+        "summary": "Alex reports water near the basement wall and requests an inspection.",
+        "requested_services": ["Inspection"],
+        "urgency": "PRIORITY",
+        "appointment": {"requested": True, "requested_window": "weekday afternoon", "confirmed": False, "appointment_id": ""},
+        "consent": {"sms_status": "UNKNOWN", "email_status": "UNKNOWN", "disclosure_version": "", "evidence_id": ""},
+        "transcript_available": True,
+        "transcript_reference": "lab://ui-smoke/transcript",
+        "failure_reason": "",
+        "review_reasons": [],
+        "proposed_ids": {"customer_id": "ui-call-customer", "property_id": "ui-call-property", "job_id": "ui-call-job", "roomflow_job_id": "ui-call-roomflow-job", "estimate_id": "ui-call-estimate", "note_id": "ui-call-note", "task_id": "ui-call-task", "appointment_id": "ui-call-appointment"},
+    })
+    return {"owner": owner, "contact": contact, "property": property_record, "estimate": estimate, "invoice": invoice, "payment": payment, "workspace": workspace, "roomflow_job": roomflow_job, "call_intake": call_intake}
 
 
 def route_smoke(main: Any, records: dict[str, Any]) -> None:
     from fastapi.testclient import TestClient
+    from app.security import SignedClient, canonical_json, parse_first_key
 
     client = TestClient(main.app, follow_redirects=False)
     login = client.post(
@@ -224,12 +259,68 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
     assert login.status_code == 303
     assert "floodman_session" in client.cookies
 
+    intake = records["call_intake"]
+    internal_payload = {
+        key: intake.get(key)
+        for key in (
+            "intake_id", "organization_id", "workspace_id", "provider", "provider_call_id", "status",
+            "started_at", "ended_at", "caller", "property", "service_reason", "summary", "requested_services",
+            "urgency", "appointment", "consent", "transcript_available", "transcript_reference", "failure_reason",
+            "review_reasons", "proposed_ids",
+        )
+    }
+    internal_payload.update({
+        "event_type": "transcript-updated",
+        "event_sequence": 2,
+        "occurred_at": "2026-09-08T20:20:10+00:00",
+    })
+    signed_body = canonical_json(internal_payload)
+    key_id, secret = parse_first_key(main.settings.internal_hmac_keys)
+    signer = SignedClient("http://office.invalid", key_id, secret)
+    invalid = client.post(
+        "/internal/v1/call-intakes/project",
+        content=signed_body,
+        headers={**signer.headers(signed_body), "x-floodman-signature": "invalid"},
+    )
+    assert invalid.status_code == 401
+    accepted = client.post(
+        "/internal/v1/call-intakes/project",
+        content=signed_body,
+        headers=signer.headers(signed_body),
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert main.providers.sent_emails, "eligible staff did not receive the call-intake email notification"
+    assert main.providers.sent_sms, "eligible staff did not receive the call-intake SMS notification"
+    notification = next(
+        value for value in main.store.records("notifications")
+        if str(value.get("reference_id") or "") == str(intake["id"])
+    )
+    assert notification["email_status"] == "SENT"
+    assert notification["sms_status"] == "SENT"
+    projected_intake = main.store.record("call_intakes", str(intake["id"]))
+    call_estimate_id = str(projected_intake["estimate_id"])
+    call_card = client.get(f"/office/api/call-intakes/item/{intake['id']}")
+    assert call_card.status_code == 200
+    roomflow_link = call_card.json()["links"]["roomflow"]
+    assert roomflow_link.endswith(f"job_id={projected_intake['roomflow_job_id']}")
+    selected_roomflow = client.get(roomflow_link)
+    assert selected_roomflow.status_code == 200
+    assert f"embedded=1&amp;job_id={projected_intake['roomflow_job_id']}" in selected_roomflow.text
+    email_count = len(main.providers.sent_emails)
+    assert client.post(f"/office/estimates/{call_estimate_id}/send").status_code == 303
+    assert client.post(f"/office/estimates/{call_estimate_id}/accept").status_code == 303
+    assert client.post(f"/office/estimates/{call_estimate_id}/convert").status_code == 303
+    protected_draft = main.store.record("estimates", call_estimate_id)
+    assert protected_draft["status"] == "DRAFT" and protected_draft["total_cents"] == 0
+    assert len(main.providers.sent_emails) == email_count, "unpriced call draft sent customer email"
+    assert not any(str(value.get("estimate_id") or "") == call_estimate_id for value in main.store.records("invoices"))
+
     pages = [
         "/setup", "/office", "/office/desktop", "/office/mobile?mobile=1", "/office/apps", "/office/settings",
         "/office/linking", "/office/imports", "/office/contacts", "/office/properties",
         "/office/catalog", "/office/estimates", "/office/estimates/new", "/office/invoices",
         "/office/payments", "/office/payment-settings", "/office/documents", "/office/tasks",
-        "/office/notes", "/office/time", "/office/members", "/office/messages",
+        "/office/notes", "/office/time", "/office/members", "/office/messages", "/office/calls",
         "/office/receivables", "/office/intelligence", "/office/alerts", "/office/platform",
         "/office/signing", "/office/roomflow", "/office/roomflow/import",
         f"/office/contacts/{records['contact']['id']}",
@@ -239,6 +330,7 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
         f"/office/estimates/{records['estimate']['id']}",
         f"/office/estimates/{records['estimate']['id']}/edit",
         f"/office/estimates/{records['estimate']['id']}/take-payment",
+        f"/office/calls/{records['call_intake']['id']}",
         f"/office/invoices/{records['invoice']['id']}",
         f"/office/invoices/{records['invoice']['id']}/edit",
         f"/office/invoices/{records['invoice']['id']}/take-payment",
@@ -455,7 +547,7 @@ def static_overlay_contracts() -> None:
         "legacy_css": (ROOT / "roomflow" / "floodman-roomflow.css").read_text(encoding="utf-8"),
         "hub_js": (ROOT / "hub" / "hub.js").read_text(encoding="utf-8"),
         "launcher": (REPO / "launcher" / "mobile-start.sh").read_text(encoding="utf-8"),
-        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.7.1.sh").read_text(encoding="utf-8"),
+        "deployment": (REPO / "deployment" / "releases" / "mobile-start-v4.7.2.sh").read_text(encoding="utf-8"),
         "nginx": (ROOT / "aio" / "nginx.conf.template").read_text(encoding="utf-8"),
         "office": (ROOT / "office-console" / "app" / "main.py").read_text(encoding="utf-8"),
     }
@@ -466,6 +558,7 @@ def static_overlay_contracts() -> None:
     assert "Customer, document, API, Office, signing, and ERP responses remain network-only" in sources["pwa_sw"]
     assert "fm-rf-panel-dismissed" in sources["panel_js"]
     assert "floodman_roomflow_quick_start_dismissed_v1" in sources["panel_js"]
+    assert "params.get('job_id')" in sources["panel_js"] and "loadServerJob(requestedJobId)" in sources["panel_js"]
     assert "Dismiss quick start" in sources["panel_js"] and "Dismiss message" in sources["panel_js"]
     assert "params.get('catalog_sync') === '1'" in sources["panel_js"]
     assert "event.key === 'Escape'" in sources["panel_js"]
@@ -546,7 +639,7 @@ def build_browser_app(main: Any) -> Any:
 
     @app.get("/office-health/live")
     def office_health() -> JSONResponse:
-        return JSONResponse({"status": "ok", "version": "4.7.1"})
+        return JSONResponse({"status": "ok", "version": "4.7.2"})
 
     @app.get("/hub-fixture")
     def hub_fixture() -> HTMLResponse:
@@ -649,6 +742,7 @@ def layout_browser_matrix(playwright: Any, base: str, portal_token: str) -> None
         ("/office/mobile?mobile=1", True),
         ("/office/settings", True),
         ("/office/contacts", True),
+        ("/office/calls", True),
         ("/office/estimates/new", True),
         ("/office/roomflow", True),
         ("/office/roomflow/import", True),
@@ -828,12 +922,20 @@ def browser_smoke(main: Any) -> None:
             form.locator("input[name='password']").fill("Floodman-Test-2026!")
             form.locator("button").click()
             page.wait_for_url(re.compile(r"/office/desktop"))
+            call_drawer = page.locator("#fm-call-intake-drawer")
+            call_drawer.wait_for(state="visible", timeout=5_000)
+            assert call_drawer.get_by_text("Alex Carter").is_visible()
+            call_drawer.locator("[data-call-intake-dismiss]").click()
+            assert call_drawer.is_hidden(), "dismissible call card stayed open"
+            queue_response = page.goto(base + "/office/calls", wait_until="domcontentloaded")
+            assert queue_response and queue_response.status == 200
+            assert page.get_by_text("Alex Carter").first.is_visible(), "dismissed call disappeared from its durable queue"
 
             desktop_pages = [
                 "/setup", "/office/desktop?desktop=1", "/office/apps", "/office/settings", "/office/linking", "/office/imports",
                 "/office/contacts", "/office/properties", "/office/catalog", "/office/estimates",
                 "/office/estimates/new", "/office/invoices", "/office/payments", "/office/payment-settings",
-                "/office/documents", "/office/tasks", "/office/notes", "/office/time", "/office/members",
+                "/office/documents", "/office/tasks", "/office/notes", "/office/time", "/office/members", "/office/calls",
                 "/office/messages", "/office/receivables", "/office/intelligence", "/office/alerts",
                 "/office/platform", "/office/signing", "/office/roomflow", "/office/roomflow/import",
             ]

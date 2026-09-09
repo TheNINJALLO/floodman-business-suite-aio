@@ -8,7 +8,7 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 `mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, externally proxied Nginx/Supervisor configuration, upstream services, health checks and final readiness marker. It does not download or launch Tailscale.
 
-The current files in `deployment/releases/` provide the distinct v4.7.1 runtime and launcher. For a new server, import the matched v4.7.1 egg: its installer writes `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. A node without access to `raw.githubusercontent.com` can instead receive the runtime ZIP manually. The frozen v4.7.0 files remain rollback evidence. This local package result is not a claim that staging install/upgrade/restart, backup/restore, live routes, or production deployment passed.
+The current files in `deployment/releases/` provide the distinct v4.7.2 runtime and launcher. The matched v4.7.2 egg installs `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. Existing servers can use the backed-up procedure in `deployment/pterodactyl/UPDATE-v4.7.2.md`. All v4.7.1 files remain rollback evidence. A package result alone is not live installation or acceptance evidence.
 
 Expected terminal marker:
 

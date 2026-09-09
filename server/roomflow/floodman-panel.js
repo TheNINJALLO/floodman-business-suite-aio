@@ -5,7 +5,7 @@
   if (!window.location.pathname.startsWith('/roomflow/') && params.get('floodmanPanel') !== '1') return;
   window.__FLOODMAN_ROOMFLOW_PANEL__ = true;
 
-  const RELEASE = '4.7.1';
+  const RELEASE = '4.7.2';
   const LINK_KEY = 'floodman_roomflow_links_v2';
   const ESTIMATE_KEY = 'floodman_roomflow_estimate_ids_v1';
   const GUIDE_KEY = 'floodman_roomflow_quick_start_dismissed_v1';
@@ -731,7 +731,9 @@
     for (let i = 0; i < 40 && !window.state; i += 1) await sleep(150);
     try { await refreshWorkspaceContext(); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
-    await restoreLink(); await refreshJobs();
+    const requestedJobId = params.get('job_id') || '';
+    if (requestedJobId) await loadServerJob(requestedJobId); else await restoreLink();
+    await refreshJobs();
     if (params.get('catalog_sync') === '1') {
       panelOpen(true); const catalogDetails = $('#fm-rf-sync-catalog')?.closest('details'); if (catalogDetails) catalogDetails.open = true;
       await syncRoomFlowCatalog({ force: true }).finally(() => renderEstimateScope());

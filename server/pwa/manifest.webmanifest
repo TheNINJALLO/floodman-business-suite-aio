@@ -3,7 +3,7 @@
   "name": "Floodman Operations",
   "short_name": "Floodman",
   "description": "Floodman Operations with separate desktop and mobile shells. The private root selects the correct workspace without depending on the full ERP frontend.",
-  "start_url": "/workspace?source=pwa&release=4.7.1",
+  "start_url": "/workspace?source=pwa&release=4.7.2",
   "scope": "/",
   "display": "standalone",
   "display_override": [

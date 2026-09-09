@@ -18,11 +18,14 @@ from datetime import UTC, date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
+from pydantic import ValidationError
 
 from .auth import ROLE_PERMISSIONS, has_permission
+from .call_intake import CallIntakeLinksRequest, CallIntakeProjectionRequest
 from .config import Settings
 from .customer_csv import CustomerCsvError, customer_template, parse_customer_csv
 from .estimate_catalog import default_document, document_payload, group_document_lines, normalize_catalog_item, normalize_document_payload
@@ -73,7 +76,7 @@ settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
-app = FastAPI(title="Floodman Operations", version="4.7.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="Floodman Operations", version="4.7.2", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
 
@@ -138,7 +141,7 @@ def _require(permission: str) -> dict[str, Any]:
 
 @app.get("/health/live")
 def live() -> dict[str, str]:
-    return {"status": "ok", "service": "floodman-office-console", "version": "4.7.1"}
+    return {"status": "ok", "service": "floodman-office-console", "version": "4.7.2"}
 
 
 @app.get("/health/ready")
@@ -294,6 +297,96 @@ async def attach_signed_document_to_client_file(request: Request) -> dict[str, A
         "contact_id": contact["id"],
         "property_id": (property_record or {}).get("id"),
     }
+
+
+async def _deliver_call_intake_notifications(result: dict[str, Any]) -> None:
+    """Deliver staff email/SMS after the durable Office projection has committed."""
+
+    intake_id = str(result.get("intake_id") or result.get("id") or "")
+    caller = dict(result.get("caller") or {})
+    caller_name = str(caller.get("name") or "").strip() or "Incoming caller"
+    summary = str(result.get("summary") or result.get("service_reason") or "Open Floodman for call details.")
+    action_url = f"{settings.public_url.rstrip('/')}/office/calls/{quote(intake_id)}"
+    for notification_id in result.get("notification_ids") or []:
+        notification = store.record("notifications", str(notification_id))
+        if not notification:
+            continue
+        user = store.get_user(str(notification.get("user_id") or "")) or {}
+        email = str(user.get("email") or "").strip()
+        if str(notification.get("email_status") or "") == "PENDING":
+            try:
+                await providers.send_email(
+                    to=email,
+                    subject=f"Floodman incoming call: {caller_name}",
+                    text=f"{summary}\n\nOpen the live call intake: {action_url}",
+                )
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"email_status": "SENT", "email_sent_at": datetime.now(UTC).isoformat()},
+                    actor_id="floodman-system",
+                )
+            except Exception:
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"email_status": "FAILED"},
+                    actor_id="floodman-system",
+                )
+        phone = str(user.get("phone") or "").strip()
+        if str(notification.get("sms_status") or "") == "PENDING":
+            try:
+                await providers.send_sms(phone, f"Floodman incoming call from {caller_name}. Open: {action_url}")
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"sms_status": "SENT", "sms_sent_at": datetime.now(UTC).isoformat()},
+                    actor_id="floodman-system",
+                )
+            except Exception:
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"sms_status": "FAILED"},
+                    actor_id="floodman-system",
+                )
+
+
+@app.post("/internal/v1/call-intakes/project")
+async def project_ai_call_intake(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    if len(body) > 256 * 1024:
+        raise HTTPException(413, "Call intake projection is too large")
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys, max_age_seconds=300)
+    except SignedRequestError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    try:
+        payload = CallIntakeProjectionRequest.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    try:
+        result = store.project_call_intake(payload.model_dump(mode="json"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await _deliver_call_intake_notifications(result)
+    return result
+
+
+@app.post("/internal/v1/call-intakes/{intake_id}/links")
+async def update_ai_call_intake_links(intake_id: str, request: Request) -> dict[str, Any]:
+    body = await request.body()
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys, max_age_seconds=300)
+    except SignedRequestError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    try:
+        payload = CallIntakeLinksRequest.model_validate_json(body)
+        return store.update_call_intake_links(intake_id, **payload.model_dump())
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Call intake not found") from exc
 
 
 @app.get("/office/client-files/{document_id}/download")
@@ -4950,6 +5043,13 @@ async def convert_estimate(estimate_id: str) -> RedirectResponse:
     estimate = store.record("estimates", estimate_id)
     if not estimate:
         raise HTTPException(404, "Estimate not found")
+    if (
+        str(estimate.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(estimate.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(estimate.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft needs verified measurements, line items, and pricing before conversion.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     existing = estimate.get("converted_invoice_id")
     if existing:
         return RedirectResponse(f"/office/invoices/{existing}", status_code=303)
@@ -5294,7 +5394,7 @@ def _roomflow_find_property(contact_id: str, property_data: dict[str, Any], work
 
 
 @app.get("/office/roomflow")
-def roomflow_workspace() -> HTMLResponse:
+def roomflow_workspace(job_id: str = "") -> HTMLResponse:
     user = _require("estimates.view")
     _, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     jobs = [
@@ -5302,6 +5402,11 @@ def roomflow_workspace() -> HTMLResponse:
         for item in store.records("roomflow_jobs")
         if str(item.get("workspace_id") or "") == selected_workspace_id
     ]
+    selected_job_id = str(job_id or "").strip()
+    if not any(str(item.get("id") or "") == selected_job_id for item in jobs):
+        selected_job_id = ""
+    roomflow_job_query = f"&amp;job_id={quote(selected_job_id, safe='')}" if selected_job_id else ""
+    roomflow_fullscreen_query = f"?job_id={quote(selected_job_id, safe='')}" if selected_job_id else ""
     cards = []
     for item in jobs[:12]:
         customer_id = str(item.get("contact_id") or "")
@@ -5321,7 +5426,7 @@ def roomflow_workspace() -> HTMLResponse:
             f"<b>{esc(item.get('job_name') or item.get('roomflow_job_id') or 'RoomFlow job')}</b>"
             f"<small>{esc(_contact_label(customer) if customer else 'Customer not linked')} · {esc(_roomflow_property_label(property_record) if property_record else 'Property not linked')}</small>"
             f"<small>{esc(item.get('estimate_number') or '')} · {badge(item.get('status') or 'SYNCED')}</small>"
-            f"<div class='actions' style='margin-top:9px'>{' · '.join(links)}</div>"
+            f"<div class='actions' style='margin-top:9px'><a href='/office/roomflow?job_id={quote(str(item.get('id') or ''), safe='')}'>Open in RoomFlow</a> · {' · '.join(links)}</div>"
             "</article>"
         )
     history = "".join(cards) or "<p class='muted'>No RoomFlow estimates have been saved into Floodman yet.</p>"
@@ -5332,8 +5437,8 @@ def roomflow_workspace() -> HTMLResponse:
 <div class='callout success'><b>No separate RoomFlow account is needed.</b> Your ERP sign-in already opens the <b>{esc(active_workspace.get('name') or 'Floodman')}</b> company workspace. RoomFlow saves to the same customer, property, and estimate files used by the office.</div>
 <div class='role-guide'><div><b>1. Choose customer</b><small>Open Customer &amp; job file, then search by name, phone, email, or address.</small></div><div><b>2. Choose property</b><small>Select that customer's service address so the job stays on the right file.</small></div><div><b>3. Sketch and price</b><small>Draw the layout, then add services from the shared Services &amp; Prices list.</small></div><div><b>4. Save to Floodman</b><small>Save the draft. Re-saving updates the same estimate instead of making a duplicate.</small></div></div>
 <div class='card roomflow-workspace-card'>
-  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'>{import_action}<a class='button secondary' href='/office/catalog'>Services &amp; prices</a><a class='button secondary' href='/roomflow/' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
-  <iframe class='roomflow-frame' src='/roomflow/?embedded=1' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
+  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'>{import_action}<a class='button secondary' href='/office/catalog'>Services &amp; prices</a><a class='button secondary' href='/roomflow/{roomflow_fullscreen_query}' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
+  <iframe class='roomflow-frame' src='/roomflow/?embedded=1{roomflow_job_query}' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
 </div>
 <div class='card'><h2>Recent RoomFlow saves</h2><div class='roomflow-history-grid'>{history}</div></div>
 """
@@ -5427,7 +5532,7 @@ def roomflow_context_api() -> dict[str, Any]:
     user = _require("estimates.view")
     workspaces, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     return {
-        "release": "4.7.1",
+        "release": "4.7.2",
         "timezone": store.profile().get("timezone") or "America/Detroit",
         "user": {"id": user.get("id"), "name": user.get("name"), "email": user.get("email")},
         "workspaces": [workspace_public(record) for record in workspaces],
@@ -5459,6 +5564,195 @@ def _browser_roomflow_workspace_context(
         workspaces[0],
     )
     return workspaces, selected_id, active
+
+
+def _call_intake_public(record: dict[str, Any]) -> dict[str, Any]:
+    """Return the authenticated staff card without provider payloads or secrets."""
+
+    intake_id = str(record.get("id") or record.get("intake_id") or "")
+    customer_id = str(record.get("customer_id") or "")
+    property_id = str(record.get("property_id") or "")
+    estimate_id = str(record.get("estimate_id") or "")
+    task = store.record("tasks", str(record.get("task_id") or "")) or {}
+    return {
+        "id": intake_id,
+        "workspace_id": record.get("workspace_id"),
+        "status": record.get("status") or "ACTIVE",
+        "review_status": record.get("review_status") or "PROJECTED",
+        "review_reasons": list(record.get("review_reasons") or []),
+        "event_type": record.get("event_type"),
+        "provider_call_id": record.get("provider_call_id"),
+        "event_sequence": int(record.get("event_sequence") or 0),
+        "occurred_at": record.get("occurred_at"),
+        "started_at": record.get("started_at"),
+        "ended_at": record.get("ended_at"),
+        "caller": dict(record.get("caller") or {}),
+        "property": dict(record.get("property") or {}),
+        "service_reason": record.get("service_reason") or "",
+        "summary": record.get("summary") or "",
+        "requested_services": list(record.get("requested_services") or []),
+        "urgency": record.get("urgency") or "NORMAL",
+        "appointment": dict(record.get("appointment") or {}),
+        "consent": dict(record.get("consent") or {}),
+        "transcript_available": bool(record.get("transcript_available")),
+        "failure_reason": record.get("failure_reason") or "",
+        "assigned_employee": {
+            "id": task.get("assigned_user_id") or task.get("assigned_to"),
+            "name": task.get("assigned_to_name") or "Unassigned",
+        },
+        "gauzy_contact_id": record.get("gauzy_contact_id"),
+        "gauzy_project_id": record.get("gauzy_project_id"),
+        "links": {
+            "customer": f"/office/contacts/{customer_id}" if customer_id else "",
+            "property": f"/office/properties/{property_id}" if property_id else "",
+            "roomflow": f"/office/roomflow?job_id={quote(str(record.get('roomflow_job_id') or ''), safe='')}" if record.get("roomflow_job_id") else "",
+            "job": f"/office/roomflow?job_id={quote(str(record.get('roomflow_job_id') or ''), safe='')}" if record.get("job_id") and record.get("roomflow_job_id") else "",
+            "estimate": f"/office/estimates/{estimate_id}" if estimate_id else "",
+            "task": "/office/tasks" if record.get("task_id") else "",
+            "appointment": f"/office/calls/{intake_id}#appointment" if record.get("appointment_id") else "",
+            "gauzy": settings.gauzy_hub_url if record.get("gauzy_contact_id") or record.get("gauzy_project_id") else "",
+        },
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _call_intakes_for_user(user: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
+    user_id = str(user.get("id") or "")
+    workspaces = ensure_roomflow_workspaces(store, actor_id=user_id)
+    valid_ids = {str(value.get("id") or "") for value in workspaces}
+    selection = next(
+        (value for value in store.records("roomflow_workspace_selections") if str(value.get("user_id") or "") == user_id),
+        None,
+    )
+    workspace_id = str((selection or {}).get("workspace_id") or "")
+    if workspace_id not in valid_ids:
+        workspace_id = str(workspaces[0]["id"])
+    values = [
+        record for record in store.records("call_intakes")
+        if str(record.get("workspace_id") or "") == workspace_id
+    ]
+    return values, workspace_id
+
+
+def _detroit_time(value: Any) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        local = parsed.astimezone(ZoneInfo("America/Detroit"))
+        return f"{local.strftime('%b')} {local.day}, {local.year} {local.strftime('%I:%M %p').lstrip('0')} ET"
+    except (ValueError, TypeError):
+        return ""
+
+
+@app.get("/office/calls")
+def call_intake_queue() -> HTMLResponse:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    rows = []
+    for record in values:
+        caller = dict(record.get("caller") or {})
+        name = str(caller.get("name") or "").strip() or "Incoming caller"
+        rows.append([
+            esc(_detroit_time(record.get("occurred_at") or record.get("updated_at"))),
+            f"<a href='/office/calls/{esc(record.get('id'))}'><b>{esc(name)}</b></a><br><span class='muted'>{esc(caller.get('phone_e164') or caller.get('phone') or '')}</span>",
+            badge(record.get("status") or "ACTIVE"),
+            badge(record.get("review_status") or "PROJECTED"),
+            esc(record.get("service_reason") or "Details still being collected"),
+            f"<a class='button small secondary' href='/office/calls/{esc(record.get('id'))}'>Open</a>",
+        ])
+    body = (
+        "<div class='callout success'><b>Live call intake is connected.</b> Signed provider events update this durable queue and the on-screen call card. Dismissing a card never removes the intake.</div>"
+        + "<div class='actions' style='margin-bottom:14px'><button type='button' class='secondary' data-enable-call-notifications>Enable browser notifications</button></div>"
+        + f"<div class='card'><h2>Incoming and recent calls</h2>{table(('Time','Caller','Call','Review','Reason','Action'), rows, 'No calls are in this workspace yet.')}</div>"
+    )
+    return _page("AI Call Intake", body, "calls")
+
+
+@app.get("/office/calls/{intake_id}")
+def call_intake_detail(intake_id: str) -> HTMLResponse:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    record = next((value for value in values if str(value.get("id") or "") == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    item = _call_intake_public(record)
+    caller = item["caller"]
+    prop = item["property"]
+    link_buttons = "".join(
+        f"<a class='button secondary' href='{esc(url)}'>{esc(label)}</a>"
+        for label, url in (("Customer", item["links"]["customer"]), ("Property", item["links"]["property"]),
+                           ("RoomFlow job", item["links"]["roomflow"]), ("Estimate draft", item["links"]["estimate"]),
+                           ("Follow-up task", item["links"]["task"]), ("Appointment", item["links"]["appointment"]),
+                           ("Floodman ERP", item["links"]["gauzy"]))
+        if url
+    )
+    address = ", ".join(value for value in (
+        str(prop.get("street") or ""), str(prop.get("city") or ""),
+        str(prop.get("state") or ""), str(prop.get("postal_code") or ""),
+    ) if value)
+    reviews = "".join(f"<li>{esc(str(reason).replace('_', ' ').title())}</li>" for reason in item["review_reasons"])
+    body = f"""
+<div class='actions'><a class='button secondary' href='/office/calls'>Back to call queue</a>{link_buttons}</div>
+<div class='grid two' style='margin-top:16px'>
+  <section class='card'><h2>Caller</h2><p><b>{esc(caller.get('name') or 'Incoming caller')}</b><br>{esc(caller.get('phone_e164') or caller.get('phone') or 'Phone unavailable')}<br>{esc(caller.get('email') or 'Email unavailable')}</p><p>{badge(item['status'])} {badge(item['review_status'])}</p><small>{esc(_detroit_time(item.get('occurred_at')))}</small></section>
+  <section class='card'><h2>Service property</h2><p>{esc(address or 'Address still being collected')}</p><p>{esc(prop.get('property_type') or 'Property type not confirmed')}</p></section>
+</div>
+<section class='card'><h2>Call summary</h2><p>{esc(item['summary'] or item['service_reason'] or 'The assistant is still collecting details.')}</p><div class='pill-list'>{''.join(badge(value) for value in item['requested_services'])}</div><p><b>Urgency:</b> {esc(item['urgency'])} · <b>Transcript:</b> {'Available from the approved provider reference' if item['transcript_available'] else 'Not available'}</p></section>
+<section id='appointment' class='card'><h2>Follow-up and appointment</h2><p><b>Assigned employee:</b> {esc(item['assigned_employee']['name'])}</p><p><b>Preferred time:</b> {esc(item['appointment'].get('requested_window') or 'Not provided')} · <b>Confirmed:</b> {'Yes' if item['appointment'].get('confirmed') else 'No — staff confirmation required'}</p><p><b>Provider call reference:</b> <span class='mono'>{esc(item.get('provider_call_id') or '')}</span></p><p><b>Consent:</b> SMS {esc(item['consent'].get('sms_status') or 'UNKNOWN')} · Email {esc(item['consent'].get('email_status') or 'UNKNOWN')}</p></section>
+{f"<section class='card warning'><h2>Human review needed</h2><ul>{reviews}</ul></section>" if reviews else ''}
+<section class='card'><h2>Financial safety</h2><p>This intake can prepare an unpublished estimate draft, but it cannot invent measurements or prices, send an estimate, accept it, or charge a customer.</p></section>
+"""
+    return _page("Call Intake", body, "calls")
+
+
+@app.get("/office/api/call-intakes/latest")
+def latest_call_intake() -> dict[str, Any]:
+    user = _require("call_intakes.view")
+    values, workspace_id = _call_intakes_for_user(user)
+    return {"item": _call_intake_public(values[0]) if values else None, "workspace_id": workspace_id}
+
+
+@app.get("/office/api/call-intakes/item/{intake_id}")
+def call_intake_api(intake_id: str) -> dict[str, Any]:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    record = next((value for value in values if str(value.get("id") or "") == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    return _call_intake_public(record)
+
+
+@app.get("/office/api/call-intakes/events")
+async def call_intake_events(request: Request) -> StreamingResponse:
+    user = _require("call_intakes.view")
+    user_id = str(user.get("id") or "")
+    last_event_id = str(request.headers.get("last-event-id") or "")
+
+    async def stream():
+        nonlocal last_event_id
+        while True:
+            if await request.is_disconnected():
+                return
+            current_user = store.get_user(user_id)
+            if not current_user or not has_permission(current_user, "call_intakes.view"):
+                return
+            values, _ = _call_intakes_for_user(current_user)
+            if values:
+                item = _call_intake_public(values[0])
+                event_id = f"{item['id']}:{item['event_sequence']}"
+                if event_id != last_event_id:
+                    last_event_id = event_id
+                    yield f"id: {event_id}\nevent: call-intake\ndata: {json.dumps(item, separators=(',', ':'), default=str)}\n\n"
+            else:
+                yield ": waiting for a call intake\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
 
 
 @app.get("/office/api/roomflow/workspaces")
@@ -6463,25 +6757,33 @@ def members_page() -> HTMLResponse:
     )
     user_rows = []
     for item in users:
-        controls = badge("Primary owner", "good") if item.get("role") == "OWNER" else f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><label class='muted'>Access level<select aria-label='Access level for {esc(item.get('name'))}' name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role_labels[role])}</option>" for role in assignable_roles)}</select></label><label class='muted'>Account status<select aria-label='Account status for {esc(item.get('name'))}' name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>Active</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>Disabled</option></select></label><details><summary>Set a local recovery password</summary><input name='password' type='password' minlength='10' autocomplete='new-password' placeholder='At least 10 characters'></details><button>Save access</button></form>"""
+        if item.get("role") == "OWNER":
+            controls = f"""{badge('Primary owner', 'good')}<form method='post' action='/office/members/{esc(item.get('id'))}/update'><input type='hidden' name='role' value='OWNER'><input type='hidden' name='status' value='ACTIVE'><label class='muted'>Call alert mobile<input name='phone' inputmode='tel' autocomplete='tel' value='{esc(item.get('phone') or '')}' placeholder='+12315550199'></label><button>Save alerts</button></form>"""
+        else:
+            controls = f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><label class='muted'>Access level<select aria-label='Access level for {esc(item.get('name'))}' name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role_labels[role])}</option>" for role in assignable_roles)}</select></label><label class='muted'>Account status<select aria-label='Account status for {esc(item.get('name'))}' name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>Active</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>Disabled</option></select></label><label class='muted'>Call alert mobile<input name='phone' inputmode='tel' autocomplete='tel' value='{esc(item.get('phone') or '')}' placeholder='+12315550199'></label><details><summary>Set a local recovery password</summary><input name='password' type='password' minlength='10' autocomplete='new-password' placeholder='At least 10 characters'></details><button>Save access</button></form>"""
         source = item.get("auth_source") or ("FLOODMAN" if item.get("gauzy_user_id") else "LOCAL")
-        user_rows.append([esc(item.get("name")), esc(item.get("email")), badge("Owner" if item.get("role") == "OWNER" else role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge("ERP sign-in" if source in {"GAUZY", "FLOODMAN"} else "ERP + local" if source == "LOCAL_AND_GAUZY" else "Local recovery"), badge("Active" if item.get("status") == "ACTIVE" else "Disabled", "good" if item.get("status") == "ACTIVE" else "neutral"), controls])
+        user_rows.append([esc(item.get("name")), esc(item.get("email")), esc(item.get("phone") or "Not set"), badge("Owner" if item.get("role") == "OWNER" else role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge("ERP sign-in" if source in {"GAUZY", "FLOODMAN"} else "ERP + local" if source == "LOCAL_AND_GAUZY" else "Local recovery"), badge("Active" if item.get("status") == "ACTIVE" else "Disabled", "good" if item.get("status") == "ACTIVE" else "neutral"), controls])
     invite_rows = [[esc(item.get("name")), esc(item.get("email")), badge(role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge(str(item.get("status") or "Pending").title()), esc(str(item.get("expires_at") or "")[:10])] for item in invites]
     role_guide = "".join(f"<div><b>{esc(role_labels[role])}</b><small>{esc(role_help[role])}</small></div>" for role in assignable_roles)
     body = f"""
     <div class='callout success'><b>Use one Floodman ERP sign-in.</b> Add the employee in the main ERP first. The first time they choose <b>Continue with Floodman ERP</b>, Floodman creates their module access automatically—no second RoomFlow account is needed.</div>
     <div class='card'><div class='actions spread'><div><h2>Add or invite an employee</h2><p class='muted'>Create the person once in the main ERP, then return here only if their module access level needs adjustment.</p></div><div class='actions'><a class='button good' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees' target='_top'>Open ERP employees</a><a class='button secondary' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees/invites' target='_top'>Open ERP invitations</a></div></div><h3>Which access level should I choose?</h3><div class='role-guide'>{role_guide}</div><p class='muted'>Start with the narrowest role that fits the job. Only the primary owner can control ownership.</p></div>
-    <div class='card'><h2>Floodman and RoomFlow access</h2><p class='muted'>Changes apply to the integrated Floodman modules. ERP employment and organization permissions remain managed in the main ERP.</p>{table(('Team member','Email','Access level','Sign-in','Status','Change access'), user_rows)}</div>
-    <details class='card plain-details'><summary>Advanced: create a Floodman-only recovery account</summary><p class='muted'>Use this only when the person cannot use the main ERP identity. The invitation expires in seven days and creates a separate local password.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Full name</label><input name='name' minlength='2' maxlength='160' autocomplete='name' required></div><div class='field'><label>Email</label><input type='email' name='email' autocomplete='email' required></div><div class='field'><label>Access level</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create recovery invitation</button></form></details>
+    <div class='card'><h2>Floodman and RoomFlow access</h2><p class='muted'>Changes apply to the integrated Floodman modules. ERP employment and organization permissions remain managed in the main ERP.</p>{table(('Team member','Email','Call alert mobile','Access level','Sign-in','Status','Change access'), user_rows)}</div>
+    <details class='card plain-details'><summary>Advanced: create a Floodman-only recovery account</summary><p class='muted'>Use this only when the person cannot use the main ERP identity. The invitation expires in seven days and creates a separate local password.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Full name</label><input name='name' minlength='2' maxlength='160' autocomplete='name' required></div><div class='field'><label>Email / username</label><input type='email' name='email' autocomplete='email' required></div><div class='field'><label>Call alert mobile</label><input name='phone' inputmode='tel' autocomplete='tel' placeholder='+12315550199'></div><div class='field'><label>Access level</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create recovery invitation</button></form></details>
     <details class='card plain-details'><summary>Invitation history</summary>{table(('Name','Email','Access level','Status','Expires'), invite_rows)}</details>"""
     return _page("Team & Access", body, "members")
 
 
 @app.post("/office/members/invite")
-async def invite_member(name: str = Form(...), email: str = Form(...), role: str = Form(default="VIEWER")) -> HTMLResponse:
+async def invite_member(
+    name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(default=""),
+    role: str = Form(default="VIEWER"),
+) -> HTMLResponse:
     actor = _require("members.manage")
     try:
-        invite, token = store.create_invite(name, email, role, str(actor.get("id")))
+        invite, token = store.create_invite(name, email, role, str(actor.get("id")), phone)
     except ValueError as exc:
         store.set_notice(str(exc))
         return RedirectResponse("/office/members", status_code=303)
@@ -6506,10 +6808,16 @@ async def invite_member(name: str = Form(...), email: str = Form(...), role: str
 
 
 @app.post("/office/members/{user_id}/update")
-def update_member(user_id: str, role: str = Form(...), status: str = Form(...), password: str = Form(default="")) -> RedirectResponse:
+def update_member(
+    user_id: str,
+    role: str = Form(...),
+    status: str = Form(...),
+    phone: str = Form(default=""),
+    password: str = Form(default=""),
+) -> RedirectResponse:
     _require("members.manage")
     try:
-        store.update_user(user_id, role=role, status=status, password=password or None)
+        store.update_user(user_id, role=role, status=status, password=password or None, phone=phone)
         store.set_notice("Member access updated.")
     except (KeyError, ValueError) as exc:
         store.set_notice(str(exc))
@@ -7389,6 +7697,13 @@ def update_estimate(
 async def send_estimate(estimate_id: str) -> RedirectResponse:
     actor = _require("estimates.manage")
     document = _local_record_or_404("estimates", estimate_id)
+    if (
+        str(document.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(document.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(document.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft cannot be sent until staff add verified measurements, line items, and pricing.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     if str(document.get("deposit_due_stage") or "AFTER_AUTHORIZATION").upper() == "IMMEDIATELY":
         document = store.update_record("estimates", estimate_id, {"deposit_payable": True}, actor_id=str(actor.get("id")))
     try:
@@ -7404,7 +7719,14 @@ async def send_estimate(estimate_id: str) -> RedirectResponse:
 @app.post("/office/estimates/{estimate_id}/accept")
 def accept_estimate(estimate_id: str) -> RedirectResponse:
     actor = _require("estimates.manage")
-    _local_record_or_404("estimates", estimate_id)
+    estimate = _local_record_or_404("estimates", estimate_id)
+    if (
+        str(estimate.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(estimate.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(estimate.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft cannot be accepted until staff verify and price the work.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     store.update_record("estimates", estimate_id, {"status": "ACCEPTED", "accepted_at": datetime.now(UTC).isoformat(), "deposit_payable": True}, actor_id=str(actor.get("id")))
     store.set_notice("Estimate accepted. The requested deposit is now payable and the estimate can be converted into an invoice.")
     return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)

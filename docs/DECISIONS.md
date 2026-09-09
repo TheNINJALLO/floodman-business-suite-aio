@@ -261,3 +261,21 @@
 - Safety: The installer verifies the complete download before an atomic move. An existing matching ZIP is retained; an existing mismatch stops installation and is not overwritten.
 - Credentials: The pinned source was verified anonymously accessible, so the egg stores no GitHub token or other repository credential. Manual upload remains the fallback when a node cannot reach `raw.githubusercontent.com`.
 - Boundary: A successful remote GET and installer syntax check do not claim that the target Pterodactyl node completed installation or startup; BLK-005 remains open.
+
+## DEC-035 — Add signed AI call intake without changing release identities
+
+- Date: 2026-09-08
+- Authorization: The user requested an incoming-call vertical slice through Floodman Office, Floodman ERP/Gauzy, RoomFlow, estimates, native clients, tasks, notifications and live screen-pop, while explicitly prohibiting push, deployment, live credentials, release rebuilds and production changes.
+- Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, the minimum native-client pins and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8` because the Mobile API additions are capability-compatible.
+- Ownership: PostgreSQL/Orchestrator owns signed provider events, replay/order state, canonical IDs and outbox. Office atomically owns the staff-visible call/customer/property/RoomFlow/estimate/task/notification projection. Exact workspace-scoped identity matches are automatic; ambiguity and provider failures require human review.
+- Financial safety: Call-created estimates are zero-dollar, unpriced and unpublished. No measurement, line item, price, send, acceptance, conversion or charge is inferred from a call.
+- External boundary: Native OS push credentials, provider account setup, public HTTPS exposure, production migration and enablement remain operator-owned gates. Local source and browser evidence cannot claim those gates passed.
+
+## DEC-036 — Release and deploy AI call intake as v4.7.2
+
+- Date: 2026-09-08
+- Authorization: The user explicitly requested that the completed update be pushed to the Pterodactyl panel for testing, authorizing a distinct release, Git publication, backup, upload, restart, and live health checks for the intended Floodman server.
+- Identity: Advance only server/web/Pterodactyl to `4.7.2`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged because the native API changes are additive.
+- Immutability: Preserve every v4.7.1 artifact and checksum. Publish new v4.7.2 runtime, launcher, egg, and checksums; pin the egg download to the immutable commit that contains the v4.7.2 runtime.
+- Deployment safety: Back up persistent state before switching the launcher, retain the v4.7.1 launcher and runtime for rollback, never delete or reset live data, and require readiness plus authenticated functional checks after restart.
+- Provider boundary: This release deploys Floodman's provider-neutral intake receiver and deterministic test adapter. It does not claim that the separate Twilio/Asterisk voice stack's recognition, pacing, barge-in, voice selection, or call hang-up defects are fixed.

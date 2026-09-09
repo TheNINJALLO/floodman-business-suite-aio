@@ -92,3 +92,9 @@ Before the dedicated-server move:
 6. Verify signed-document hashes and external mappings.
 7. Run the complete lifecycle acceptance test.
 8. Only then cut over DNS and external HTTPS proxy clients.
+
+## AI call intake records
+
+Migration `005_ai_call_intakes.sql` adds PostgreSQL `call_intakes` and `call_intake_events`. The event table stores sequence, routing identifiers, UTC timestamps and a SHA-256 payload fingerprint; it does not store a raw provider body or transcript. The canonical row stores only the structured fields required to project the call and its linked IDs. Redacted audits contain event type, sequence, outcome and identifiers rather than caller content.
+
+Office keeps `call_intakes` and `call_intake_audit` under its existing `DATA_DIR` atomic state file alongside the linked operational records. Each call uses a stable note ID so a later summary updates the customer-file call note instead of duplicating it. Dismissing a browser call card changes only session UI state and never deletes the queue record. All stored timestamps are UTC; staff call pages render them in America/Detroit.

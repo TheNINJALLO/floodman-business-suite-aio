@@ -15,31 +15,34 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "dashboard.view", "contacts.manage", "properties.manage", "estimates.manage", "invoices.manage",
         "payments.manage", "documents.manage", "notes.manage", "messages.manage", "receivables.manage",
         "time.manage", "tasks.manage", "calendar.manage", "intelligence.manage", "alerts.manage", "members.manage",
-        "connections.manage", "imports.manage", "apps.view",
+        "connections.manage", "imports.manage", "apps.view", "call_intakes.manage",
     },
     "OFFICE_MANAGER": {
         "dashboard.view", "contacts.manage", "properties.manage", "estimates.manage", "invoices.manage",
         "payments.manage", "documents.manage", "notes.manage", "messages.manage", "receivables.manage",
         "time.view", "tasks.manage", "calendar.manage", "intelligence.view", "alerts.manage", "apps.view",
+        "call_intakes.manage",
     },
     "BILLING": {
         "dashboard.view", "contacts.view", "properties.view", "estimates.view", "invoices.manage",
         "payments.manage", "documents.view", "notes.manage", "messages.manage", "receivables.manage",
-        "alerts.view", "calendar.view", "apps.view",
+        "alerts.view", "calendar.view", "apps.view", "call_intakes.view",
     },
     "ESTIMATOR": {
         "dashboard.view", "contacts.manage", "properties.manage", "estimates.manage", "invoices.view",
         "payments.view", "documents.manage", "notes.manage", "messages.view", "time.self", "tasks.manage", "calendar.view",
-        "apps.view",
+        "apps.view", "call_intakes.view",
     },
     "TECHNICIAN": {
         "dashboard.view", "contacts.view", "properties.view", "estimates.view", "invoices.view",
         "documents.view", "notes.manage", "messages.view", "time.self", "tasks.manage", "calendar.view", "apps.view",
+        "call_intakes.view",
     },
     "VIEWER": {
         "dashboard.view", "contacts.view", "properties.view", "estimates.view", "invoices.view",
         "payments.view", "documents.view", "notes.view", "messages.view", "receivables.view",
         "time.view", "tasks.view", "calendar.view", "intelligence.view", "alerts.view", "apps.view",
+        "call_intakes.view",
     },
 }
 

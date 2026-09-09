@@ -9,6 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from .schemas import CompletionRequest, ChangeOrderRequest, SyncEstimateRequest
+from .ai_calling import AiCallEvent, event_dedupe_key, event_order_decision, next_call_status, stable_projection_ids
+from .phone import normalize_e164
 from .security import sha256_hex
 from .state_machine import WorkflowState, assert_transition
 
@@ -91,14 +93,26 @@ def fail_idempotency(conn: Connection, scope: str, key: str, error: str) -> None
     )
 
 
-def enqueue(conn: Connection, aggregate_id: str, event_type: str, payload: dict[str, Any] | None = None) -> str:
+def enqueue(
+    conn: Connection,
+    aggregate_id: str,
+    event_type: str,
+    payload: dict[str, Any] | None = None,
+    *,
+    aggregate_type: str = "WORKFLOW_JOB",
+) -> str:
     event_id = conn.execute(
         text("""
             INSERT INTO outbox_events(aggregate_type,aggregate_id,event_type,payload)
-            VALUES ('WORKFLOW_JOB',CAST(:aggregate_id AS uuid),:event_type,CAST(:payload AS jsonb))
+            VALUES (:aggregate_type,CAST(:aggregate_id AS uuid),:event_type,CAST(:payload AS jsonb))
             RETURNING id
         """),
-        {"aggregate_id": aggregate_id, "event_type": event_type, "payload": _json(payload or {})},
+        {
+            "aggregate_id": aggregate_id,
+            "aggregate_type": aggregate_type,
+            "event_type": event_type,
+            "payload": _json(payload or {}),
+        },
     ).scalar_one()
     return str(event_id)
 
@@ -422,9 +436,19 @@ def retry_outbox(conn: Connection, event: dict[str, Any], error: str, max_attemp
         SET status=:status, available_at=:available_at, locked_at=NULL, locked_by=NULL, last_error=:error
         WHERE id=CAST(:id AS uuid)
     """), {"id": event["id"], "status": status, "available_at": available_at, "error": error[:4000]})
-    if status == "DEAD":
+    if status == "DEAD" and str(event.get("aggregate_type") or "") == "WORKFLOW_JOB":
         conn.execute(
             text("UPDATE workflow_jobs SET last_error=:error WHERE id=:id"),
+            {"id": event["aggregate_id"], "error": error[:4000]},
+        )
+    elif status == "DEAD" and str(event.get("aggregate_type") or "") == "CALL_INTAKE":
+        conn.execute(
+            text("""
+                UPDATE call_intakes
+                SET status='REVIEW_REQUIRED', review_status='REVIEW_REQUIRED',
+                    projection_status='FAILED', projection_error=:error
+                WHERE id=:id
+            """),
             {"id": event["aggregate_id"], "error": error[:4000]},
         )
 
@@ -444,6 +468,300 @@ def finish_webhook(conn: Connection, provider: str, event_id: str, status: str, 
         UPDATE webhook_events SET status=:status,error=:error,processed_at=now()
         WHERE provider=:provider AND provider_event_id=:event_id
     """), {"provider": provider, "event_id": event_id, "status": status, "error": error})
+
+
+def _merge_call_values(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, Any]:
+    result = dict(existing or {})
+    for key, value in incoming.items():
+        if value not in (None, "", [], {}):
+            result[key] = value
+    return result
+
+
+def call_intake_projection(intake: dict[str, Any]) -> dict[str, Any]:
+    caller = dict(intake.get("caller") or {})
+    normalized = normalize_e164(str(caller.get("phone") or ""))
+    caller["phone_e164"] = normalized or ""
+    return {
+        "intake_id": str(intake["id"]),
+        "organization_id": intake["organization_id"],
+        "workspace_id": intake["workspace_id"],
+        "provider": intake["provider"],
+        "provider_call_id": intake["provider_call_id"],
+        "event_type": intake["last_event_type"],
+        "event_sequence": int(intake["last_sequence"]),
+        "status": intake["status"],
+        "occurred_at": intake["last_event_at"],
+        "started_at": intake.get("started_at"),
+        "ended_at": intake.get("ended_at"),
+        "caller": caller,
+        "property": dict(intake.get("property") or {}),
+        "service_reason": intake.get("service_reason") or "",
+        "summary": intake.get("summary") or "",
+        "requested_services": list(intake.get("requested_services") or []),
+        "urgency": intake.get("urgency") or "NORMAL",
+        "appointment": dict(intake.get("appointment") or {}),
+        "consent": dict(intake.get("consent") or {}),
+        "transcript_available": bool(intake.get("transcript_available")),
+        "transcript_reference": intake.get("transcript_reference") or "",
+        "failure_reason": intake.get("failure_reason") or "",
+        "review_reasons": list(intake.get("review_reasons") or []),
+        "proposed_ids": dict(intake.get("proposed_ids") or {}),
+    }
+
+
+def get_call_intake(conn: Connection, intake_id: str, *, for_update: bool = False) -> dict[str, Any]:
+    suffix = " FOR UPDATE" if for_update else ""
+    result = _row(conn.execute(
+        text(f"SELECT * FROM call_intakes WHERE id=CAST(:id AS uuid){suffix}"),
+        {"id": intake_id},
+    ))
+    if not result:
+        raise NotFoundError("Call intake not found")
+    return result
+
+
+def ingest_call_event(conn: Connection, event: AiCallEvent, body: bytes) -> dict[str, Any]:
+    """Persist a canonical call event and enqueue its latest Office projection."""
+
+    ids = stable_projection_ids(event.provider, event.provider_call_id)
+    dedupe = event_dedupe_key(event)
+    payload_hash = sha256_hex(body)
+    inserted = conn.execute(text("""
+        INSERT INTO call_intake_events(
+            provider,provider_call_id,provider_event_id,source_event_id,event_type,event_sequence,
+            organization_id,workspace_id,payload_sha256,occurred_at
+        ) VALUES (
+            :provider,:call_id,:dedupe,:event_id,:event_type,:sequence,
+            :organization_id,:workspace_id,:payload_hash,:occurred_at
+        )
+        ON CONFLICT DO NOTHING
+        RETURNING id
+    """), {
+        "provider": event.provider,
+        "call_id": event.provider_call_id,
+        "dedupe": dedupe,
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "sequence": event.event_sequence,
+        "organization_id": event.organization_id,
+        "workspace_id": event.workspace_id,
+        "payload_hash": payload_hash,
+        "occurred_at": event.occurred_at,
+    }).scalar_one_or_none()
+    if inserted is None:
+        replay = _row(conn.execute(text("""
+            SELECT payload_sha256 FROM call_intake_events
+            WHERE provider=:provider AND provider_event_id=:dedupe
+        """), {"provider": event.provider, "dedupe": dedupe}))
+        if replay is None:
+            replay = _row(conn.execute(text("""
+                SELECT payload_sha256 FROM call_intake_events
+                WHERE provider=:provider AND provider_call_id=:call_id
+                  AND event_type=:event_type AND event_sequence=:sequence
+            """), {
+                "provider": event.provider,
+                "call_id": event.provider_call_id,
+                "event_type": event.event_type,
+                "sequence": event.event_sequence,
+            }))
+        if replay and replay["payload_sha256"] != payload_hash:
+            raise ConflictError("A call event replay used a different payload")
+        return {"accepted": False, "replayed": True, "intake_id": ids["intake_id"]}
+
+    existing = _row(conn.execute(text("""
+        SELECT * FROM call_intakes
+        WHERE provider=:provider AND provider_call_id=:call_id
+        FOR UPDATE
+    """), {"provider": event.provider, "call_id": event.provider_call_id}))
+    if existing and event_order_decision(int(existing["last_sequence"]), event) == "STALE":
+        conn.execute(text("""
+            UPDATE call_intake_events SET status='IGNORED',processed_at=now(),error='STALE_SEQUENCE'
+            WHERE id=:id
+        """), {"id": inserted})
+        audit(
+            conn, event.organization_id, "AI_CALLING_PROVIDER", event.provider,
+            "CALL_EVENT_IGNORED", "call_intake", str(existing["id"]),
+            {"event_type": event.event_type, "event_sequence": event.event_sequence, "reason": "STALE_SEQUENCE"},
+        )
+        return {"accepted": False, "replayed": False, "stale": True, "intake_id": str(existing["id"])}
+
+    caller = _merge_call_values((existing or {}).get("caller"), event.caller.model_dump(mode="json"))
+    property_data = _merge_call_values((existing or {}).get("property"), event.property.model_dump(mode="json"))
+    appointment = _merge_call_values((existing or {}).get("appointment"), event.appointment.model_dump(mode="json"))
+    consent = _merge_call_values((existing or {}).get("consent"), event.consent.model_dump(mode="json"))
+    requested_services = list(dict.fromkeys([
+        *list((existing or {}).get("requested_services") or []),
+        *[str(value)[:200] for value in event.requested_services],
+    ]))
+    review_reasons = list(dict.fromkeys([
+        *list((existing or {}).get("review_reasons") or []),
+        *[str(value)[:200] for value in event.review_reasons],
+    ]))
+    if existing is None and (event.event_sequence != 0 or event.event_type != "call-started"):
+        review_reasons.append("OUT_OF_ORDER_INITIAL_EVENT")
+    if event.identity_ambiguous:
+        review_reasons.append("PROVIDER_IDENTITY_AMBIGUOUS")
+    if event.caller.phone and not normalize_e164(event.caller.phone):
+        review_reasons.append("INVALID_CALLER_PHONE")
+    caller_email = str(event.caller.email or "").strip()
+    if caller_email and (
+        caller_email.count("@") != 1
+        or " " in caller_email
+        or not all(caller_email.split("@", 1))
+    ):
+        review_reasons.append("INVALID_CALLER_EMAIL")
+    if event.event_type == "call-failed":
+        review_reasons.append("PROVIDER_CALL_FAILED")
+    review_reasons = list(dict.fromkeys(review_reasons))
+    call_status = next_call_status(event, review_reasons=review_reasons)
+    started_at = (existing or {}).get("started_at")
+    if event.event_type == "call-started" and started_at is None:
+        started_at = event.occurred_at
+    ended_at = (existing or {}).get("ended_at")
+    if event.event_type in {"call-ended", "call-failed"}:
+        ended_at = event.occurred_at
+
+    params = {
+        "id": ids["intake_id"],
+        "organization_id": event.organization_id,
+        "workspace_id": event.workspace_id,
+        "provider": event.provider,
+        "call_id": event.provider_call_id,
+        "status": call_status,
+        "review_status": "REVIEW_REQUIRED" if review_reasons else "PENDING",
+        "event_type": event.event_type,
+        "sequence": event.event_sequence,
+        "caller": _json(caller),
+        "property": _json(property_data),
+        "service_reason": event.service_reason or (existing or {}).get("service_reason") or "",
+        "summary": event.summary or (existing or {}).get("summary") or "",
+        "requested_services": _json(requested_services),
+        "urgency": event.urgency or (existing or {}).get("urgency") or "NORMAL",
+        "appointment": _json(appointment),
+        "consent": _json(consent),
+        "transcript_available": bool(event.transcript_available or (existing or {}).get("transcript_available")),
+        "transcript_reference": event.transcript_reference or (existing or {}).get("transcript_reference") or "",
+        "failure_reason": event.failure_reason or (existing or {}).get("failure_reason") or "",
+        "review_reasons": _json(review_reasons),
+        "proposed_ids": _json(ids),
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "last_event_at": event.occurred_at,
+    }
+    if existing:
+        conn.execute(text("""
+            UPDATE call_intakes SET
+                organization_id=:organization_id,workspace_id=:workspace_id,status=:status,
+                review_status=:review_status,last_event_type=:event_type,last_sequence=:sequence,
+                caller=CAST(:caller AS jsonb),property=CAST(:property AS jsonb),service_reason=:service_reason,
+                summary=:summary,requested_services=CAST(:requested_services AS jsonb),urgency=:urgency,
+                appointment=CAST(:appointment AS jsonb),consent=CAST(:consent AS jsonb),
+                transcript_available=:transcript_available,transcript_reference=:transcript_reference,
+                failure_reason=:failure_reason,review_reasons=CAST(:review_reasons AS jsonb),
+                proposed_ids=CAST(:proposed_ids AS jsonb),started_at=:started_at,ended_at=:ended_at,
+                last_event_at=:last_event_at,projection_status='PENDING',projection_error=NULL
+            WHERE id=CAST(:id AS uuid)
+        """), params)
+    else:
+        conn.execute(text("""
+            INSERT INTO call_intakes(
+                id,organization_id,workspace_id,provider,provider_call_id,status,review_status,
+                last_event_type,last_sequence,caller,property,service_reason,summary,requested_services,
+                urgency,appointment,consent,transcript_available,transcript_reference,failure_reason,
+                review_reasons,proposed_ids,started_at,ended_at,last_event_at
+            ) VALUES (
+                CAST(:id AS uuid),:organization_id,:workspace_id,:provider,:call_id,:status,:review_status,
+                :event_type,:sequence,CAST(:caller AS jsonb),CAST(:property AS jsonb),:service_reason,:summary,
+                CAST(:requested_services AS jsonb),:urgency,CAST(:appointment AS jsonb),CAST(:consent AS jsonb),
+                :transcript_available,:transcript_reference,:failure_reason,CAST(:review_reasons AS jsonb),
+                CAST(:proposed_ids AS jsonb),:started_at,:ended_at,:last_event_at
+            )
+        """), params)
+
+    save_mapping(
+        conn,
+        event.provider,
+        "call",
+        ids["intake_id"],
+        event.provider_call_id,
+        {"last_event_type": event.event_type, "last_sequence": event.event_sequence},
+    )
+    intake = get_call_intake(conn, ids["intake_id"])
+    projection = call_intake_projection(intake)
+    enqueue(
+        conn,
+        ids["intake_id"],
+        "PROJECT_CALL_INTAKE_TO_OFFICE",
+        projection,
+        aggregate_type="CALL_INTAKE",
+    )
+    conn.execute(text("""
+        UPDATE call_intake_events SET status='PROCESSED',processed_at=now(),intake_id=CAST(:intake_id AS uuid)
+        WHERE id=:event_id
+    """), {"intake_id": ids["intake_id"], "event_id": inserted})
+    audit(
+        conn, event.organization_id, "AI_CALLING_PROVIDER", event.provider,
+        "CALL_EVENT_ACCEPTED", "call_intake", ids["intake_id"],
+        {"event_type": event.event_type, "event_sequence": event.event_sequence, "status": call_status,
+         "review_reasons": review_reasons},
+    )
+    return {"accepted": True, "replayed": False, "stale": False, "intake_id": ids["intake_id"], "status": call_status}
+
+
+def update_call_projection(conn: Connection, intake_id: str, result: dict[str, Any]) -> dict[str, Any]:
+    allowed = {
+        key: result.get(key)
+        for key in (
+            "customer_id", "property_id", "job_id", "roomflow_job_id", "estimate_id", "note_id", "task_id", "appointment_id",
+            "gauzy_contact_id", "gauzy_project_id",
+        )
+    }
+    updated = _row(conn.execute(text("""
+        UPDATE call_intakes SET
+            customer_id=:customer_id,property_id=:property_id,job_id=:job_id,
+            roomflow_job_id=:roomflow_job_id,estimate_id=:estimate_id,note_id=:note_id,
+            task_id=:task_id,appointment_id=:appointment_id,
+            gauzy_contact_id=COALESCE(:gauzy_contact_id,gauzy_contact_id),
+            gauzy_project_id=COALESCE(:gauzy_project_id,gauzy_project_id),
+            review_status=:review_status,projection_status=:projection_status,projection_error=NULL,
+            projection_result=CAST(:projection_result AS jsonb)
+        WHERE id=CAST(:id AS uuid)
+        RETURNING *
+    """), {
+        "id": intake_id,
+        **allowed,
+        "review_status": result.get("review_status") or "PROJECTED",
+        "projection_status": result.get("projection_status") or "PROJECTED",
+        "projection_result": _json({key: value for key, value in allowed.items() if value}),
+    }))
+    if not updated:
+        raise NotFoundError("Call intake not found")
+    return updated
+
+
+def update_call_gauzy_links(
+    conn: Connection,
+    intake_id: str,
+    *,
+    gauzy_contact_id: str,
+    gauzy_project_id: str | None,
+) -> dict[str, Any]:
+    intake = get_call_intake(conn, intake_id, for_update=True)
+    customer_id = str(intake.get("customer_id") or "")
+    property_id = str(intake.get("property_id") or "")
+    if not customer_id:
+        raise ConflictError("Call intake has no canonical customer for Floodman ERP mapping")
+    save_mapping(conn, "gauzy", "call_customer", customer_id, gauzy_contact_id)
+    if gauzy_project_id:
+        if not property_id:
+            raise ConflictError("Call intake has no canonical property for Floodman ERP mapping")
+        save_mapping(conn, "gauzy", "call_property_project", property_id, gauzy_project_id)
+    return _row(conn.execute(text("""
+        UPDATE call_intakes SET gauzy_contact_id=:contact_id,gauzy_project_id=:project_id,
+            gauzy_sync_status='SYNCED',gauzy_sync_error=NULL
+        WHERE id=CAST(:id AS uuid) RETURNING *
+    """), {"id": intake_id, "contact_id": gauzy_contact_id, "project_id": gauzy_project_id}))
 
 
 def audit(

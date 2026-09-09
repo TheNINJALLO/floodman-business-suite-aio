@@ -40,6 +40,10 @@ from .repository import (
     positive_change_orders_missing_invoice,
     update_document,
     update_job_fields,
+    call_intake_projection,
+    get_call_intake,
+    update_call_gauzy_links,
+    update_call_projection,
 )
 from .state_machine import WorkflowState
 from .phone import normalize_e164
@@ -88,12 +92,112 @@ class WorkflowService:
             "SEND_PAYMENT_CONFIRMATION": self.send_payment_confirmation,
             "SEND_HELP_REPLY": self.send_help_reply,
             "SEND_MANUAL_REPLY": self.send_manual_reply,
+            "PROJECT_CALL_INTAKE_TO_OFFICE": self.project_call_intake_to_office,
+            "SYNC_CALL_INTAKE_TO_GAUZY": self.sync_call_intake_to_gauzy,
         }
         event_type = str(event["event_type"])
         handler = handlers.get(event_type)
         if handler is None:
             raise PermanentEventError(f"Unknown outbox event type {event_type}")
         handler(str(event["aggregate_id"]), dict(event.get("payload") or {}))
+
+    def project_call_intake_to_office(self, intake_id: str, payload: dict[str, Any]) -> None:
+        result = self.office.project_call_intake(payload)
+        with transaction() as conn:
+            intake = update_call_projection(conn, intake_id, result)
+            caller = dict(intake.get("caller") or {})
+            property_data = dict(intake.get("property") or {})
+            complete_identity = bool(
+                str(caller.get("email") or "").strip()
+                and str(caller.get("phone") or "").strip()
+                and (str(caller.get("name") or "").strip() or str(caller.get("first_name") or "").strip())
+            )
+            complete_property = all(
+                str(property_data.get(key) or "").strip()
+                for key in ("street", "city", "state", "postal_code")
+            )
+            if (
+                str(result.get("projection_status") or "") == "PROJECTED"
+                and result.get("customer_id")
+                and result.get("property_id")
+                and complete_identity
+                and complete_property
+                and not intake.get("gauzy_contact_id")
+            ):
+                enqueue(
+                    conn,
+                    intake_id,
+                    "SYNC_CALL_INTAKE_TO_GAUZY",
+                    {},
+                    aggregate_type="CALL_INTAKE",
+                )
+
+    def sync_call_intake_to_gauzy(self, intake_id: str, payload: dict[str, Any]) -> None:
+        with transaction() as conn:
+            intake = get_call_intake(conn, intake_id)
+        if intake.get("gauzy_contact_id"):
+            self.office.update_call_intake_links(
+                intake_id,
+                {
+                    "gauzy_contact_id": str(intake["gauzy_contact_id"]),
+                    "gauzy_project_id": str(intake.get("gauzy_project_id") or ""),
+                },
+            )
+            return
+        projection = call_intake_projection(intake)
+        caller = dict(projection.get("caller") or {})
+        property_data = dict(projection.get("property") or {})
+        name_parts = str(caller.get("name") or "").strip().split(None, 1)
+        first_name = str(caller.get("first_name") or (name_parts[0] if name_parts else "")).strip()
+        last_name = str(caller.get("last_name") or (name_parts[1] if len(name_parts) > 1 else "")).strip()
+        address = {
+            "street": str(property_data.get("street") or "").strip(),
+            "street2": None,
+            "city": str(property_data.get("city") or "").strip(),
+            "state": str(property_data.get("state") or "").strip(),
+            "postal_code": str(property_data.get("postal_code") or "").strip(),
+            "country": str(property_data.get("country") or "US").strip(),
+        }
+        customer = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": str(caller.get("email") or "").strip().lower(),
+            "phone": str(caller.get("phone_e164") or caller.get("phone") or "").strip(),
+        }
+        contact = self.gauzy.ensure_contact(customer, {"service_address": address})
+        contact_id = str(contact.get("id") or "")
+        if not contact_id:
+            raise RuntimeError("Floodman ERP contact response did not include id")
+        job = {
+            "id": intake_id,
+            "roomflow_job_id": str(intake.get("roomflow_job_id") or intake_id),
+            "customer": customer,
+            "property": {"service_address": address},
+            "currency": "USD",
+        }
+        project = self.gauzy.ensure_property_project(job, contact_id=contact_id)
+        project_id = str((project or {}).get("id") or "")
+        with transaction() as conn:
+            update_call_gauzy_links(
+                conn,
+                intake_id,
+                gauzy_contact_id=contact_id,
+                gauzy_project_id=project_id or None,
+            )
+            audit(
+                conn,
+                str(intake.get("organization_id") or ""),
+                "SYSTEM",
+                "outbox-worker",
+                "CALL_INTAKE_GAUZY_LINKED",
+                "call_intake",
+                intake_id,
+                {"gauzy_contact_linked": True, "gauzy_project_linked": bool(project_id)},
+            )
+        self.office.update_call_intake_links(
+            intake_id,
+            {"gauzy_contact_id": contact_id, "gauzy_project_id": project_id},
+        )
 
     def sync_estimate_to_gauzy(self, job_id: str, payload: dict[str, Any]) -> None:
         with transaction() as conn:

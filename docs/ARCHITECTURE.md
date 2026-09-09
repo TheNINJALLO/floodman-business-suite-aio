@@ -153,3 +153,9 @@ The embedded RoomFlow engine must never receive database credentials or service-
 ## Release coupling
 
 The native apps and server form a versioned contract. Health/config responses carry API version, minimum client version and capability names. A mobile app should refuse an incompatible server rather than attempt partial operation.
+
+## Incoming AI call vertical slice
+
+The Orchestrator owns the public signed webhook, provider-neutral normalization, event ordering, replay ledger, canonical call IDs, PostgreSQL transaction and outbox. Office owns the local customer/property match, durable staff queue, screen-pop, notifications, replay-safe customer-file call note, RoomFlow job and unpublished estimate. Exact workspace-scoped phone/email matches are the only automatic identity joins; ambiguous or failed calls become review work.
+
+Office is written before any Floodman ERP/Gauzy synchronization. The provider call ID maps to the canonical intake ID; the worker may then create or reuse a Gauzy contact and property project, map those external IDs to the resolved canonical customer and property IDs, and project them back into Office. It never creates a Gauzy estimate from the unpriced call draft. See `AI_CALLING_SETUP.md` for the signed event and approval contract.
