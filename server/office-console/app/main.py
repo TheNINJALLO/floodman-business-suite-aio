@@ -1318,31 +1318,17 @@ async def office_dashboard() -> HTMLResponse:
         for item in payments
     )
     job = state.get("job") or {}
-    job_card = json_pre(job) if job else "<p class='muted'>No active staging job. Use the Engineering Sandbox to create one.</p>"
+    job_card = f"<details class='card'><summary>Current workflow job</summary><div style='margin-top:12px'>{json_pre(job)}</div></details>" if job else ""
     body = f"""
-<section class='desktop-workspace-hero'><div><span class='desktop-workspace-kicker'>DESKTOP OPERATIONS WORKSPACE</span><h2>Floodman desktop command center</h2><p>Use the full sidebar, multi-column forms, searchable tables, estimates, invoices, schedules, customer files, RoomFlow, and administration from a computer. The phone and tablet workspace remains separate.</p></div><div class='actions desktop-workspace-actions'><a class='button good' href='/full-erp' data-use-desktop>Open full ERP</a><a class='button secondary' href='/office/mobile?mobile=1' data-use-mobile>Open mobile workspace</a></div></section>
-<div class='grid'>
-<div class='card metric'><small>Contacts</small><strong>{len(contacts)}</strong></div>
+<div class='card'><h2>Start work</h2><div class='actions'><a class='button good' href='/office/contacts'>Customers</a><a class='button' href='/office/estimates/new'>New estimate</a><a class='button' href='/office/calls'>Calls</a><a class='button secondary' href='/office/roomflow'>RoomFlow</a><a class='button secondary' href='/office/invoices'>Billing</a></div></div>
+<div class='grid metrics-grid'>
+<div class='card metric'><small>Customers</small><strong>{len(contacts)}</strong></div>
 <div class='card metric'><small>Properties</small><strong>{len(properties)}</strong></div>
 <div class='card metric'><small>Estimates</small><strong>{len(estimates)}</strong></div>
-<div class='card metric'><small>Invoices</small><strong>{len(invoices) + len(square)}</strong></div>
-<div class='card metric'><small>Verified live balance</small><strong>{money_cents(outstanding)}</strong></div>
-<div class='card metric'><small>Imported archive balance</small><strong>{money_cents(imported_due)}</strong><small>Not enrolled in reminders</small></div>
-<div class='card metric'><small>Payments recorded</small><strong>{money_cents(paid_cents)}</strong></div>
-<div class='card metric'><small>Documents</small><strong>{len(documents)}</strong></div>
-<div class='card metric'><small>Notes</small><strong>{len(notes)}</strong></div>
-<div class='card metric'><small>Open A/R cases</small><strong>{len(ar_cases)}</strong></div>
+<div class='card metric'><small>Live balance</small><strong>{money_cents(outstanding)}</strong></div>
 <div class='card metric'><small>Open alerts</small><strong>{len(alerts)}</strong></div>
 </div>
-<div class='card'><h2>Quick start</h2><div class='actions'><a class='button' href='/office/apps'>All applications</a><a class='button' href='/office/contacts'>Add contact</a><a class='button' href='/office/estimates/new'>Create estimate</a><a class='button' href='/office/documents'>Send document</a><a class='button' href='/office/members'>Add members</a><a class='button secondary' href='/office/time'>Time clock</a><a class='button secondary' href='/office/intelligence'>AI competition</a></div></div>
-<div class='card'><h2>Current workflow job</h2>{job_card}</div>
-<div class='card'><h2>How the front ends fit together</h2><div class='grid'>
-<div><h3>Floodman Office</h3><p class='muted'>This is the owner command center for Floodman-specific customer, property, billing, signing, A/R, messaging, member, import, and intelligence workflows.</p></div>
-<div><h3>RoomFlow</h3><p class='muted'>Build the property scope and estimate, then send it to the orchestrator.</p></div>
-<div><h3>Floodman ERP</h3><p class='muted'>The genuine full ERP is included in the full launch profile for CRM, staff, time, projects, tasks, estimates, invoices, accounting, HR, inventory, reports, roles, and integrations.</p></div>
-<div><h3>Documenso</h3><p class='muted'>The genuine signing front end is included for templates, PDF field placement, recipients, signatures, audit records, and document management.</p></div>
-<div><h3>Floodman Payments</h3><p class='muted'>Secure online payments, card-by-phone payments, saved payment methods, and transaction records.</p></div>
-</div></div>
+<details class='card'><summary>More totals</summary><div class='grid metrics-grid' style='margin-top:15px'><div class='metric'><small>Invoices</small><strong>{len(invoices) + len(square)}</strong></div><div class='metric'><small>Imported balance</small><strong>{money_cents(imported_due)}</strong></div><div class='metric'><small>Payments recorded</small><strong>{money_cents(paid_cents)}</strong></div><div class='metric'><small>Documents</small><strong>{len(documents)}</strong></div><div class='metric'><small>Notes</small><strong>{len(notes)}</strong></div><div class='metric'><small>Open A/R cases</small><strong>{len(ar_cases)}</strong></div></div></details>{job_card}
 """
     return _page("Operations Dashboard", body, "dashboard")
 
@@ -3090,14 +3076,11 @@ async def contacts_page(q: str = "", status: str = "", page: int = 1) -> HTMLRes
     rows = []
     for item in visible:
         contact_id = str(item.get("id") or "")
-        tags = list(item.get("tags") or [])
         rows.append([
             f"<div class='customer-name'><a href='/office/contacts/{esc(contact_id)}'><b>{esc(_contact_label(item))}</b></a><small>{esc(item.get('company') or '')}</small></div>",
             f"{esc(item.get('primaryEmail') or item.get('email') or '')}<br><span class='muted'>{esc(item.get('primaryPhone') or item.get('phone') or '')}</span>",
-            esc(_contact_address(item)),
             str(property_counts.get(contact_id, 0)),
-            f"<div class='tag-list'>{''.join(f'<span class=\'tag-chip\'>{esc(tag)}</span>' for tag in tags[:5])}</div>" if tags else badge(item.get("status") or "ACTIVE"),
-            esc(item.get("last_activity_action") or item.get("lead_source") or item.get("source") or ""),
+            f"<a class='button secondary small' href='/office/contacts/{esc(contact_id)}'>Open</a>",
         ])
     query_value = quote(q)
     status_value = quote(status)
@@ -3111,7 +3094,7 @@ async def contacts_page(q: str = "", status: str = "", page: int = 1) -> HTMLRes
         <div class='field'><label>Company</label><input name='company'></div><div class='field'><label>Email</label><input type='email' name='email'></div>
         <div class='field'><label>Phone</label><input name='phone'></div><div class='field'><label>Lead source</label><input name='lead_source' placeholder='Website, referral, repeat customer'></div>
         <div class='field full'><label>Initial note</label><textarea name='notes'></textarea></div></div><button style='margin-top:12px'>Create customer file</button></form></details>"""
-    body = f"{search_form}{create}<div class='card'><h2>Customer files</h2>{table(('Customer','Contact','Mailing address','Properties','Tags / status','Recent activity'), rows, 'No customers match this search.') }<div class='pagination'>{previous}<span>Page {current} of {pages}</span>{following}</div></div>"
+    body = f"{search_form}{create}<div class='card'><h2>Customers</h2>{table(('Customer','Contact','Properties','Open'), rows, 'No customers match this search.') }<div class='pagination'>{previous}<span>Page {current} of {pages}</span>{following}</div></div>"
     return _page("Customer Files", body, "contacts")
 
 
@@ -3225,6 +3208,7 @@ async def contact_detail(contact_id: str) -> HTMLResponse:
     tag_editor = ""
     if has_permission(_user(), "contacts.manage"):
         tag_editor = f"""<form method='post' action='/office/contacts/{esc(contact_id)}/tags'><div class='field'><label>Customer tags</label><input name='tags' value='{esc(', '.join(tags))}' placeholder='VIP, insurance, repeat customer, commercial'></div><button class='secondary' style='margin-top:10px'>Save tags</button></form>"""
+    tag_controls = f"<details class='plain-details'><summary>Edit customer tags</summary><div style='margin-top:12px'>{tag_editor}</div></details>" if tag_editor else ""
 
     note_items = ""
     for note in notes:
@@ -3267,22 +3251,22 @@ async def contact_detail(contact_id: str) -> HTMLResponse:
             )
             auto_form = f"""<div class='callout {'success' if latest_authorization else 'warning'}'>{esc(authorization_hint)}</div><form method='post' action='/office/contacts/{esc(contact_id)}/auto-charge'><input type='hidden' name='enabled' value='yes'><div class='form-grid'><div class='field full'><label>Authorization reference</label><input name='authorization_reference' value='{esc(suggested_authorization_reference)}' placeholder='Signed Payment Authorization envelope ID or written authorization record' required></div><div class='field full checks'><label><input type='checkbox' name='authorization_confirm' value='yes' required> I confirm this customer explicitly authorized Floodman to charge the selected saved card for future invoices when sent.</label></div></div><div class='actions' style='margin-top:10px'><button class='good'>Enable automatic invoice charging</button><a class='button secondary' href='/office/documents?contact_id={quote(contact_id)}'>Send Payment Authorization</a></div></form>"""
 
-    payment_section = f"""<div class='card'><h2>Floodman payment methods</h2><div class='pci-box'><b>Secure payment storage:</b> Floodman never stores a full card number or security code. The certified payment processor stores the credential; Floodman keeps only a token, card brand, last four digits, and expiration for display and authorized charging.</div><div class='actions' style='margin-top:12px'>{payment_controls}</div>{f"<div class='callout warning'>{esc(square_error)}</div>" if square_error else ''}<div style='margin-top:12px'>{table(('Card','Expires','Use','Actions'), card_rows, 'No saved card is on file. Send a Floodman invoice with “Let the customer save the payment method” enabled, or take an authorized card payment by phone.')}</div><hr><h3>Automatic invoice charging</h3>{auto_form}</div>"""
+    payment_section = f"""<details class='card'><summary>Billing and payment methods</summary><div style='margin-top:15px'><div class='pci-box'><b>Secure payment storage:</b> Floodman never stores a full card number or security code. The certified payment processor stores the credential; Floodman keeps only a token, card brand, last four digits, and expiration for display and authorized charging.</div><div class='actions' style='margin-top:12px'>{payment_controls}</div>{f"<div class='callout warning'>{esc(square_error)}</div>" if square_error else ''}<div style='margin-top:12px'>{table(('Card','Expires','Use','Actions'), card_rows, 'No saved card is on file. Send a Floodman invoice with “Let the customer save the payment method” enabled, or take an authorized card payment by phone.')}</div><hr><h3>Automatic invoice charging</h3>{auto_form}</div></details>"""
 
     imported_detail = ""
     if str(contact.get("source") or "").upper() == "CUSTOMER_CSV":
         quality = ", ".join(contact.get("quality_flags") or []) or "No review flags"
         imported_detail = f"""<details class='card'><summary>Imported source details</summary><div class='grid'><div><small class='muted'>Assigned staff</small><p>{esc(contact.get('assigned_staff') or '')}</p></div><div><small class='muted'>Source</small><p>{esc(contact.get('lead_source') or '')}</p></div><div><small class='muted'>Review flags</small><p>{esc(quality)}</p></div><div><small class='muted'>Communication suppression</small><p>{badge('Blocked / unsubscribed', 'bad') if contact.get('email_blocked') or contact.get('unsubscribed') else badge('Allowed', 'good')}</p></div></div><details><summary>Original import rows</summary>{json_pre(contact.get('source_records') or [])}</details></details>"""
 
-    body = f"""<div class='actions'><a class='button secondary' href='/office/contacts'>Back to customers</a><a class='button' href='/office/properties?contact_id={quote(contact_id)}'>Add property</a><a class='button' href='/office/estimates/new?contact_id={quote(contact_id)}'>Create estimate</a><a class='button' href='/office/invoices?contact_id={quote(contact_id)}'>Create invoice</a>{manage}</div>
-    <div class='customer-profile-grid' style='margin-top:15px'><div><div class='card'><h2>{esc(_contact_label(contact))}</h2><div class='grid'><div><small class='muted'>Primary email</small><p>{esc(contact.get('primaryEmail') or contact.get('email') or contact.get('email_raw') or '')}</p></div><div><small class='muted'>Phone</small><p>{esc(contact.get('primaryPhone') or contact.get('phone') or '')}</p></div><div><small class='muted'>Company</small><p>{esc(contact.get('company') or '')}</p></div><div><small class='muted'>Mailing address</small><p>{esc(mailing_address)}</p></div></div><hr><div class='tag-list'>{tags_html}</div><div style='margin-top:12px'>{tag_editor}</div></div>
-    <div class='card'><h2>Notes and activity</h2>{note_form}<div class='timeline' style='margin-top:14px'>{note_items}</div></div></div>
-    <div><div class='card'><h2>Customer summary</h2><div class='grid'><div class='metric'><small>Properties</small><strong>{len(properties)}</strong></div><div class='metric'><small>Estimates</small><strong>{len(estimates)}</strong></div><div class='metric'><small>Invoices</small><strong>{len(invoices)}</strong></div><div class='metric'><small>Client files</small><strong>{len(client_files)}</strong></div></div></div>{payment_section}</div></div>{imported_detail}
-    <div class='card'><h2>Properties and jobs</h2>{table(('Property','Address','Type'), [[f"<a href='/office/properties/{esc(i.get('id'))}'>{esc(i.get('name') or i.get('property_name'))}</a>", esc(i.get('service_street')), esc(i.get('property_type'))] for i in properties])}</div>
-    <div class='card'><h2>Estimates</h2>{table(('Estimate','Status','Total'), [[f"<a href='/office/estimates/{esc(i.get('id'))}'>{esc(i.get('estimate_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('total_cents') if i.get('total_cents') is not None else int(round(float(i.get('totalValue') or 0)*100)))] for i in estimates])}</div>
-    <div class='card'><h2>Invoices</h2>{table(('Invoice','Status','Balance'), [[f"<a href='/office/invoices/{esc(i.get('id'))}'>{esc(i.get('invoice_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('balance_cents') if i.get('balance_cents') is not None else int(round(float(i.get('amountDue') or 0)*100)))] for i in invoices])}</div>
-    <div class='card'><h2>Client file documents</h2>{table(('Document','Status','Completed','Property','File'), [[esc(i.get('title') or i.get('document_type') or i.get('id')), badge(i.get('status') or 'FILED'), esc(i.get('completed_at') or i.get('created_at') or ''), esc(i.get('property_id') or ''), f"<a href='{esc(i.get('signed_download_url') or i.get('download_url') or '#')}' target='_blank'>Open signed PDF</a>" if (i.get('signed_download_url') or i.get('download_url')) else 'File pending'] for i in client_files], 'No signed documents are attached to this customer yet.')}</div>
-    <div class='card'><div class='crm-section-head'><h2>Customer RoomFlow jobs</h2><a class='button small' href='/office/roomflow'>Open RoomFlow</a></div>{table(('Job','Property','Status','Estimate'), [[esc(i.get('job_name') or i.get('roomflow_job_id') or 'RoomFlow job'), esc(i.get('property_id') or ''), badge(i.get('status') or 'SYNCED'), f"<a href='/office/estimates/{esc(i.get('estimate_id'))}'>{esc(i.get('estimate_number') or 'Open')}</a>" if i.get('estimate_id') else 'Not created'] for i in store.records('roomflow_jobs') if str(i.get('contact_id') or '') == contact_id], 'No RoomFlow jobs are attached to this customer yet.')}</div>"""
+    body = f"""<div class='actions'><a class='button secondary' href='/office/contacts'>Back to customers</a><a class='button' href='/office/properties?contact_id={quote(contact_id)}'>Properties</a><a class='button' href='/office/estimates/new?contact_id={quote(contact_id)}'>New estimate</a><a class='button' href='/office/invoices?contact_id={quote(contact_id)}'>New invoice</a>{manage}</div>
+    <div class='card' style='margin-top:15px'><h2>{esc(_contact_label(contact))}</h2><div class='grid'><div><small class='muted'>Email</small><p>{esc(contact.get('primaryEmail') or contact.get('email') or contact.get('email_raw') or '')}</p></div><div><small class='muted'>Phone</small><p>{esc(contact.get('primaryPhone') or contact.get('phone') or '')}</p></div><div><small class='muted'>Company</small><p>{esc(contact.get('company') or '')}</p></div><div><small class='muted'>Mailing address</small><p>{esc(mailing_address)}</p></div></div><div class='tag-list'>{tags_html}</div>{tag_controls}</div>
+    <div class='card'><div class='crm-section-head'><h2>Properties ({len(properties)})</h2><a class='button small' href='/office/properties?contact_id={quote(contact_id)}'>Manage properties</a></div>{table(('Property','Address','Type'), [[f"<a href='/office/properties/{esc(i.get('id'))}'>{esc(i.get('name') or i.get('property_name'))}</a>", esc(i.get('service_street')), esc(i.get('property_type'))] for i in properties], 'No properties are attached to this customer yet.')}</div>
+    <details class='card'><summary>Notes and activity ({len(notes)})</summary><div style='margin-top:15px'>{note_form}<div class='timeline' style='margin-top:14px'>{note_items}</div></div></details>
+    {payment_section}{imported_detail}
+    <details class='card'><summary>Estimates ({len(estimates)})</summary><div style='margin-top:15px'>{table(('Estimate','Status','Total'), [[f"<a href='/office/estimates/{esc(i.get('id'))}'>{esc(i.get('estimate_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('total_cents') if i.get('total_cents') is not None else int(round(float(i.get('totalValue') or 0)*100)))] for i in estimates])}</div></details>
+    <details class='card'><summary>Invoices ({len(invoices)})</summary><div style='margin-top:15px'>{table(('Invoice','Status','Balance'), [[f"<a href='/office/invoices/{esc(i.get('id'))}'>{esc(i.get('invoice_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('balance_cents') if i.get('balance_cents') is not None else int(round(float(i.get('amountDue') or 0)*100)))] for i in invoices])}</div></details>
+    <details class='card'><summary>Documents ({len(client_files)})</summary><div style='margin-top:15px'>{table(('Document','Status','Completed','Property','File'), [[esc(i.get('title') or i.get('document_type') or i.get('id')), badge(i.get('status') or 'FILED'), esc(i.get('completed_at') or i.get('created_at') or ''), esc(i.get('property_id') or ''), f"<a href='{esc(i.get('signed_download_url') or i.get('download_url') or '#')}' target='_blank'>Open signed PDF</a>" if (i.get('signed_download_url') or i.get('download_url')) else 'File pending'] for i in client_files], 'No signed documents are attached to this customer yet.')}</div></details>
+    <details class='card'><summary>RoomFlow jobs</summary><div class='crm-section-head' style='margin-top:15px'><span></span><a class='button small' href='/office/roomflow'>Open RoomFlow</a></div>{table(('Job','Property','Status','Estimate'), [[esc(i.get('job_name') or i.get('roomflow_job_id') or 'RoomFlow job'), esc(i.get('property_id') or ''), badge(i.get('status') or 'SYNCED'), f"<a href='/office/estimates/{esc(i.get('estimate_id'))}'>{esc(i.get('estimate_number') or 'Open')}</a>" if i.get('estimate_id') else 'Not created'] for i in store.records('roomflow_jobs') if str(i.get('contact_id') or '') == contact_id], 'No RoomFlow jobs are attached to this customer yet.')}</details>"""
     return _page(_contact_label(contact), body, "contacts")
 
 
@@ -3461,15 +3445,17 @@ async def set_contact_auto_charge(
 async def properties_page(contact_id: str = "") -> HTMLResponse:
     _require("properties.view")
     state = await _state_page_data()
-    properties: list[dict[str, Any]] = []
-    seen_properties: set[str] = set()
-    for item in store.records("properties") + _rows(state.get("properties")):
-        identity = str(item.get("id") or item.get("legacyPropertyId") or item.get("legacy_property_id") or "")
-        if identity and identity in seen_properties:
-            continue
-        if identity:
-            seen_properties.add(identity)
-        properties.append(item)
+    contacts = _all_contact_rows(state)
+    selected_contact = next(
+        (item for item in contacts if str(item.get("id") or "") == contact_id),
+        None,
+    ) if contact_id else None
+    if contact_id and not selected_contact:
+        raise HTTPException(404, "Customer not found")
+    properties = [
+        item for item in _all_property_rows(state)
+        if selected_contact and str(item.get("contact_id") or "") == contact_id
+    ]
     rows = []
     for item in properties:
         address = item.get("service_address") or {}
@@ -3480,21 +3466,35 @@ async def properties_page(contact_id: str = "") -> HTMLResponse:
         formatted = ", ".join(value for value in (street, city, " ".join(value for value in (state_code, postal_code) if value)) if value)
         rows.append([
             f"<a href='/office/properties/{esc(item.get('id'))}'>{esc(item.get('property_name') or item.get('name') or item.get('id'))}</a>",
-            esc(_contact_name(str(item.get("contact_id") or ""), state)),
             esc(formatted),
             esc(item.get("property_type") or ""),
-            esc(item.get("claim_number") or ""),
         ])
+
+    selected_label = _contact_label(selected_contact) if selected_contact else ""
+    selector = f"""<div class='card'><h2>Select a customer</h2><form method='get' action='/office/properties'><div class='form-grid'>
+    {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=selected_label, required=True)}
+    <div class='field' style='align-self:end'><button>Show properties</button></div></div></form></div>"""
+
+    customer_summary = ""
+    if selected_contact:
+        customer_summary = f"""<div class='card'><div class='crm-section-head'><div><small class='muted'>Selected customer</small><h2>{esc(selected_label)}</h2><div class='muted'>{esc(selected_contact.get('primaryEmail') or selected_contact.get('email') or '')} · {esc(selected_contact.get('primaryPhone') or selected_contact.get('phone') or '')}</div></div><a class='button secondary' href='/office/contacts/{esc(contact_id)}'>Open customer</a></div></div>"""
+
     create = ""
-    if has_permission(_user(), "properties.manage"):
-        create = f"""<div class='card'><h2>Add service property</h2><form method='post' action='/office/properties/add'><div class='form-grid three'>
-        {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id, state) if contact_id else '', required=True)}
-        <div class='field'><label>Property name</label><input name='name' placeholder='Home, rental, business' required></div><div class='field'><label>Property type</label><select name='property_type'><option>Residential</option><option>Commercial</option><option>Rental</option><option>Other</option></select></div>
+    if selected_contact and has_permission(_user(), "properties.manage"):
+        create = f"""<details class='card'><summary>Add a property for {esc(selected_label)}</summary><form method='post' action='/office/properties/add' style='margin-top:15px'><input type='hidden' name='contact_id' value='{esc(contact_id)}'><div class='form-grid three'>
+        <div class='field'><label>Property name</label><input name='name' placeholder='Home, rental, business' required></div><div class='field'><label>Property type</label><select name='property_type'><option>Residential</option><option>Commercial</option><option>Rental</option><option>Other</option></select></div><div></div>
         <div class='field full'><label>Service street</label><input name='service_street' required></div><div class='field'><label>City</label><input name='service_city' required></div>
         <div class='field'><label>State</label><input name='service_state' value='MI' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' required></div>
-        <div class='field'><label>Insurance company</label><input name='insurance_company'></div><div class='field'><label>Claim number</label><input name='claim_number'></div>
-        <div class='field full'><label>Property notes</label><textarea name='notes'></textarea></div></div><button style='margin-top:12px'>Create property</button></form></div>"""
-    body = f"{create}<div class='card'><h2>Service properties</h2>{table(('Property','Customer','Service address','Type','Claim'), rows)}</div>"
+        </div><details class='plain-details'><summary>Insurance, claim, and notes</summary><div class='form-grid' style='margin-top:12px'><div class='field'><label>Insurance company</label><input name='insurance_company'></div><div class='field'><label>Claim number</label><input name='claim_number'></div><div class='field full'><label>Property notes</label><textarea name='notes'></textarea></div></div></details><button style='margin-top:12px'>Create property</button></form></details>"""
+
+    property_list = (
+        f"<div class='card'><h2>Properties for {esc(selected_label)}</h2>"
+        + table(('Property', 'Service address', 'Type'), rows, 'No properties are attached to this customer yet.')
+        + "</div>"
+        if selected_contact
+        else "<div class='card empty'><h2>Choose a customer to begin</h2><p>Only that customer’s properties will appear here.</p></div>"
+    )
+    body = f"{selector}{customer_summary}{create}{property_list}"
     return _page("Properties", body, "properties")
 
 
@@ -4732,7 +4732,7 @@ async def estimates_page(q: str = "", status: str = "") -> HTMLResponse:
         rows.append([
             f"<b>{esc(item.get('estimate_number') or _invoice_number(item))}</b><br><small class='muted'>{esc(item.get('title') or '')}</small>",
             esc(customer), esc(property_label), badge(item_status), money_cents(total, item.get("currency") or "USD"),
-            esc(len(item.get("sections") or []) or 1), esc(len(item.get("line_items") or item.get("invoiceItems") or [])), action,
+            action,
         ])
 
     status_options = "".join(
@@ -4743,13 +4743,8 @@ async def estimates_page(q: str = "", status: str = "") -> HTMLResponse:
     if has_permission(_user(), "estimates.manage"):
         create_action = "<a class='button good' href='/office/estimates/new'>Create new estimate</a>"
     body = f"""
-    <div class='estimate-index-hero card'>
-      <div><span class='eyebrow'>ESTIMATE WORKSPACE</span><h2>Open an existing estimate or start a new one</h2><p class='muted'>Searching never saves an estimate. A draft is created only after you explicitly press Save draft estimate.</p></div>
-      <div class='actions'>{create_action}<a class='button secondary' href='/office/roomflow'>Open RoomFlow</a><a class='button secondary' href='/office/catalog'>Line item catalog</a></div>
-    </div>
-    <div class='grid estimate-index-metrics'><div class='metric'><small>Matching estimates</small><strong>{totals['all']}</strong></div><div class='metric'><small>Draft</small><strong>{totals['draft']}</strong></div><div class='metric'><small>Sent / viewed</small><strong>{totals['sent']}</strong></div><div class='metric'><small>Accepted / converted</small><strong>{totals['accepted']}</strong></div></div>
-    <div class='card'><form method='get' action='/office/estimates' class='customer-searchbar estimate-index-search' data-estimate-index-search><div class='field'><label>Find an estimate</label><input type='search' name='q' value='{esc(q)}' placeholder='Estimate number, customer, property, title…' autocomplete='off'></div><div class='field'><label>Status</label><select name='status'>{status_options}</select></div><button type='submit'>Search estimates</button></form>{table(('Estimate','Customer','Property','Status','Total','Headers','Lines','Action'), rows, empty='No estimates match this search.')}</div>
-    <div class='callout'>Create workflow: choose or create the customer, choose or create the service property, enter the project details and deposit terms, then build the grouped scope.</div>
+    <div class='card'><div class='actions'>{create_action}<a class='button secondary' href='/office/roomflow'>RoomFlow</a><a class='button secondary' href='/office/catalog'>Services and prices</a></div></div>
+    <div class='card'><form method='get' action='/office/estimates' class='customer-searchbar estimate-index-search' data-estimate-index-search><div class='field'><label>Find an estimate</label><input type='search' name='q' value='{esc(q)}' placeholder='Number, customer, property, or title' autocomplete='off'></div><div class='field'><label>Status</label><select name='status'>{status_options}</select></div><button type='submit'>Search</button></form><p class='muted'>{totals['all']} matching estimates</p>{table(('Estimate','Customer','Property','Status','Total','Open'), rows, empty='No estimates match this search.')}</div>
     """
     return _page("Estimates", body, "estimates")
 
@@ -5113,12 +5108,11 @@ async def invoices_page(contact_id: str = "", property_id: str = "") -> HTMLResp
         rows.append([
             f"<a href='/office/invoices/{esc(identity)}'>{esc(item.get('invoice_number') or _invoice_number(item))}</a>",
             esc(_contact_name(str(item.get("contact_id") or item.get("organizationContactId") or ""), state) or item.get("organizationContactName") or ""),
-            badge(item.get("status")), money_cents(total_cents, item.get("currency") or "USD"), money_cents(paid_cents, item.get("currency") or "USD"), money_cents(balance_cents, item.get("currency") or "USD"), esc(item.get("due_at") or item.get("dueDate") or ""),
-            f"<a href='{esc(item.get('pdfUrl'))}' target='_blank'>Open PDF</a>" if item.get("pdfUrl") else "",
+            badge(item.get("status")), money_cents(balance_cents, item.get("currency") or "USD"), esc(item.get("due_at") or item.get("dueDate") or ""),
         ])
     create = ""
     if has_permission(_user(), "invoices.manage"):
-        create = f"""<div class='card'><h2>Create and send due-now invoice</h2><form method='post' action='/office/invoices/add'><div class='form-grid three'>
+        create = f"""<details class='card'><summary>Create invoice</summary><form method='post' action='/office/invoices/add' style='margin-top:15px'><div class='form-grid three'>
         {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id, state) if contact_id else '', required=True)}{_entity_picker(kind='properties', name='property_id', label='Property / job', selected_id=property_id, selected_label=_property_label(next((i for i in _all_property_rows(state) if str(i.get('id')) == property_id), {})) if property_id else '', contact_source='contact_id')}
         <div class='field'><label>Invoice number</label><input name='invoice_number' value='{esc(_next_number('INV','invoices'))}' required></div>
         <div class='field full'><label>Invoice title</label><input name='title' placeholder='Final service invoice' required></div>
@@ -5127,11 +5121,11 @@ async def invoices_page(contact_id: str = "", property_id: str = "") -> HTMLResp
         <div class='field'><label>Delivery</label><select name='send_channel'><option value='FLOODMAN_EMAIL'>Floodman email with PDF and online payment</option><option value='CREATE_ONLY'>Create only</option></select></div>
         <div class='field'><label>Online payment</label><select name='collection_mode'><option value='PAYMENT_PAGE' selected>Allow full or partial online payment</option><option value='FULL_BALANCE'>Require full balance online</option><option value='OFFLINE_ONLY'>Cash, check, or staff-entered payment only</option></select></div>
         <div class='field full checks'><label><input type='checkbox' name='allow_customer_to_save_card' value='yes'> Let the customer choose to save the payment method for future separately authorized charges.</label></div>
-        <div class='field full'><label>Terms</label><textarea name='terms'>Payment is due upon receipt.</textarea></div></div><button style='margin-top:12px'>Create invoice</button></form></div>"""
+        <div class='field full'><label>Terms</label><textarea name='terms'>Payment is due upon receipt.</textarea></div></div><button style='margin-top:12px'>Create invoice</button></form></details>"""
     reconcile_button = ""
     if has_permission(_user(), "payments.manage"):
         reconcile_button = "<form method='post' action='/office/square/reconcile'><input type='hidden' name='next_path' value='/office/invoices'><button class='secondary'>Refresh payment status</button></form>"
-    body = f"{create}<div class='card'><div class='actions spread'><h2>Invoices</h2>{reconcile_button}</div>{table(('Invoice','Customer','Status','Total','Paid','Balance','Due','PDF'), rows)}</div><div class='callout'>Invoice headers and line items are preserved when an estimate is converted. Floodman-created invoices remain due upon receipt.</div>"
+    body = f"{create}<div class='card'><div class='actions spread'><h2>Invoices</h2>{reconcile_button}</div>{table(('Invoice','Customer','Status','Balance','Due'), rows)}</div>"
     return _page("Invoices", body, "invoices")
 
 
@@ -5306,7 +5300,7 @@ async def payments_page() -> HTMLResponse:
             esc(item.get("reference") or item.get("providerReference") or item.get("provider_reference") or item.get("legacyPaymentId") or item.get("legacy_payment_id") or identity),
             esc(item.get("note") or ""),
         ])
-    body = f"<div class='card'><h2>Payment ledger</h2>{table(('Date','Amount','Status','Method','Reference','Note'), rows)}</div><div class='callout'>Record manual cash, check, ACH, or card payments from an invoice. Floodman records cash, check, bank transfer, staff-entered card, and online card payments in one project ledger. Card data is tokenized by the connected payment processor and is never stored by Floodman.</div>"
+    body = f"<div class='card'><h2>Payment ledger</h2>{table(('Date','Amount','Status','Method','Reference','Note'), rows)}</div>"
     return _page("Payments", body, "payments")
 
 
@@ -7614,14 +7608,16 @@ def delete_contact(contact_id: str) -> RedirectResponse:
 def edit_property_page(property_id: str) -> HTMLResponse:
     _require("properties.manage")
     item = _local_record_or_404("properties", property_id)
-    body = f"""<div class='card'><h2>Edit property</h2><form method='post' action='/office/properties/{esc(property_id)}/edit'><div class='form-grid three'><div class='field'><label>Property name</label><input name='name' value='{esc(item.get('name'))}' required></div><div class='field'><label>Property type</label><input name='property_type' value='{esc(item.get('property_type'))}'></div><div class='field'><label>Customer ID</label><input name='contact_id' value='{esc(item.get('contact_id'))}' required></div><div class='field full'><label>Service street</label><input name='service_street' value='{esc(item.get('service_street'))}' required></div><div class='field'><label>City</label><input name='service_city' value='{esc(item.get('service_city'))}' required></div><div class='field'><label>State</label><input name='service_state' value='{esc(item.get('service_state'))}' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' value='{esc(item.get('service_postal_code'))}' required></div><div class='field'><label>Insurance company</label><input name='insurance_company' value='{esc(item.get('insurance_company'))}'></div><div class='field'><label>Claim number</label><input name='claim_number' value='{esc(item.get('claim_number'))}'></div><div class='field full'><label>Notes</label><textarea name='notes'>{esc(item.get('notes'))}</textarea></div></div><div class='actions' style='margin-top:12px'><button>Save changes</button><a class='button secondary' href='/office/properties/{esc(property_id)}'>Cancel</a></div></form></div><div class='card danger'><form method='post' action='/office/properties/{esc(property_id)}/delete'><button class='danger'>Delete property</button></form></div>"""
+    contact_id = str(item.get("contact_id") or "")
+    body = f"""<div class='card'><h2>Edit property</h2><form method='post' action='/office/properties/{esc(property_id)}/edit'><div class='form-grid three'><div class='field'><label>Property name</label><input name='name' value='{esc(item.get('name'))}' required></div><div class='field'><label>Property type</label><input name='property_type' value='{esc(item.get('property_type'))}'></div>{_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id), required=True)}<div class='field full'><label>Service street</label><input name='service_street' value='{esc(item.get('service_street'))}' required></div><div class='field'><label>City</label><input name='service_city' value='{esc(item.get('service_city'))}' required></div><div class='field'><label>State</label><input name='service_state' value='{esc(item.get('service_state'))}' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' value='{esc(item.get('service_postal_code'))}' required></div><div class='field'><label>Insurance company</label><input name='insurance_company' value='{esc(item.get('insurance_company'))}'></div><div class='field'><label>Claim number</label><input name='claim_number' value='{esc(item.get('claim_number'))}'></div><div class='field full'><label>Notes</label><textarea name='notes'>{esc(item.get('notes'))}</textarea></div></div><div class='actions' style='margin-top:12px'><button>Save changes</button><a class='button secondary' href='/office/properties/{esc(property_id)}'>Cancel</a></div></form></div><div class='card danger'><form method='post' action='/office/properties/{esc(property_id)}/delete'><button class='danger'>Delete property</button></form></div>"""
     return _page("Edit Property", body, "properties")
 
 
 @app.post("/office/properties/{property_id}/edit")
-def update_property(property_id: str, contact_id: str = Form(...), name: str = Form(...), property_type: str = Form(default="Residential"), service_street: str = Form(...), service_city: str = Form(...), service_state: str = Form(default="MI"), service_postal_code: str = Form(...), insurance_company: str = Form(default=""), claim_number: str = Form(default=""), notes: str = Form(default="")) -> RedirectResponse:
+async def update_property(property_id: str, contact_id: str = Form(...), name: str = Form(...), property_type: str = Form(default="Residential"), service_street: str = Form(...), service_city: str = Form(...), service_state: str = Form(default="MI"), service_postal_code: str = Form(...), insurance_company: str = Form(default=""), claim_number: str = Form(default=""), notes: str = Form(default="")) -> RedirectResponse:
     actor = _require("properties.manage")
     _local_record_or_404("properties", property_id)
+    _ensure_local_contact(contact_id, await _state_page_data())
     store.update_record("properties", property_id, {"contact_id": contact_id, "name": name.strip(), "property_name": name.strip(), "property_type": property_type.strip(), "service_street": service_street.strip(), "service_city": service_city.strip(), "service_state": service_state.strip(), "service_postal_code": service_postal_code.strip(), "insurance_company": insurance_company.strip(), "claim_number": claim_number.strip(), "notes": notes.strip()}, actor_id=str(actor.get("id")))
     store.set_notice("Property updated.")
     return RedirectResponse(f"/office/properties/{property_id}", status_code=303)

@@ -104,8 +104,10 @@ def run() -> None:
     elapsed = time.monotonic() - started
     assert elapsed < 6.0, f"Desktop route blocked for {elapsed:.2f}s"
     assert desktop.status_code == 200, desktop.text
-    assert "DESKTOP OPERATIONS WORKSPACE" in desktop.text
-    assert "Open mobile workspace" in desktop.text
+    assert "Start work" in desktop.text
+    assert "Customers" in desktop.text
+    assert "Mobile Workspace" in desktop.text
+    assert "More tools" in desktop.text
     assert "floodman-workspace.css?release=4.7.2" in desktop.text
     assert "document.documentElement.dataset.workspace=mode" in desktop.text
 

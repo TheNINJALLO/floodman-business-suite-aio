@@ -1021,7 +1021,7 @@ grep -Fq "store_payment_method_enabled" "$overlay_root/office-console/app/provid
 grep -Fq "catalog_items" "$overlay_root/office-console/app/store.py" || die 'Could not install the persistent line-item catalog.'
 grep -Fq "estimate_payload" "$overlay_root/office-console/app/main.py" || die 'Could not install grouped estimate and invoice payloads.'
 grep -Fq '@app.get("/office/estimates/new")' "$overlay_root/office-console/app/main.py" || die 'Could not install the explicit new-Android mobile API runtime.'
-grep -Fq 'Searching never saves an estimate' "$overlay_root/office-console/app/main.py" || die 'Could not separate estimate search from draft creation.'
+grep -Fq 'data-estimate-index-search' "$overlay_root/office-console/app/main.py" || die 'Could not separate estimate search from draft creation.'
 grep -Fq 'data-estimate-workflow' "$overlay_root/office-console/app/main.py" || die 'Could not install the staged estimate workflow.'
 grep -Fq 'new_contact_first_name' "$overlay_root/office-console/app/main.py" || die 'Could not install inline customer creation for estimates.'
 grep -Fq 'new_property_service_street' "$overlay_root/office-console/app/main.py" || die 'Could not install inline service-property creation for estimates.'

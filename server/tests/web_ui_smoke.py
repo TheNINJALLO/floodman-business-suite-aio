@@ -136,6 +136,34 @@ def seed(main: Any) -> dict[str, Any]:
         },
         actor_id=owner["id"],
     )
+    other_contact = main.store.create_record(
+        "contacts",
+        {
+            "workspace_id": workspace["id"],
+            "name": "Morgan Vale",
+            "first_name": "Morgan",
+            "last_name": "Vale",
+            "email": "morgan@example.test",
+            "phone": "2315550199",
+            "status": "ACTIVE_CUSTOMER",
+        },
+        actor_id=owner["id"],
+    )
+    other_property = main.store.create_record(
+        "properties",
+        {
+            "workspace_id": workspace["id"],
+            "contact_id": other_contact["id"],
+            "name": "Vale Warehouse",
+            "property_name": "Vale Warehouse",
+            "property_type": "Commercial",
+            "service_street": "900 Hidden Road",
+            "service_city": "Traverse City",
+            "service_state": "MI",
+            "service_postal_code": "49684",
+        },
+        actor_id=owner["id"],
+    )
     section = {"id": "section-1", "name": "Waterproofing", "description": "", "sort_order": 0}
     line = {
         "id": "line-1",
@@ -244,7 +272,7 @@ def seed(main: Any) -> dict[str, Any]:
         "review_reasons": [],
         "proposed_ids": {"customer_id": "ui-call-customer", "property_id": "ui-call-property", "job_id": "ui-call-job", "roomflow_job_id": "ui-call-roomflow-job", "estimate_id": "ui-call-estimate", "note_id": "ui-call-note", "task_id": "ui-call-task", "appointment_id": "ui-call-appointment"},
     })
-    return {"owner": owner, "contact": contact, "property": property_record, "estimate": estimate, "invoice": invoice, "payment": payment, "workspace": workspace, "roomflow_job": roomflow_job, "call_intake": call_intake}
+    return {"owner": owner, "contact": contact, "property": property_record, "other_contact": other_contact, "other_property": other_property, "estimate": estimate, "invoice": invoice, "payment": payment, "workspace": workspace, "roomflow_job": roomflow_job, "call_intake": call_intake}
 
 
 def route_smoke(main: Any, records: dict[str, Any]) -> None:
@@ -339,6 +367,25 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
         response = client.get(path)
         assert response.status_code == 200, f"{path} returned {response.status_code}: {response.text[:300]}"
         assert "Floodman" in response.text, f"{path} did not render a Floodman page"
+
+    unselected_properties = client.get("/office/properties")
+    assert "Select a customer" in unselected_properties.text
+    assert "Carter Residence" not in unselected_properties.text
+    assert "Vale Warehouse" not in unselected_properties.text
+    selected_properties = client.get(f"/office/properties?contact_id={records['contact']['id']}")
+    assert "Carter Residence" in selected_properties.text
+    assert "Vale Warehouse" not in selected_properties.text
+    other_properties = client.get(f"/office/properties?contact_id={records['other_contact']['id']}")
+    assert "Vale Warehouse" in other_properties.text
+    assert "Carter Residence" not in other_properties.text
+    contact_file = client.get(f"/office/contacts/{records['contact']['id']}")
+    assert "Carter Residence" in contact_file.text
+    assert "Vale Warehouse" not in contact_file.text
+    edit_property = client.get(f"/office/properties/{records['property']['id']}/edit")
+    assert "Customer ID" not in edit_property.text
+    assert "Search customer" in edit_property.text
+    invalid_customer = client.get("/office/properties?contact_id=missing-customer")
+    assert invalid_customer.status_code == 404
 
     settings_page = client.get("/office/settings")
     assert "OWNER START HERE" in settings_page.text
@@ -945,6 +992,17 @@ def browser_smoke(main: Any) -> None:
                 response = page.goto(base + path, wait_until="domcontentloaded")
                 assert response and response.status == 200, f"desktop browser route failed: {path}"
                 assert not page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 2"), f"desktop horizontal overflow: {path}"
+
+            page.goto(base + "/office/properties", wait_until="domcontentloaded")
+            assert page.get_by_role("heading", name="Choose a customer to begin").is_visible()
+            assert page.get_by_text("Carter Residence").count() == 0
+            assert page.get_by_text("Vale Warehouse").count() == 0
+            alex_contact = next(item for item in main.store.records("contacts") if item.get("name") == "Alex Carter")
+            page.goto(base + f"/office/properties?contact_id={alex_contact['id']}", wait_until="domcontentloaded")
+            assert page.get_by_text("Carter Residence").is_visible()
+            assert page.get_by_text("Vale Warehouse").count() == 0
+            page.goto(base + "/office/desktop?desktop=1", wait_until="domcontentloaded")
+            assert page.locator(".sidebar-more:not([open])").count() == 1
 
             page.goto(base + "/office/desktop?desktop=1", wait_until="domcontentloaded")
             page.evaluate("window.dispatchEvent(new Event('appinstalled'))")
