@@ -4,28 +4,28 @@
 
 ```text
 Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
-Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.2.json
-Launcher: deployment/releases/mobile-start-v4.7.2.sh
-Runtime: deployment/releases/floodman-operations-runtime-v4.7.2.zip
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json
+Launcher: deployment/releases/mobile-start-v4.7.3.sh
+Runtime: deployment/releases/floodman-operations-runtime-v4.7.3.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The v4.7.2 egg installs the matched launcher and downloads the missing runtime ZIP from immutable GitHub commit `b81f9db3bbfa221dd2e439ad28624b3066fe8b0e`, verifying SHA-256 before moving it into `/home/container`. An existing matching ZIP is retained; a mismatch stops installation without overwriting the file. The package adds signed AI call intake, canonical safe-draft projection, the authenticated staff call queue/screen-pop, team accounts, and role/workspace notifications while retaining the complete v4.7.1 feature set. All v4.7.1 artifacts remain frozen rollback evidence.
+The v4.7.3 egg installs the matched launcher and downloads the missing runtime ZIP from immutable GitHub commit `0f9bc8553d776270267d7f2b7df6f857f6011bfe`, verifying SHA-256 before moving it into `/home/container`. An existing matching ZIP is retained; a mismatch stops installation without overwriting the file. The package simplifies the daily Business Suite, reduces page clutter, and makes Properties strictly customer-scoped while retaining the complete v4.7.2 call-intake, team, and notification feature set. All v4.7.2 artifacts remain frozen rollback evidence.
 
 Current deployable SHA-256 values:
 
 ```text
-f8d3d07ff885ecde57703abba1567d151ecc4419c5afb4a73bcb5f91a054f177  floodman-operations-runtime-v4.7.2.zip
-f8169ed1d039ec94db8d8fecaf8708e3d322d1dea489dff09afd2766f81c3c96  mobile-start-v4.7.2.sh
-714d991ca0b3cb7c1e223bc90a710cd9cb046d56117dbddd9069cb9496fb2810  egg-floodman-operations-mobile-v4.7.2.json
+f72e0894ddeb90665d04de878a59502b2d4ab81863f00c0409bbe46acbdd0839  floodman-operations-runtime-v4.7.3.zip
+511a87e9b771ef733c6937000db577a18c5313438495533db5fcb6add2855124  mobile-start-v4.7.3.sh
+a836789d63fd7d0c1be742e4ae1a28c9d470f3e568a79e9b2d8b89aa1143923e  egg-floodman-operations-mobile-v4.7.3.json
 ```
 
 The current launcher retains the 2026-08-18 startup-preflight repair and verifies every fixed `$overlay_root` assertion against the exact source packaged in the ZIP. Do not combine a launcher, runtime, or egg from different version rows.
 
 Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and configure the six `https://` URL fields for `oninetwork.com`. The external proxy must protect staff, signing administration, API documentation, and Engineering routes. No overlay-network key is required.
 
-To reproduce these artifacts from the approved v4.7.2 source:
+To reproduce these artifacts from the approved v4.7.3 source:
 
 ```bash
 python scripts/package_pterodactyl_release.py

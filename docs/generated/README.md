@@ -4,7 +4,7 @@
 - Environment variable names referenced: **188**
 - Files included in the source inventory: **1424**
 - Text lines counted: **343,878**
-- Inventory bytes: **33,706,374**
+- Inventory bytes: **33,706,357**
 
 ## Routes by service
 
