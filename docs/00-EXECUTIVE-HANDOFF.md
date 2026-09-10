@@ -4,7 +4,7 @@
 
 Floodman Operations is a single-company field-service and business-operations suite for waterproofing, foundation repair, restoration, mold work, demolition, inspections, and related projects. The system started as a clean all-in-one Gauzy test environment and grew into a Floodman-branded platform with its own Office workspace, customer records, estimating, invoicing, payments, document signing, RoomFlow field measurement, scheduling, receivables, messaging, competitor intelligence, PWA, Android app, and early iPhone/iPad app.
 
-The current custom server baseline is v4.7.2 with signed AI call intake, canonical draft projection, team access, and staff notification delivery. Android is v0.4.0-alpha01 (build 13). iOS remains v0.1.0-alpha03. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
+The current custom server baseline is v4.7.3 with signed AI call intake, canonical draft projection, team access, and staff notification delivery. Android is v0.4.0-alpha01 (build 13). iOS remains v0.1.0-alpha03. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
 
 ## Business outcomes
 

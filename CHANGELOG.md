@@ -2,6 +2,13 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.7.3
+
+- Simplified the daily Business Suite navigation and dashboard.
+- Made the Properties page customer-first and strictly customer-scoped.
+- Reduced customer, estimate, invoice, and payment page clutter while preserving advanced tools in collapsed sections.
+- Added authenticated cross-customer isolation and real-browser responsive coverage.
+
 ## 4.7.2
 
 - Added signed, replay-safe AI call events with deterministic local fixtures and canonical customer, property, intake, job, RoomFlow, estimate, task, appointment, and notification identifiers.

@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.2.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.3.json"
 
 EXPECTED_URLS = {
     "FLOODMAN_PUBLIC_URL": "https://floodman.oninetwork.com",

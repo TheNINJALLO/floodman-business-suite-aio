@@ -14,16 +14,17 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 RELEASES = ROOT / "deployment" / "releases"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.2.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.3.json"
+EGG_TEMPLATE = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.2.json"
 BASE_IMAGE = (
     "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@"
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
-ZIP_TIMESTAMP = (2026, 9, 8, 0, 0, 0)
-RUNTIME_SOURCE_COMMIT = "b81f9db3bbfa221dd2e439ad28624b3066fe8b0e"
+ZIP_TIMESTAMP = (2026, 9, 10, 12, 0, 0)
+RUNTIME_SOURCE_COMMIT = "0000000000000000000000000000000000000000"
 RUNTIME_SOURCE_URL = (
     "https://raw.githubusercontent.com/TheNINJALLO/floodman-business-suite-aio/"
-    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.2.zip"
+    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.3.zip"
 )
 
 EXCLUDED_RUNTIME_PATHS = {
@@ -231,7 +232,8 @@ def external_url_variable(
 
 
 def update_egg(version: str, launcher: str, runtime_sha256: str) -> None:
-    egg = json.loads(EGG.read_text(encoding="utf-8"))
+    source = EGG if EGG.exists() else EGG_TEMPLATE
+    egg = json.loads(source.read_text(encoding="utf-8"))
     egg["name"] = f"Floodman Operations AIO v{version}"
     egg["description"] = (
         f"Floodman Operations staging AIO v{version}. Installs the matched cumulative launcher and downloads "
@@ -282,11 +284,11 @@ def write_release_checksums(version: str) -> Path:
 
 def main() -> None:
     version = (SERVER / "VERSION").read_text(encoding="utf-8").strip()
-    if version != "4.7.2":
-        raise SystemExit(f"This reviewed packager is fixed to v4.7.2; found {version!r}")
+    if version != "4.7.3":
+        raise SystemExit(f"This reviewed packager is fixed to v4.7.3; found {version!r}")
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    if "[Floodman Mobile v4.7.2]" not in launcher:
-        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.2")
+    if "[Floodman Mobile v4.7.3]" not in launcher:
+        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.3")
 
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)

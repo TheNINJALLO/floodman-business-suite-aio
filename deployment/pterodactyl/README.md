@@ -5,12 +5,12 @@ The live test deployment uses one Pterodactyl server allocation with Floodman's 
 ## Current matched release
 
 ```text
-Server:  Floodman Operations 4.7.2
+Server:  Floodman Operations 4.7.3
 Android local release: 0.4.0-alpha01 / build 13
 Apple source candidate: 0.1.0-alpha03
 ```
 
-The current upload files in `deployment/releases/` are the matched v4.7.2 update. Every v4.7.1 runtime, launcher, egg, and recorded checksum remains frozen rollback evidence and must not be overwritten or combined with v4.7.2 files.
+The current upload files in `deployment/releases/` are the matched v4.7.3 update. Every v4.7.2 runtime, launcher, egg, and recorded checksum remains frozen rollback evidence and must not be overwritten or combined with v4.7.3 files.
 
 ## Startup
 
@@ -18,16 +18,16 @@ The current upload files in `deployment/releases/` are the matched v4.7.2 update
 bash ./mobile-start.sh
 ```
 
-For an existing server, follow `UPDATE-v4.7.2.md` and upload the matched files from `deployment/releases/` to `/home/container`:
+For an existing server, follow `UPDATE-v4.7.3.md` and upload the matched files from `deployment/releases/` to `/home/container`:
 
 ```text
-mobile-start-v4.7.2.sh -> mobile-start.sh
-floodman-operations-runtime-v4.7.2.zip (do not extract)
+mobile-start-v4.7.3.sh -> mobile-start.sh
+floodman-operations-runtime-v4.7.3.zip (do not extract)
 ```
 
-The v4.7.2 egg installs the same launcher and downloads the pinned runtime only when it is absent, verifying SHA-256 before atomic placement. No Tailscale key is used. Keep the external HTTPS proxy and existing startup variables intact during an in-place update.
+The v4.7.3 egg installs the same launcher and downloads the pinned runtime only when it is absent, verifying SHA-256 before atomic placement. No Tailscale key is used. Keep the external HTTPS proxy and existing startup variables intact during an in-place update.
 
-The dated v4.7.1 fresh-server guides and bundles are historical rollback/setup evidence, not current v4.7.2 upload inputs.
+The dated v4.7.1 fresh-server guides and bundles are historical rollback/setup evidence, not current v4.7.3 upload inputs.
 
 ### 2026-08-18 launcher repair
 
@@ -54,4 +54,4 @@ If startup stops at `ERROR: Could not install the integrated RoomFlow section ed
 7. Verify `/mobile-api/v1/health`, `/office-health/live`, private desktop/mobile routes, signing, and one PDF.
 8. Roll back the launcher and runtime only if the matching release fails. Never delete data directories as a repair shortcut.
 
-The v4.7.2 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Older versioned files, `release-artifacts/`, and Git history are rollback provenance, not current upload sources.
+The v4.7.3 egg, launcher, ZIP, internal manifest, and deployment checksums are regenerated together by `scripts/package_pterodactyl_release.py` and checked by `scripts/verify_pterodactyl_release.py`. Older versioned files, `release-artifacts/`, and Git history are rollback provenance, not current upload sources.

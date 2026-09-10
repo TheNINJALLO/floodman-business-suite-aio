@@ -279,3 +279,11 @@
 - Immutability: Preserve every v4.7.1 artifact and checksum. Publish new v4.7.2 runtime, launcher, egg, and checksums; pin the egg download to the immutable commit that contains the v4.7.2 runtime.
 - Deployment safety: Back up persistent state before switching the launcher, retain the v4.7.1 launcher and runtime for rollback, never delete or reset live data, and require readiness plus authenticated functional checks after restart.
 - Provider boundary: This release deploys Floodman's provider-neutral intake receiver and deterministic test adapter. It does not claim that the separate Twilio/Asterisk voice stack's recognition, pacing, barge-in, voice selection, or call hang-up defects are fixed.
+
+## DEC-037 — Release the simplified Business Suite as v4.7.3
+
+- Date: 2026-09-10
+- Authorization: The user explicitly requested a new live Pterodactyl release after simplifying the complete Business Suite and making Properties customer-first.
+- Identity: Advance only server/web/Pterodactyl to `4.7.3`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged.
+- Immutability: Preserve every v4.7.2 artifact and checksum. Publish a distinct v4.7.3 runtime, launcher, egg, and checksum row, with the egg pinned to the immutable source commit containing the runtime.
+- Deployment safety: Create and lock a complete Pterodactyl backup before the image switch, retain the previous unified image digest, never reset live data, and require Voice AIO plus Business Suite readiness after startup and a second restart.

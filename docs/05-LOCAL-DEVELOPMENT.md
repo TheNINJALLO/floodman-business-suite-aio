@@ -57,13 +57,13 @@ The current custom server source is in `server/`. The main services are ordinary
 Derivative image:
 
 ```bash
-docker build -f containers/derivative/Dockerfile -t floodman-operations:4.7.2 .
+docker build -f containers/derivative/Dockerfile -t floodman-operations:4.7.3 .
 ```
 
 Complete AIO image:
 
 ```bash
-docker build -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.7.2 .
+docker build -f containers/base-aio/Dockerfile -t floodman-business-suite-aio:4.7.3 .
 ```
 
 The complete build composes upstream images. Pin each upstream image by digest before a release.

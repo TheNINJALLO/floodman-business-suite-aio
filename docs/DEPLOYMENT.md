@@ -8,7 +8,7 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 `mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, externally proxied Nginx/Supervisor configuration, upstream services, health checks and final readiness marker. It does not download or launch Tailscale.
 
-The current files in `deployment/releases/` provide the distinct v4.7.2 runtime and launcher. The matched v4.7.2 egg installs `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. Existing servers can use the backed-up procedure in `deployment/pterodactyl/UPDATE-v4.7.2.md`. All v4.7.1 files remain rollback evidence. A package result alone is not live installation or acceptance evidence.
+The current files in `deployment/releases/` provide the distinct v4.7.3 runtime and launcher. The matched v4.7.3 egg installs `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. Existing servers can use the backed-up procedure in `deployment/pterodactyl/UPDATE-v4.7.3.md`. All v4.7.2 files remain rollback evidence. A package result alone is not live installation or acceptance evidence.
 
 Expected terminal marker:
 

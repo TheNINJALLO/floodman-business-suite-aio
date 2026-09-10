@@ -27,7 +27,7 @@ from .service import (
 settings = get_settings()
 app = FastAPI(
     title="Floodman Competitor Intelligence",
-    version="4.7.2",
+    version="4.7.3",
     docs_url=None if os.getenv("FLOODMAN_ENV", "development").lower() == "production" else "/docs",
     redoc_url=None,
 )
@@ -108,7 +108,7 @@ def _friendly_scan_error(target: dict | None, exc: Exception) -> tuple[int, str]
 
 @app.get("/health/live")
 def live() -> dict[str, str]:
-    return {"status": "ok", "service": "competitor-intel", "version": "4.7.2"}
+    return {"status": "ok", "service": "competitor-intel", "version": "4.7.3"}
 
 
 @app.get("/health/ready")

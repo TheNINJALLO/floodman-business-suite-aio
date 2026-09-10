@@ -50,7 +50,7 @@ The Gauzy API/web, Documenso, and Mailpit sources are also fixed by registry dig
 - test startup, restart and restore;
 - verify required license notices.
 
-The server-image workflow is fixed to reviewed action commits and is configured to publish v4.7.2 plus commit-specific tags after an explicitly authorized main-branch update. Its build evidence contains the registry digest and SHA-256 values for the Docker context policy, derivative Dockerfile, server manifest, and upstream lock. A feature-branch push or draft pull request does not publish this image, and image publication does not replace staging acceptance.
+The server-image workflow is fixed to reviewed action commits and is configured to publish v4.7.3 plus commit-specific tags after an explicitly authorized main-branch update. Its build evidence contains the registry digest and SHA-256 values for the Docker context policy, derivative Dockerfile, server manifest, and upstream lock. A feature-branch push or draft pull request does not publish this image, and image publication does not replace staging acceptance.
 
 ## Runtime overlay release
 
@@ -119,9 +119,9 @@ The user's 2026-08-18 scoped exception authorizes distinct local web/Pterodactyl
 
 The user's 2026-08-21 release approval authorizes the distinct local v4.7.1 server/web/Pterodactyl artifacts, release commit, feature-branch publication, and draft pull request. Android, iOS, Mobile API, minimum-client, and RoomFlow-pin identities remain unchanged. The exception does not authorize a production deployment, live provider/data access, container-image publication, signing/store upload, or claims for staging, devices, backup/restore, or advisory scanning. Never overwrite the frozen v4.7.0 artifacts with v4.7.1 bytes.
 
-## AI call intake v4.7.2 boundary
+## Business Suite usability v4.7.3 boundary
 
-The user's 2026-09-08 panel-deployment request authorizes a distinct v4.7.2 server/web/Pterodactyl release and deployment to the intended Floodman test server after backup. The release retains Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum clients, and the exact RoomFlow pin. Preserve all v4.7.1 files as rollback artifacts and use the v4.7.2 runtime, launcher, egg, and checksum row as one matched set.
+The user's 2026-09-10 panel-deployment request authorizes a distinct v4.7.3 server/web/Pterodactyl release and deployment to the intended Floodman server after a complete backup. The release simplifies the daily workspace and enforces customer-first property filtering while retaining Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum clients, and the exact RoomFlow pin. Preserve all v4.7.2 files as rollback artifacts and use the v4.7.3 runtime, launcher, egg, and checksum row as one matched set.
 
 ## Version synchronization
 

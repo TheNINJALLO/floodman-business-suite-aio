@@ -8,8 +8,8 @@ from .auth import has_permission
 
 
 PWA_HEAD = """<meta name='mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-capable' content='yes'><meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'><meta name='apple-mobile-web-app-title' content='Floodman'><link rel='manifest' href='/manifest.webmanifest'><link rel='apple-touch-icon' href='/floodman-pwa-icons/apple-touch-icon-180.png'><link rel='icon' type='image/png' sizes='192x192' href='/floodman-pwa-icons/icon-192.png'><link rel='stylesheet' href='/floodman-pwa.css'>"""
-PWA_BODY = "<script defer src='/floodman-pwa.js?release=4.7.2'></script>"
-WORKSPACE_CSS = "<link rel='stylesheet' href='/floodman-workspace.css?release=4.7.2'>"
+PWA_BODY = "<script defer src='/floodman-pwa.js?release=4.7.3'></script>"
+WORKSPACE_CSS = "<link rel='stylesheet' href='/floodman-workspace.css?release=4.7.3'>"
 
 WORKSPACE_HEAD = """<script>(function(){var q=new URLSearchParams(location.search),path=location.pathname,key='floodmanWorkspaceMode',mode='auto';try{mode=localStorage.getItem(key)||'auto'}catch(e){}if(q.get('workspace')==='auto'){mode='auto';try{localStorage.removeItem(key);localStorage.removeItem('floodmanDesktopMode')}catch(e){}}if(path==='/office/desktop'||q.get('desktop')==='1')mode='desktop';else if(path==='/office/mobile'||q.get('mobile')==='1')mode='mobile';if(mode!=='desktop'&&mode!=='mobile'){var ua=String(navigator.userAgent||''),ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));mode=handheld?'mobile':'desktop'}document.documentElement.dataset.workspace=mode;try{if(path==='/office/desktop'||q.get('desktop')==='1')localStorage.setItem(key,'desktop');if(path==='/office/mobile'||q.get('mobile')==='1')localStorage.setItem(key,'mobile');if(mode==='desktop')localStorage.setItem('floodmanDesktopMode','1');else localStorage.removeItem('floodmanDesktopMode')}catch(e){}})();</script>"""
 

@@ -4,8 +4,8 @@
 
 | Component | Version | Source status | Live validation status |
 |---|---:|---|---|
-| Floodman custom server | 4.7.2 | Signed AI call intake, canonical safe-draft projection, team administration, and multi-channel staff notifications pass the 14-program local server/browser suite | Live Pterodactyl update, provider signing, and end-to-end voice-stack acceptance are in progress |
-| Pterodactyl launcher | 4.7.2 | New immutable runtime, launcher, egg, and checksums are prepared without changing v4.7.1 artifacts | Requires backed-up upload, readiness, restart persistence, and signed fictional-intake checks on the intended panel server |
+| Floodman custom server | 4.7.3 | Simplified daily navigation and customer-scoped property workflows pass the 14-program local server/browser suite | Live Pterodactyl update and unified Voice AIO acceptance are in progress |
+| Pterodactyl launcher | 4.7.3 | New immutable runtime, launcher, egg, and checksums are prepared without changing v4.7.2 artifacts | Requires backed-up deployment, readiness, restart persistence, and authenticated browser checks on the intended panel server |
 | Android app | 0.4.0-alpha01 (build 13) | Fresh JDK 17/Gradle 8.13 compile, 8/8 tests, lint, APK and AAB gates pass with `https://api.oninetwork.com/mobile-api/` embedded | Debug APK is ready for local testing; release outputs are unsigned and device/store gates remain external |
 | Apple app | 0.1.0-alpha03 | Windows source readiness passes after the 44-point RoomFlow close-target update | Current-source Xcode simulator compilation is BLK-015; signing/TestFlight and device gates remain external |
 | RoomFlow | `1f97817a52b916875e50cc6380c0d284072b8ce8` | Exact-pin metadata, release assets, native bridges, and import/sync contracts verify | Physical capture and staging synchronization remain BLK-006/BLK-005 |
@@ -30,7 +30,7 @@
 
 ## Highest-priority next actions
 
-1. Deploy the matched v4.7.2 runtime and launcher using `deployment/pterodactyl/UPDATE-v4.7.2.md`, after a complete Pterodactyl backup.
+1. Deploy the matched v4.7.3 runtime and launcher using `deployment/pterodactyl/UPDATE-v4.7.3.md`, after a complete Pterodactyl backup.
 2. Validate Full ERP login, desktop/mobile workspaces, one signed fictional call intake, screen-pop/queue, notifications, RoomFlow draft linkage, restart persistence, and rollback readiness.
 3. Run the final WEB-007 commit through the unsigned Apple simulator workflow to close BLK-015.
 4. Install Android alpha01 on approved Depth and non-Depth devices and run the full staging HTTPS acceptance checklist; repeat RoomPlan/LiDAR/ARKit checks on iPhone/iPad.
@@ -40,8 +40,8 @@
 
 ## Do not assume
 
-- Do not assume the v4.7.2 runtime is live until panel startup and health evidence is captured.
-- Do not mix v4.7.2 runtime, launcher, or egg files with any v4.7.1 artifact; v4.7.1 remains rollback evidence.
+- Do not assume the v4.7.3 runtime is live until panel startup and health evidence is captured.
+- Do not mix v4.7.3 runtime, launcher, or egg files with any v4.7.2 artifact; v4.7.2 remains rollback evidence.
 - Do not assume the locally built Android 0.4.0-alpha01 artifact has passed physical-device or staging acceptance.
 - Do not assume Full ERP browser routing is production-ready until it is tested through `https://floodman.oninetwork.com` with the actual HTTPS proxy and staff access policy.
 - Do not assume Apple signing is ready merely because source and workflows exist.

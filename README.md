@@ -6,8 +6,8 @@ This repository is the source handoff for the Floodman Operations system develop
 
 | Component | Version | Status |
 |---|---:|---|
-| Floodman server overlay | 4.7.2 | Signed AI call intake, canonical draft projection, team access, and multi-channel staff notifications |
-| Pterodactyl launcher | 4.7.2 | Current cumulative launcher and deterministic upload package |
+| Floodman server overlay | 4.7.3 | Simplified daily workspace with customer-scoped property selection, retaining v4.7.2 call intake and notifications |
+| Pterodactyl launcher | 4.7.3 | Current cumulative launcher and deterministic upload package |
 | Android app | 0.4.0-alpha01 | Local compile/test/lint/APK/AAB gate passed; device/signing/CI dispatch remain external |
 | iPhone/iPad app | 0.1.0-alpha03 | Windows source/workflow readiness passed; run the Xcode simulator workflow before TestFlight |
 | RoomFlow | pinned commit `1f97817a52b916875e50cc6380c0d284072b8ce8` | Checksummed offline runtime export included; standalone checkout is optional for review |
@@ -26,7 +26,7 @@ This repository is the source handoff for the Floodman Operations system develop
 
 ## What is included
 
-- Complete Floodman custom server source for v4.7.2
+- Complete Floodman custom server source for v4.7.3
 - Native Android source and local build evidence for 0.4.0-alpha01
 - Native iOS source and Windows readiness evidence for alpha03
 - Original v3.1.1 AIO build source and current AIO Docker scaffolding
@@ -78,4 +78,4 @@ make derivative-image
 
 Android and iOS build commands are documented in `docs/06-ANDROID.md` and `docs/07-IOS.md`.
 
-The current server milestone is the distinct v4.7.2 web/Pterodactyl release. Android remains 0.4.0-alpha01 and iOS remains 0.1.0-alpha03 because their additive contracts did not change. Physical-device, signing/store, backup/restore, voice-provider, and production-acceptance gates require their own evidence. See `docs/RELEASE-NOTES-v4.7.2.md`.
+The current server milestone is the distinct v4.7.3 web/Pterodactyl release. Android remains 0.4.0-alpha01 and iOS remains 0.1.0-alpha03 because their additive contracts did not change. Physical-device, signing/store, backup/restore, voice-provider, and production-acceptance gates require their own evidence. See `docs/RELEASE-NOTES-v4.7.3.md`.

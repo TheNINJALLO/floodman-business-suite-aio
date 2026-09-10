@@ -41,10 +41,10 @@ jobs:
           no-cache: true
           push: true
           tags: |
-            ghcr.io/theninjallo/floodman-operations:4.7.2
-            ghcr.io/theninjallo/floodman-operations:4.7.2-${{ github.sha }}
+            ghcr.io/theninjallo/floodman-operations:4.7.3
+            ghcr.io/theninjallo/floodman-operations:4.7.3-${{ github.sha }}
           labels: |
-            org.opencontainers.image.version=4.7.2
+            org.opencontainers.image.version=4.7.3
             org.opencontainers.image.revision=${{ github.sha }}
           provenance: true
           sbom: true
@@ -62,7 +62,7 @@ jobs:
             > artifacts/BUILD-INPUT-SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Floodman-Operations-server-4.7.2-build-evidence
+          name: Floodman-Operations-server-4.7.3-build-evidence
           path: artifacts/
           if-no-files-found: error
           retention-days: 30

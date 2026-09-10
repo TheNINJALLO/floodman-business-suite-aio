@@ -1,7 +1,7 @@
 # Complete AIO build. This composes upstream Gauzy, Documenso and Mailpit
 # runtimes with the original Floodman integration source in this repository.
 # Tags are retained for human traceability; digests are the immutable inputs
-# resolved for the Floodman v4.7.2 readiness gate; image digests remain unchanged.
+# resolved for the Floodman v4.7.3 readiness gate; image digests remain unchanged.
 ARG GAUZY_API_IMAGE=ghcr.io/ever-co/gauzy-api:latest@sha256:b99003e2c3f575b615a693af6d94887ae6a9de31c5a488f5dcc64800ec14a33e
 ARG GAUZY_WEB_IMAGE=ghcr.io/ever-co/gauzy-webapp:latest@sha256:dfe1ae5e057c12ebaff562310c9b670d9fde71fae481f1891194454da1bd57b4
 ARG DOCUMENSO_IMAGE=documenso/documenso:v2.11.0@sha256:d9b9a21841e28ebf08d747706e15319a485aa19afea09ab1c926b025c2ce4a18
@@ -14,7 +14,7 @@ FROM ${GAUZY_API_IMAGE} AS runtime
 
 LABEL org.opencontainers.image.title="Floodman Business Suite AIO"
 LABEL org.opencontainers.image.description="Floodman Operations, Gauzy, Documenso, messaging, receivables, RoomFlow and mobile gateway."
-LABEL org.opencontainers.image.version="4.7.2"
+LABEL org.opencontainers.image.version="4.7.3"
 LABEL org.opencontainers.image.authors="Josh Aldrich"
 
 USER root
@@ -32,7 +32,7 @@ COPY --chown=container:container server/ /opt/floodman/
 
 RUN mkdir -p /opt/floodman/gauzy-public-seed     && if [ -d /srv/gauzy/apps/api/public ]; then cp -a /srv/gauzy/apps/api/public/. /opt/floodman/gauzy-public-seed/; fi     && rm -rf /srv/gauzy/apps/api/public /import     && ln -s /home/container/data/gauzy-files /srv/gauzy/apps/api/public     && ln -s /home/container/data/gauzy-import /import     && chmod 0755 /usr/local/bin/mailpit /opt/floodman/aio/*.sh     && chown -R 1000:1000 /opt/floodman /opt/pydeps /srv/gauzy /home/container
 
-ENV USER=container     HOME=/home/container     FM_HOME=/home/container     FLOODMAN_RELEASE=pterodactyl-mobile-v4.7.2     TZ=America/Detroit     PYTHONUNBUFFERED=1     PYTHONDONTWRITEBYTECODE=1
+ENV USER=container     HOME=/home/container     FM_HOME=/home/container     FLOODMAN_RELEASE=pterodactyl-mobile-v4.7.3     TZ=America/Detroit     PYTHONUNBUFFERED=1     PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /home/container
 USER container
