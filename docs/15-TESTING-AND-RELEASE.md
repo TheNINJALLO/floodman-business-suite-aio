@@ -36,7 +36,7 @@ assembleRelease
 bundleRelease
 ```
 
-Then complete a physical-device test over public HTTPS with Tailscale disabled.
+Then complete a physical-device test through `https://api.oninetwork.com/mobile-api/`.
 
 ## iOS gate
 

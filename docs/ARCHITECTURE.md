@@ -3,10 +3,10 @@
 ## Logical topology
 
 ```text
-                         PRIVATE STAFF ACCESS
-Approved Tailscale device
+                         PROTECTED STAFF ACCESS
+Approved browser through external HTTPS access policy
         |
-        | HTTPS :8443
+        | https://floodman.oninetwork.com
         v
 +-----------------------------+
 | Floodman Hub / Nginx  :9000 |
@@ -28,10 +28,10 @@ Android / customer browser
         |
         | public HTTPS
         v
-Tailscale Funnel or future api.floodman.com
+api.oninetwork.com through the external HTTPS proxy
         |
         v
-Public gateway :9010
+API gateway :9004
         |-- /mobile-api/* --> Floodman Office :8700
         |-- /customer/*   --> customer estimates/invoices/payments
         `-- signing root  --> signing service
@@ -102,7 +102,7 @@ Supplies local mocks and engineering interfaces for Gauzy, Square, Documenso, Tw
 - **Mailpit**: test email capture.
 - **Nginx**: same-origin routing and browser gateway.
 - **Supervisor**: one-container process management.
-- **Tailscale**: private staff HTTPS and temporary public Funnel gateway.
+- **External HTTPS proxy**: certificates, hostname-to-port routing, HTTPS redirects, and staff access policy.
 - **Square**: tokenized card/payment processor.
 - **Twilio**: optional messaging transport.
 
@@ -114,9 +114,9 @@ Supplies local mocks and engineering interfaces for Gauzy, Square, Documenso, Tw
 | 9001 | signing |
 | 9002 | Mailpit/test mail |
 | 9003 | engineering/local lab |
-| 9004 | Floodman API |
+| 9004 | external API gateway and native Mobile API |
 | 8700 | internal Floodman Office service |
-| 9010 | internal public gateway |
+| 8701 | internal workflow/orchestrator API |
 | 3000 | Gauzy API |
 | 4200 | Gauzy browser |
 | 5432 | embedded PostgreSQL |
@@ -153,3 +153,9 @@ The embedded RoomFlow engine must never receive database credentials or service-
 ## Release coupling
 
 The native apps and server form a versioned contract. Health/config responses carry API version, minimum client version and capability names. A mobile app should refuse an incompatible server rather than attempt partial operation.
+
+## Incoming AI call vertical slice
+
+The Orchestrator owns the public signed webhook, provider-neutral normalization, event ordering, replay ledger, canonical call IDs, PostgreSQL transaction and outbox. Office owns the local customer/property match, durable staff queue, screen-pop, notifications, replay-safe customer-file call note, RoomFlow job and unpublished estimate. Exact workspace-scoped phone/email matches are the only automatic identity joins; ambiguous or failed calls become review work.
+
+Office is written before any Floodman ERP/Gauzy synchronization. The provider call ID maps to the canonical intake ID; the worker may then create or reuse a Gauzy contact and property project, map those external IDs to the resolved canonical customer and property IDs, and project them back into Office. It never creates a Gauzy estimate from the unpriced call draft. See `AI_CALLING_SETUP.md` for the signed event and approval contract.

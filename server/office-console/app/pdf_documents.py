@@ -389,11 +389,14 @@ def _section_rows(c: PdfCanvas, groups: list[dict[str, Any]], *, start_y: float,
             description = str(line.get("description") or "")
             line_h = 29 + (7 if len(description) > 115 else 0)
             c.rect(42, y - line_h, 528, line_h, fill=WHITE, stroke=(0.86, 0.88, 0.90), width=0.5)
-            c.text(52, y - 12, line.get("name") or "Service", size=8.5, font="F2", color=NAVY)
+            pricing_reference = str(line.get("pricing_reference") or "").strip()
+            item_label = f"{pricing_reference}  {line.get('name') or 'Service'}" if pricing_reference else (line.get("name") or "Service")
+            c.text(52, y - 12, str(item_label)[:64], size=8.5, font="F2", color=NAVY)
             if description:
                 c.wrapped(52, y - 23, description, width=360, size=6.7, leading=8.2, color=MID_GRAY, max_lines=2)
             quantity = f"{line.get('quantity') or 0:g} {line.get('unit') or 'each'}"
-            c.right_text(470, y - 15, quantity, size=7.5, color=DARK)
+            c.right_text(440, y - 15, quantity, size=7.5, color=DARK)
+            c.right_text(505, y - 15, _money(line.get("unit_price_cents") or 0), size=7.5, color=DARK)
             c.right_text(560, y - 15, _money(line.get("line_total_cents") or 0), size=8, color=NAVY)
             y -= line_h
         c.rect(42, y - 18, 528, 18, fill=(0.965, 0.975, 0.980), stroke=(0.82, 0.86, 0.89), width=0.5)

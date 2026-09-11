@@ -58,6 +58,8 @@ MOBILE_CAPABILITIES = [
     "roomflow.workspaces.v1",
     "roomflow.capture.v2",
     "roomflow.capture.offline.v1",
+    "call-intakes.v1",
+    "call-notifications.v1",
 ]
 ACCESS_ALGORITHM = "HS256"
 _LOGIN_WINDOW_SECONDS = 600
@@ -520,10 +522,10 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
             "company": store.profile().get("company_name") or "Floodman",
             "time_zone": store.profile().get("timezone") or settings.ar_timezone,
             "payments": {
-                "enabled": bool(settings.payments_enabled and square.get("application_id")),
+                "enabled": bool(square.get("live")),
                 "environment": square.get("environment"),
                 "application_id": square.get("application_id") or "",
-                "native_card_entry": bool(square.get("application_id")),
+                "native_card_entry": bool(square.get("live") and square.get("application_id")),
             },
             "customer_public_url": settings.customer_public_url,
             "minimum_android_version": MIN_ANDROID_VERSION,
@@ -942,7 +944,11 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
                 continue
             if category_query and str(record.get("category") or "").casefold() != category_query:
                 continue
-            haystack = " ".join(str(record.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider")).casefold()
+            pricing = ((record.get("formula") or {}).get("xactimate") or {})
+            haystack = " ".join([
+                *(str(record.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider", "source_id", "external_key")),
+                *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+            ]).casefold()
             if query and query not in haystack:
                 continue
             values.append(document_public(record))
@@ -1987,6 +1993,24 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
                 continue
             values.append(document_public(record))
         return _paginate(values, page, page_size)
+
+    @router.get("/call-intakes")
+    def call_intakes(page: int = 1, page_size: int = 50, user: dict[str, Any] = permission("call_intakes.view")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        values = [
+            document_public(record)
+            for record in store.records("call_intakes")
+            if str(record.get("workspace_id") or "") == workspace_id
+        ]
+        return _paginate(values, page, page_size)
+
+    @router.get("/call-intakes/{intake_id}")
+    def call_intake(intake_id: str, user: dict[str, Any] = permission("call_intakes.view")) -> dict[str, Any]:
+        _, workspace_id, _ = _roomflow_workspace_context(user)
+        record = store.record("call_intakes", intake_id)
+        if not record or str(record.get("workspace_id") or "") != workspace_id:
+            raise HTTPException(404, "Call intake not found")
+        return document_public(record)
 
     @router.get("/time/status")
     def time_status(user: dict[str, Any] = Depends(require_mobile_user)) -> dict[str, Any]:

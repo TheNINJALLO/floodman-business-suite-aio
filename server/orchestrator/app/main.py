@@ -15,7 +15,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from .ai_calling import provider_for
 from .config import Settings, get_settings
+from .customer_sms import CustomerSmsConsent, event_is_newer, may_resume_existing_consent
 from .db import database_ready, transaction
 from .logging_json import configure_logging
 from .repository import (
@@ -23,6 +25,7 @@ from .repository import (
     NotFoundError,
     add_change_order,
     add_completion,
+    audit,
     begin_idempotency,
     complete_idempotency,
     enqueue,
@@ -31,6 +34,7 @@ from .repository import (
     get_document_by_envelope,
     get_job,
     get_job_by_square_invoice,
+    ingest_call_event,
     log_portal_access,
     portal_payload,
     record_webhook,
@@ -146,6 +150,10 @@ async def ai_auth(request: Request) -> str:
     return await _verify_hmac(request, settings.ai_hmac_keys)
 
 
+async def ai_calling_auth(request: Request) -> str:
+    return await _verify_hmac(request, settings.ai_calling_hmac_keys)
+
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -191,9 +199,54 @@ def health_ready() -> JSONResponse:
     document_path_ok = settings.documents_path.exists() and settings.documents_path.is_dir()
     ready = database_ready() and document_path_ok
     return JSONResponse(
-        {"status": "ready" if ready else "not_ready", "database": database_ready(), "document_path": document_path_ok},
+        {
+            "status": "ready" if ready else "not_ready",
+            "database": database_ready(),
+            "document_path": document_path_ok,
+            "capabilities": {
+                "messaging_ai": {
+                    "enabled": settings.messaging_ai_enabled,
+                    "provider": settings.messaging_ai_provider,
+                    "customer_use_approved": settings.ai_customer_messaging_approved or not settings.production,
+                    "human_review_fallback": True,
+                },
+                "competitor_intelligence": {
+                    "enabled": bool(settings.ai_service_url),
+                    "untrusted_content_isolated": True,
+                    "human_review_fallback": True,
+                },
+                "ai_calling": {
+                    "enabled": settings.ai_calling_enabled,
+                    "approved": settings.ai_calling_approved,
+                    "effective_use_allowed": settings.ai_calling_approved or not settings.production,
+                    "provider": settings.ai_calling_provider,
+                    "signed_webhooks": True,
+                    "human_review_fallback": True,
+                }
+            },
+        },
         status_code=200 if ready else 503,
     )
+
+
+@app.post("/webhooks/ai-calling/{provider_name}")
+async def ai_calling_webhook(provider_name: str, request: Request) -> JSONResponse:
+    if not settings.ai_calling_enabled:
+        raise HTTPException(status_code=503, detail="AI calling webhook intake is disabled")
+    if provider_name != settings.ai_calling_provider:
+        raise HTTPException(status_code=404, detail="AI calling provider is not configured")
+    await ai_calling_auth(request)
+    body = await request.body()
+    try:
+        raw = json.loads(body)
+        if not isinstance(raw, dict):
+            raise ValueError("event body must be a JSON object")
+        event = provider_for(provider_name).normalize(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    with transaction() as conn:
+        result = ingest_call_event(conn, event, body)
+    return JSONResponse(result, status_code=202 if result.get("accepted") else 200)
 
 
 @app.post("/internal/v1/jobs/sync-estimate")
@@ -484,6 +537,16 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
     with transaction() as conn:
         if not record_webhook(conn, "twilio", message_sid, "INBOUND_SMS", raw):
             return PlainTextResponse("<Response></Response>", media_type="application/xml")
+        # Honor carrier keywords even before an invoice/A/R case exists. START
+        # can resume an evidenced enrollment; it cannot enroll an unknown caller.
+        if keyword and keyword.kind in {"STOP", "START"}:
+            previous = get_sms_consent(conn, settings.customer_sms_organization_id, from_phone)
+            if keyword.kind == "STOP" or may_resume_existing_consent(previous):
+                upsert_sms_consent(conn, organization_id=settings.customer_sms_organization_id,
+                    job_id=None, phone_e164=from_phone,
+                    status="OPTED_OUT" if keyword.kind == "STOP" else "OPTED_IN",
+                    source="TWILIO_STOP" if keyword.kind == "STOP" else "TWILIO_START",
+                    captured_at=datetime.now(UTC), evidence={"message_sid":message_sid, "keyword":keyword.normalized_body})
         thread = find_message_thread_by_phone(conn, from_phone)
         open_cases = list_open_ar_cases_by_phone(conn, from_phone)
         if not thread and open_cases:
@@ -568,6 +631,8 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
                 if identity in seen:
                     continue
                 seen.add(identity)
+                if decision.kind == "START" and not may_resume_existing_consent(get_sms_consent(conn, identity[0], from_phone)):
+                    continue
                 upsert_sms_consent(
                     conn,
                     organization_id=identity[0],
@@ -579,8 +644,10 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
                     evidence={"message_sid": message_sid, "keyword": decision.normalized_body},
                 )
                 audit(conn, identity[0], "CUSTOMER", from_phone, audit_action, "workflow_job", identity[1], {})
-        elif decision and decision.kind == "HELP":
+        elif decision and decision.kind == "HELP" and opt_out_type != "HELP":
             enqueue(conn, str(job["id"]), "SEND_HELP_REPLY", {"message_id": str(inbound["id"])})
+        elif decision and decision.kind == "HELP":
+            pass  # Advanced Opt-Out already sent the configured help response.
         else:
             enqueue(
                 conn,
@@ -739,6 +806,26 @@ def resume_ar_case(case_id: str, request: ArResumeRequest, actor: str = Depends(
         )
         return {"case_id": case_id, "status": updated["status"]}
     return _idempotent(f"ar-resume:{case_id}", request, action)
+
+
+@app.post("/internal/v1/customer-sms/consent")
+def sync_customer_sms_consent(request: CustomerSmsConsent, actor: str = Depends(internal_auth)) -> dict[str, Any]:
+    if request.organization_id != settings.customer_sms_organization_id:
+        raise HTTPException(403, "Consent organization is not configured for this sender")
+    def action(conn):
+        # Lock even when the first row does not exist yet, so concurrent events
+        # for this organization/number cannot reorder an opt-out and opt-in.
+        conn.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
+                     {"identity":f"customer-sms:{request.organization_id}:{request.phone_e164}"})
+        current = get_sms_consent(conn, request.organization_id, request.phone_e164)
+        if event_is_newer(current, request.captured_at):
+            upsert_sms_consent(conn, organization_id=request.organization_id, job_id=None,
+                phone_e164=request.phone_e164, status=request.status, source="FLOODMAN_CUSTOMER_PORTAL",
+                disclosure_version=request.disclosure_version, captured_at=request.captured_at,
+                evidence={"actor":actor, "contact_id":request.contact_id, "event_id":request.idempotency_key,
+                          "disclosure_text":request.disclosure_text})
+        return {"recorded":True}
+    return _idempotent("customer-sms-consent:" + request.organization_id, request, action)
 
 
 @app.post("/internal/v1/ar/{case_id}/sms-consent")

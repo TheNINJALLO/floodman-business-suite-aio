@@ -12,10 +12,10 @@ Before editing anything:
 4. Report the current versions, source boundaries, failed or unverified release gates, and the files you intend to change.
 5. Do not access or import live customer data or secrets.
 6. Do not reset any database or modify release artifacts.
-7. Preserve the existing Floodman brand, America/Detroit business time zone, payment tokenization boundary, Tailscale private surfaces, public customer/mobile route boundary, and actual RoomFlow layout requirement.
+7. Preserve the existing Floodman brand, America/Detroit business time zone, payment tokenization boundary, external-proxy staff access boundary, public customer/mobile route boundary, and actual RoomFlow layout requirement.
 
 First task:
-Create a clean staging test plan for server v4.7.0, Android 0.4.0-alpha01, and iOS 0.1.0-alpha03. Treat the native artifacts as unsigned test candidates. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
+Create a clean staging test plan for server v4.7.1, Android 0.4.0-alpha01, and iOS 0.1.0-alpha03. Treat the native artifacts as unsigned test candidates. Identify reproducibility gaps, mutable dependencies, missing tests, and likely migration risks. Make no production changes until the plan is approved.
 ```
 
 Suggested second task after the baseline is committed:

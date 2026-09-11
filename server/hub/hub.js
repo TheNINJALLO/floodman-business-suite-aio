@@ -20,46 +20,14 @@
   const creator = 'Josh Aldrich';
 
   const mobileQuery = window.matchMedia('(max-width: 1100px)');
-  const preferenceKey = 'floodmanWorkspaceMode';
-  const urlParams = new URLSearchParams(window.location.search);
-  const userAgent = String(navigator.userAgent || '');
-  const isIPadOS = navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1;
-  const isPhoneOrTablet = () => {
-    const clientHint = navigator.userAgentData && navigator.userAgentData.mobile === true;
-    return Boolean(clientHint || isIPadOS || /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(userAgent));
-  };
-  const readPreference = () => {
-    try {
-      const value = localStorage.getItem(preferenceKey);
-      if (value === 'desktop' || value === 'mobile') return value;
-      if (localStorage.getItem('floodmanDesktopMode') === '1') return 'desktop';
-    } catch (_) {}
-    return 'auto';
-  };
-  const writePreference = (value) => {
-    try {
-      if (value === 'desktop' || value === 'mobile') localStorage.setItem(preferenceKey, value);
-      else localStorage.removeItem(preferenceKey);
-      if (value === 'desktop') localStorage.setItem('floodmanDesktopMode', '1');
-      else localStorage.removeItem('floodmanDesktopMode');
-    } catch (_) {}
-  };
-  if (urlParams.get('desktop') === '1') writePreference('desktop');
-  if (urlParams.get('mobile') === '1') writePreference('mobile');
-  if (urlParams.get('workspace') === 'auto') writePreference('auto');
-  const desktopMode = () => readPreference() === 'desktop';
-  const mobileMode = () => readPreference() === 'mobile';
-  const isMobileWorkspace = () => mobileMode() || (!desktopMode() && isPhoneOrTablet());
-  const shouldUseMobileHome = () => {
-    if (desktopMode()) return false;
-    const route = String(window.location.hash || '').replace(/^#\/?/, '').split('?')[0].replace(/^\/+|\/+$/g, '');
-    if (route && route !== 'pages' && route !== 'pages/dashboard') return false;
-    if (mobileMode()) return true;
-    return isPhoneOrTablet();
-  };
+  const deviceMode = () => {var ua=String(navigator.userAgent||''),w=window.innerWidth||document.documentElement.clientWidth,ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));return handheld||w<=720||(matchMedia('(pointer:coarse)').matches&&w<=1100)?'mobile':'desktop'};
+  const isMobileWorkspace = () => deviceMode() === 'mobile';
+  try { localStorage.removeItem('floodmanWorkspaceMode'); localStorage.removeItem('floodmanDesktopMode'); } catch (_) {}
   const routeMobileHome = () => {
-    if (!shouldUseMobileHome()) return false;
-    window.location.replace(`${office}/office/mobile?mobile=1`);
+    if (!isMobileWorkspace() || new URLSearchParams(location.search).get('erp') === '1') return false;
+    const route = String(location.hash || '').replace(/^#\/?/, '').split('?')[0].replace(/^\/+|\/+$/g, '');
+    if (route && route !== 'pages' && route !== 'pages/dashboard') return false;
+    location.replace(office + '/office/mobile');
     return true;
   };
 
@@ -67,8 +35,9 @@
     {
       section: 'Floodman Operations',
       items: [
-        { label: 'Desktop Operations', icon: '▥', url: `${office}/office/desktop?desktop=1`, description: 'Desktop command center with the full sidebar, dense tables, and multi-column workflows.', desktop: true },
-        { label: 'Mobile Operations', icon: '▣', url: `${office}/office/mobile?mobile=1`, description: 'Dedicated phone and tablet workspace with large touch controls.', mobile: true },
+        { label: 'AI Call Center', icon: '☎', url: normalize(config.voiceUrl, 'https://aicall.oninetwork.com'), description: 'Live calls, transcripts, intake, users, notifications, email delivery, and voice settings.', external: true },
+        { label: 'Operations', icon: '▥', url: `${office}/office`, description: 'Your workspace, adapted to this device.' },
+        { label: 'Photo Portal', icon: '▧', url: `${office}/office/photo-portal`, description: 'Project photos and job files.' },
         { label: 'Install Floodman App', icon: '⇩', url: `${hubOrigin}/install-app`, description: 'Install the Android, iPhone, iPad, Windows, or macOS web app.' },
         { label: 'Full Floodman ERP', icon: '⌂', url: `${hubOrigin}/full-erp`, description: 'Desktop ERP for CRM, staff, accounting, reports, settings, and administration.', native: true, desktop: true },
         { label: 'Floodman RoomFlow Estimator', icon: '▱', url: `${office}/office/roomflow`, description: 'Customer-linked property layouts, measurements, scopes, and estimates inside Floodman.' },
@@ -86,15 +55,15 @@
     {
       section: 'Floodman ERP',
       items: [
-        { label: 'Operations Dashboard', icon: '◫', url: `${hubOrigin}/index.html?desktop=1#/pages/dashboard`, native: true, description: 'Company dashboard and organizational scorecards.' },
-        { label: 'Contacts & CRM', icon: '◎', url: `${hubOrigin}/index.html?desktop=1#/pages/contacts`, native: true, description: 'Contacts, clients, CRM records, and relationships.' },
-        { label: 'Employees & Invitations', icon: '♟', url: `${hubOrigin}/index.html?desktop=1#/pages/employees`, native: true, description: 'Add staff, invite members, assign roles, teams, and departments.' },
-        { label: 'Time & Timesheets', icon: '◷', url: `${hubOrigin}/index.html?desktop=1#/pages/employees/timesheets`, native: true, description: 'Timer, timesheets, approvals, activity, and attendance.' },
-        { label: 'Tasks & Work', icon: '☑', url: `${hubOrigin}/index.html?desktop=1#/pages/tasks`, native: true, description: 'Tasks, assignments, projects, and work tracking.' },
-        { label: 'Invoices', icon: '▤', url: `${hubOrigin}/index.html?desktop=1#/pages/accounting/invoices`, native: true, description: 'Estimates, invoices, line items, and document status.' },
-        { label: 'Payments', icon: '¤', url: `${hubOrigin}/index.html?desktop=1#/pages/accounting/payments`, native: true, description: 'Payment ledger, partial payments, balances, and reports.' },
-        { label: 'Reports', icon: '▥', url: `${hubOrigin}/index.html?desktop=1#/pages/reports`, native: true, description: 'Organization, time, activity, accounting, and project reporting.' },
-        { label: 'System Settings', icon: '⚙', url: `${hubOrigin}/index.html?desktop=1#/pages/settings`, native: true, description: 'Roles, permissions, organization settings, and integrations.' }
+        { label: 'Operations Dashboard', icon: '◫', url: `${hubOrigin}/index.html?erp=1#/pages/dashboard`, native: true, description: 'Company dashboard and organizational scorecards.' },
+        { label: 'Contacts & CRM', icon: '◎', url: `${hubOrigin}/index.html?erp=1#/pages/contacts`, native: true, description: 'Contacts, clients, CRM records, and relationships.' },
+        { label: 'Employees & Invitations', icon: '♟', url: `${hubOrigin}/index.html?erp=1#/pages/employees`, native: true, description: 'Add staff, invite members, assign roles, teams, and departments.' },
+        { label: 'Time & Timesheets', icon: '◷', url: `${hubOrigin}/index.html?erp=1#/pages/employees/timesheets`, native: true, description: 'Timer, timesheets, approvals, activity, and attendance.' },
+        { label: 'Tasks & Work', icon: '☑', url: `${hubOrigin}/index.html?erp=1#/pages/tasks`, native: true, description: 'Tasks, assignments, projects, and work tracking.' },
+        { label: 'Invoices', icon: '▤', url: `${hubOrigin}/index.html?erp=1#/pages/accounting/invoices`, native: true, description: 'Estimates, invoices, line items, and document status.' },
+        { label: 'Payments', icon: '¤', url: `${hubOrigin}/index.html?erp=1#/pages/accounting/payments`, native: true, description: 'Payment ledger, partial payments, balances, and reports.' },
+        { label: 'Reports', icon: '▥', url: `${hubOrigin}/index.html?erp=1#/pages/reports`, native: true, description: 'Organization, time, activity, accounting, and project reporting.' },
+        { label: 'System Settings', icon: '⚙', url: `${hubOrigin}/index.html?erp=1#/pages/settings`, native: true, description: 'Roles, permissions, organization settings, and integrations.' }
       ]
     },
     {
@@ -242,6 +211,7 @@
     drawer.setAttribute('role', 'dialog');
     drawer.setAttribute('aria-modal', 'true');
     drawer.setAttribute('aria-label', 'Floodman Operations tools');
+    drawer.inert = true;
     drawer.innerHTML = `
       <header class="fm-hub-drawer-header">
         <div>
@@ -272,6 +242,7 @@
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'fm-hub-overlay-title');
+    overlay.inert = true;
     overlay.innerHTML = `
       <div class="fm-hub-overlay-bar">
         <div class="fm-hub-overlay-title-wrap"><img class="fm-hub-overlay-mark" src="${brandMark}" alt=""><div><div class="fm-hub-overlay-kicker">Floodman module</div><strong class="fm-hub-overlay-title" id="fm-hub-overlay-title">Module</strong></div></div>
@@ -282,7 +253,7 @@
     const mobileDock = create('nav', 'fm-hub-mobile-dock');
     mobileDock.setAttribute('aria-label', 'Floodman mobile navigation');
     const mobileItems = [
-      { label: 'Home', icon: '⌂', url: `${office}/office/mobile?mobile=1`, description: 'Floodman phone and tablet command center.', mobile: true },
+      { label: 'Home', icon: '⌂', url: `${office}/office/mobile`, description: 'Floodman phone and tablet command center.', mobile: true },
       { label: 'Customers', icon: '◎', url: `${office}/office/contacts`, description: 'Customer files and signed documents.' },
       { label: 'Jobs', icon: '⌑', url: `${office}/office/properties`, description: 'Properties and jobs.' },
       { label: 'Billing', icon: '$', url: `${office}/office/invoices`, description: 'Invoices, payments, and balances.' }
@@ -328,15 +299,25 @@
     });
 
     let moduleReturnFocus = null;
+    const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),iframe,[tabindex]:not([tabindex="-1"])';
+    const trapFocus = (event, container) => {
+      const focusable = Array.from(container.querySelectorAll(focusableSelector)).filter(node => !node.hidden && node.getClientRects().length);
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     const closeDrawer = (restoreFocus = true) => {
       const wasOpen = drawer.classList.contains('is-open');
       drawer.classList.remove('is-open'); backdrop.classList.remove('is-open');
       drawer.setAttribute('aria-hidden', 'true'); backdrop.setAttribute('aria-hidden', 'true'); trigger.setAttribute('aria-expanded', 'false');
+      drawer.inert = true;
       if (wasOpen && restoreFocus) trigger.focus();
     };
     const openDrawer = () => {
       drawer.classList.add('is-open'); backdrop.classList.add('is-open');
       drawer.setAttribute('aria-hidden', 'false'); backdrop.setAttribute('aria-hidden', 'false'); trigger.setAttribute('aria-expanded', 'true');
+      drawer.inert = false;
       window.setTimeout(() => search.focus(), 80);
     };
 
@@ -345,15 +326,16 @@
     backdrop.addEventListener('click', closeDrawer);
     $('.fm-hub-overlay-close', overlay).addEventListener('click', closeModule);
     document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      if (overlay.classList.contains('is-open')) closeModule(); else closeDrawer();
+      if (event.key === 'Tab' && overlay.classList.contains('is-open')) { trapFocus(event, overlay); return; }
+      if (event.key === 'Tab' && drawer.classList.contains('is-open')) { trapFocus(event, drawer); return; }
+      if (event.key === 'Escape') {
+        if (overlay.classList.contains('is-open')) closeModule(); else closeDrawer();
+      }
     });
 
     function openModule(item) {
       moduleReturnFocus = document.activeElement;
       closeDrawer(false);
-      if (item.desktop) writePreference('desktop');
-      if (item.mobile) writePreference('mobile');
       if (item.native) { window.location.assign(item.url); return; }
       let target;
       try { target = new URL(item.url, window.location.href); } catch { target = null; }
@@ -365,7 +347,7 @@
       const openLink = $('.fm-hub-overlay-link', overlay); openLink.href = item.url;
       loading.classList.remove('is-hidden', 'is-error');
       loading.innerHTML = '<div><span class="fm-hub-spinner"></span><b>Loading module…</b><small>This should take only a moment.</small></div>';
-      frame.title = item.label; overlay.classList.add('is-open'); overlay.setAttribute('aria-hidden', 'false'); document.documentElement.classList.add('fm-hub-module-open');
+      frame.title = item.label; overlay.classList.add('is-open'); overlay.setAttribute('aria-hidden', 'false'); overlay.inert = false; document.documentElement.classList.add('fm-hub-module-open');
       window.setTimeout(() => $('.fm-hub-overlay-close', overlay).focus(), 0);
       let settled = false;
       const timeout = window.setTimeout(() => {
@@ -380,7 +362,7 @@
     function closeModule() {
       const wasOpen = overlay.classList.contains('is-open');
       const frame = $('.fm-hub-frame', overlay); frame.onload = null;
-      overlay.classList.remove('is-open'); overlay.setAttribute('aria-hidden', 'true'); document.documentElement.classList.remove('fm-hub-module-open');
+      overlay.classList.remove('is-open'); overlay.setAttribute('aria-hidden', 'true'); overlay.inert = true; document.documentElement.classList.remove('fm-hub-module-open');
       window.setTimeout(() => { frame.src = 'about:blank'; }, 180);
       if (wasOpen && moduleReturnFocus?.focus) moduleReturnFocus.focus();
     }

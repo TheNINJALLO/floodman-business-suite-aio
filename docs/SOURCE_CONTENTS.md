@@ -2,7 +2,7 @@
 
 ## Active current source
 
-- `server/`: custom Floodman server v4.7.0 test release.
+- `server/`: custom Floodman server v4.7.3 release source.
 - `apps/android/`: Android 0.4.0-alpha01.
 - `apps/ios/`: Apple 0.1.0-alpha03.
 - `launcher/`: current Pterodactyl launcher.

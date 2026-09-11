@@ -20,15 +20,27 @@ class FloodmanOfficeClient:
     def close(self) -> None:
         self.client.close()
 
-    def attach_client_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _post(self, path: str, payload: dict[str, Any], *, timeout: float = 30.0) -> dict[str, Any]:
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True, default=str).encode("utf-8")
         response = self.client.post(
-            f"{self.base_url}/internal/v1/client-files/attach",
+            f"{self.base_url}{path}",
             content=body,
             headers=internal_headers(self.key_id, self.secret, body),
+            timeout=timeout,
         )
         if response.is_error:
-            raise RuntimeError(
-                f"Floodman client-file attachment returned {response.status_code}: {response.text[:1000]}"
-            )
+            raise RuntimeError(f"Floodman Office returned {response.status_code}: {response.text[:1000]}")
         return dict(response.json() or {})
+
+    def attach_client_file(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post("/internal/v1/client-files/attach", payload)
+
+    def customer_sms_status(self, organization_id: str, phone_e164: str) -> dict[str, Any]:
+        return self._post("/internal/v1/customer-sms/check", {"organization_id":organization_id,
+                          "phone_e164":phone_e164}, timeout=5)
+
+    def project_call_intake(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post("/internal/v1/call-intakes/project", payload)
+
+    def update_call_intake_links(self, intake_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post(f"/internal/v1/call-intakes/{intake_id}/links", payload)

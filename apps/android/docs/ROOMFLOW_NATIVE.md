@@ -1,6 +1,6 @@
 # Floodman RoomFlow in Android
 
-The Floodman Android shell launches a pinned local copy of the RoomFlow field-estimating engine under Android WebView's secure app-assets origin. It does not require the private PWA or Tailscale on the phone.
+The Floodman Android shell launches a pinned local copy of the RoomFlow field-estimating engine under Android WebView's secure app-assets origin. It does not require the browser PWA during capture.
 
 ## Cloud bootstrap
 

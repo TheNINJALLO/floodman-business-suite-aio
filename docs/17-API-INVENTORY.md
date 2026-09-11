@@ -27,4 +27,4 @@ Major route families include:
 /health/*               readiness and liveness
 ```
 
-Do not assume every decorator is public. Nginx and Tailscale gateway rules define the exposure boundary.
+Do not assume every decorator is public. Nginx and the external HTTPS proxy access rules define the exposure boundary.

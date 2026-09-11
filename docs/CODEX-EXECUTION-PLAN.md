@@ -17,6 +17,16 @@
 - **Settings usability complete (2026-08-15).** Every staff-visible CRM, setup, provider, company, catalog, import, RoomFlow, Android, and iOS settings surface is inventoried. Central guided setup, plain labels, safe Detroit defaults, server validation, owner/installer progressive disclosure, dismissible help/feedback, and owner-only stable RoomFlow import pass keyboard, close, desktop, mobile, source, package, and native readiness gates.
 - **v4.6.10 web update complete locally (2026-08-15).** The distinct server/web and Pterodactyl identity lets an existing v4.6.9 host recognize the settings/usability update. Source/browser tests, deterministic artifacts, extracted-package tests, hashes, inventory, and verification pass while the additive Mobile API, native app versions, RoomFlow pin, and external signing/device/macOS/staging boundaries remain unchanged.
 
+## Phase 1B — comprehensive interface hardening and fresh-server package
+
+- **Windows/local implementation complete; external acceptance remains open (2026-08-28).** WEB-007 extends rather than reopens WEB-002. It passes small-phone through ultrawide and transition-width coverage, distinct mobile/desktop workspace behavior, installed-PWA and offline states, keyboard/focus/reflow/accessibility checks, Android native-shell build gates, Apple source readiness, deterministic visual evidence, and a complete same-identity v4.7.1 fresh-server Pterodactyl handoff.
+- Preserve the clean `b3cf9c2` baseline, current server/native identities, Mobile API, RoomFlow pin, ports 9000–9004, `FLOODMAN_SUITE_READY`, private staff-surface boundary, and persistent `server/data` behavior.
+- Install and validate the five authorized project-local UI/testing skills without making them production dependencies. Record exact upstream commits and licenses in `.agents/skills/SOURCES.md`.
+- The architecture and audit are recorded in `docs/UI-LAYOUT-HARDENING.md`; no replacement framework or alternate application was introduced.
+- Repairs proceed from shared shell/cascade/layer tokens through Hub, RoomFlow, PWA privacy, and native safe areas. The existing browser harness now enforces the expanded contract.
+- All applicable source, browser, PWA, accessibility, visual, Android, Apple-readiness, inventory, package, checksum, and repository gates are recorded. Current macOS/device/live-node results remain BLK-015/BLK-006/BLK-005, never passes.
+- The matched fresh-server runtime ZIP, canonical `mobile-start.sh`, egg, setup guide, and checksums are complete without deployment or identity changes.
+
 ## Phase 2 — RoomFlow and Supabase
 
 - **Complete (2026-08-12).** Fetched and verified only the pinned RoomFlow commit in the ignored vendor location: 1,032 tracked files, clean checkout.
@@ -44,6 +54,37 @@
 - **Alpha12 usability refresh complete locally (2026-08-15).** The selected Floodman workspace scopes RoomFlow customer/property lookups; four-step guidance, plain customer/import controls, fixed Detroit time, and installer-only connection editing are packaged with exact-pin server 4.6.9 assets. JDK 17/Gradle 8.13 compile, 1/1 unit test, lint with 0 errors, debug APK, unsigned release APK/AAB, package inspection, signature-state checks, and SHA-256 recording pass. The historical remote-dispatch gap was later resolved by CI-001; device/signing gates remain external.
 - **RoomFlow Capture source gate complete locally (2026-08-18).** Real ARCore/Depth and guided fallback, lifecycle/permission handling, bridge v2, bounded atomic outbox, and deterministic capture fixtures pass forced compile, 8/8 total unit tests, lint with 0 errors/fatals, and fresh debug/release APK plus AAB packaging. Physical Depth/guided testing and a distinctly versioned signed build remain external.
 - **Android 0.4.0-alpha01/build 13 package complete locally and remotely (2026-08-18).** Forced JDK 17/Gradle 8.13 compile, 8/8 tests, lint with 0 errors/fatals, debug APK, unsigned release APK, release AAB, package metadata, signature state, exact-pin capture assets, and SHA-256 evidence pass. Remote run `32197176293` uploaded artifact `9346411488`; physical-device/signing acceptance remains BLK-006/BLK-007.
+
+## Phase 3B — licensed insurance pricing
+
+- **Safe Xactimate pricing worksheet path implemented locally (2026-08-19).** Services & Prices now recognizes PLX without retaining it, downloads a documented worksheet, previews authorized rows before writes, validates stable category/selector/activity identities and pricing metadata, and commits a complete catalog batch with one durable Office-state write. Office and integrated RoomFlow searches show the insurance code; selected lines retain source/list/effective-date metadata; estimate PDFs show the code and unit price.
+- The exact supplied PLX is a valid transfer container, but its only `XACTDOC.ZIPXML` member is opaque/protected and official Verisk material reviewed for this task does not publish a payload contract. Direct extraction remains BLK-013; no line-item content or licensed file entered Git, and no live runtime data was changed.
+- Keep server 4.7.0, Mobile API alpha11, Android alpha01, iOS alpha03, minimum clients, and the RoomFlow pin unchanged. This source milestone does not authorize a same-version runtime rebuild, version bump, push, live import, Xactimate credential use, or deployment.
+- All 13 source smokes, the 217-file server source manifest, and generated inventory pass. The repository verifier correctly stops only at the frozen v4.7.0 package comparison; BLK-014 requires explicit approval for a distinct version before package/checksum/release verification can return to PASS.
+
+### Customer communication and payment alerts (2026-08-21)
+
+- Add durable property-scoped customer threads and escaped plain-text messages to the existing estimate/invoice capability portal; do not expose a public staff or database endpoint.
+- Notify active payment administrators after every recorded manual, secure-card, auto-charge, or reconciled processor payment. Notify message administrators when a customer writes. Use stable per-event/per-recipient records so retries cannot duplicate alerts or reset read state.
+- Deliver staff and customer notifications by email when configured while always retaining the authenticated Office/mobile notification record. Do not include customer message content, card data, tokens, or private authorization details in notification email.
+- Verify customer/staff read controls, mobile notification listing/read, retry deduplication, separate-property isolation, length/rate limits, and 320/390 px customer portal layout with fictional data. Keep FCM/APNs background push, versioning, packaging, push, and deployment outside this source milestone.
+
+### v4.7.1 server release (2026-08-21)
+
+- The user's explicit commit-and-release approval resolves the post-v4.7.0 identity boundary. Advance server/web/Pterodactyl only to v4.7.1; keep Mobile API, Android, iOS, minimum-client versions, and the exact RoomFlow pin unchanged.
+- Preserve the frozen v4.7.0 runtime/launcher bytes and hashes. Build new v4.7.1 runtime, launcher, egg, checksums, and release notes from tracked source.
+- Require all 13 source smokes, two byte-identical packages, 205 internal runtime files, all extracted portable tests, 87 launcher overlay preflights, source manifests, inventory, and final repository verification before the release commit.
+- Publish only the feature branch and a draft pull request over the previously authorized authenticated HTTPS/REST path. Do not dispatch or claim a production deployment, container-image publication, signing/store upload, live provider/data operation, staging result, or device acceptance.
+- **Complete.** Release commit `ca9cd35` is published on `feature/roomflow-capture`; draft PR #1 targets `main`. Linux source run `32494582232`, Android run `32494662846`, and unsigned iOS simulator run `32494665766` pass. The main branch, server-image publication, signing/store, live deployment, and production boundaries remain untouched.
+
+## Phase 3C — external HTTPS migration
+
+- Remove the Tailscale download, bootstrap, Serve, Funnel, watchdog, and Supervisor processes from the current launcher.
+- Require explicit canonical HTTPS origins for `floodman.oninetwork.com`, `sign.oninetwork.com`, `api.oninetwork.com`, and `lab.oninetwork.com` in the Pterodactyl egg.
+- Keep Mailpit loopback-only. Route native `/mobile-api/` requests correctly through allocation 9004 while keeping the workflow API on an internal loopback port.
+- Point Android and Apple fallback API configuration at `https://api.oninetwork.com/mobile-api/` without changing protected release identities.
+- Preserve the WEB-007 and published v4.7.1 artifact hashes before producing a separately checksum-addressed HTTPS001 fresh-server bundle.
+- Require source smokes, native readiness/build checks, deterministic packaging, internal manifests, shell/egg verification, and repository verification. Do not claim live DNS/TLS/proxy or staging acceptance locally.
 
 ## Phase 4 — iOS
 

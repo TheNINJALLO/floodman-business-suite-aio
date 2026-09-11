@@ -15,22 +15,22 @@
   <link rel="stylesheet" href="/floodman-pwa.css">
   <title>Install Floodman Operations</title>
   <style>
-    :root{color-scheme:dark;--bg:#07111f;--panel:#101d2f;--line:#29415f;--text:#edf4ff;--muted:#9fb0c6;--blue:#1888d4;--good:#5be39d;--warn:#ffc65c}*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:radial-gradient(circle at 75% -5%,#19456d 0,#07111f 46%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}body{padding:calc(18px + env(safe-area-inset-top,0px)) 14px calc(28px + env(safe-area-inset-bottom,0px))}.wrap{width:min(760px,100%);margin:auto}.hero,.card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(155deg,#15263d,#0c1828);box-shadow:0 18px 55px rgba(0,0,0,.32)}.hero{padding:25px}.brand{display:flex;align-items:center;gap:14px}.brand img{width:62px;height:62px}.brand h1{margin:0;font-size:28px}.brand p{margin:4px 0 0;color:var(--muted)}.hero-copy{margin:20px 0 0;color:#c9d9e9;line-height:1.6}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.button,button{display:flex;min-height:50px;align-items:center;justify-content:center;border:0;border-radius:12px;padding:12px 15px;background:var(--blue);color:white;font:800 15px/1.2 inherit;text-decoration:none;cursor:pointer}.secondary{background:#263e59}.card{padding:20px;margin-top:14px}.status{display:grid;gap:9px}.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px;border-radius:12px;background:#0a1728}.row span:last-child{font-weight:800}.good{color:var(--good)}.warn{color:var(--warn)}.instructions{line-height:1.6;color:#c9d9e9}.instructions ol{padding-left:22px}.hidden{display:none!important}.foot{margin:20px 0 0;text-align:center;color:var(--muted);font-size:12px}@media(max-width:620px){.actions{grid-template-columns:1fr}.hero{padding:19px}.brand h1{font-size:23px}.brand img{width:54px;height:54px}}
+    :root{color-scheme:dark;--bg:#07111f;--panel:#101d2f;--line:#29415f;--text:#edf4ff;--muted:#9fb0c6;--blue:#1888d4;--good:#5be39d;--warn:#ffc65c}*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:radial-gradient(circle at 75% -5%,#19456d 0,#07111f 46%);color:var(--text);font-family:"Segoe UI",Arial,sans-serif}body{padding:calc(18px + env(safe-area-inset-top,0px)) 14px calc(28px + env(safe-area-inset-bottom,0px))}.wrap{width:min(760px,100%);margin:auto}.hero,.card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(155deg,#15263d,#0c1828);box-shadow:0 18px 55px rgba(0,0,0,.32)}.hero{padding:25px}.brand{display:flex;align-items:center;gap:14px}.brand img{width:62px;height:62px}.brand h1{margin:0;font-size:28px}.brand p{margin:4px 0 0;color:var(--muted)}.hero-copy{margin:20px 0 0;color:#c9d9e9;line-height:1.6}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}.button,button{display:flex;min-height:50px;align-items:center;justify-content:center;border:0;border-radius:12px;padding:12px 15px;background:var(--blue);color:white;font:800 15px/1.2 inherit;text-decoration:none;cursor:pointer}.secondary{background:#263e59}.card{padding:20px;margin-top:14px}.status{display:grid;gap:9px}.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px;border-radius:12px;background:#0a1728}.row span:last-child{font-weight:800}.good{color:var(--good)}.warn{color:var(--warn)}.instructions{line-height:1.6;color:#c9d9e9}.instructions ol{padding-left:22px}.hidden{display:none!important}.foot{margin:20px 0 0;text-align:center;color:var(--muted);font-size:12px}@media(max-width:620px){.actions{grid-template-columns:1fr}.hero{padding:19px}.brand h1{font-size:23px}.brand img{width:54px;height:54px}}
   </style>
 </head>
 <body><main class="wrap">
   <section class="hero">
     <div class="brand"><img src="/floodman-pwa-icons/icon-192.png" alt=""><div><h1>Floodman Operations App</h1><p>Created by Josh Aldrich</p></div></div>
     <p class="hero-copy">Install one adaptive Floodman app. Computers open a true desktop shell; phones and tablets open the dedicated field shell. You can switch workspaces at any time, and live customer and billing data remains network-only.</p>
-    <div class="actions"><button id="install">Install adaptive Floodman app</button><a class="button secondary" href="/office/desktop?desktop=1" data-desktop>Open desktop workspace</a><a class="button secondary" href="/office/mobile?mobile=1" data-mobile>Open mobile workspace</a></div>
+    <div class="actions"><button id="install">Install adaptive Floodman app</button><a class="button secondary" href="/workspace">Open Floodman</a></div>
   </section>
   <section class="card"><h2>PWA readiness</h2><div id="status" class="status"></div></section>
   <section id="ios" class="card instructions hidden"><h2>Install on iPhone or iPad</h2><ol><li>Open Floodman in Safari or another current iOS browser.</li><li>Tap the Share button.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Confirm <b>Floodman</b>, then tap Add.</li></ol></section>
   <section id="https" class="card instructions hidden"><h2>HTTPS is the last switch</h2><p>The PWA files are installed and ready, but browsers will not register the service worker or promote installation from a public plain-HTTP IP address. Point your Floodman subdomain to this service and enable HTTPS. No new application build is required afterward.</p></section>
   <section class="card instructions"><h2>Offline behavior</h2><p>The app shell, branding, icons, install page, and offline recovery page are cached. Customer records, signatures, invoices, payments, messages, and APIs are deliberately never cached, preventing private business data from lingering in the browser cache.</p></section>
-  <p class="foot">Floodman Operations · Created by Josh Aldrich · Release 4.7.0</p>
+  <p class="foot">Floodman Operations · Created by Josh Aldrich · Release 4.7.3</p>
 </main>
-<script src="/floodman-pwa.js?release=4.7.0"></script>
+<script src="/floodman-pwa.js?release=4.7.3"></script>
 <script>
 (() => {
   const secure = window.isSecureContext && (location.protocol === 'https:' || ['localhost','127.0.0.1','::1'].includes(location.hostname));
@@ -46,8 +46,8 @@
   document.getElementById('status').innerHTML = rows.map(([label,value,ok]) => `<div class="row"><span>${label}</span><span class="${ok?'good':'warn'}">${value}</span></div>`).join('');
   document.getElementById('ios').classList.toggle('hidden', !ios || standalone);
   document.getElementById('https').classList.toggle('hidden', secure);
-  document.querySelector('[data-desktop]')?.addEventListener('click', () => localStorage.setItem('floodmanWorkspaceMode','desktop'));
-  document.querySelector('[data-mobile]')?.addEventListener('click', () => localStorage.setItem('floodmanWorkspaceMode','mobile'));
+
+
   const button = document.getElementById('install');
   if (standalone) { button.textContent = 'Floodman is installed'; button.disabled = true; }
   else button.addEventListener('click', () => window.FloodmanPWA ? window.FloodmanPWA.install() : location.reload());

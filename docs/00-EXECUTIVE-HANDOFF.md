@@ -4,7 +4,7 @@
 
 Floodman Operations is a single-company field-service and business-operations suite for waterproofing, foundation repair, restoration, mold work, demolition, inspections, and related projects. The system started as a clean all-in-one Gauzy test environment and grew into a Floodman-branded platform with its own Office workspace, customer records, estimating, invoicing, payments, document signing, RoomFlow field measurement, scheduling, receivables, messaging, competitor intelligence, PWA, Android app, and early iPhone/iPad app.
 
-The current custom server baseline is v4.7.0. Android is v0.4.0-alpha01 (build 13). iOS remains v0.1.0-alpha03. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
+The current custom server baseline is v4.7.3 with signed AI call intake, canonical draft projection, team access, and staff notification delivery. Android is v0.4.0-alpha01 (build 13). iOS remains v0.1.0-alpha03. RoomFlow is pinned to commit `1f97817a52b916875e50cc6380c0d284072b8ce8`.
 
 ## Business outcomes
 
@@ -27,11 +27,11 @@ The approved estimate is a four-page Floodman document with customer/property de
 
 ## Deployment model
 
-The testing deployment is one Pterodactyl server using ports 9000 through 9004. Staff web surfaces are private through Tailscale. Public customer signing, payment pages, and the narrow native-app API are exposed through an HTTPS gateway. Native apps do not require Tailscale on every phone.
+The testing deployment is one Pterodactyl server using ports 9000 through 9004. An external HTTPS reverse proxy provides the `oninetwork.com` certificates, hostname routing, and staff access policy. Public exposure remains limited to customer signing/payment/token routes and the narrow native-app API; staff and Engineering surfaces require proxy access control.
 
 ## Important status boundary
 
-This handoff contains the complete Floodman custom source and current build files, not the live database. Android 0.4.0-alpha01 passes its local unsigned compiler/package gate and iOS alpha03 passes Windows source readiness, but no native device, iOS Xcode, signing/store, or live v4.7.0 staging pass is claimed.
+This handoff contains the complete Floodman custom source and current build files, not the live database. The fresh-server runtime/egg/launcher/setup bundle and fresh Android pre-signing build gates pass locally. The current Apple 44-point close-target edit still needs the final macOS/Xcode simulator workflow. No native device, signing/store, or live v4.7.1 staging pass is claimed.
 
 ## Recommended migration strategy
 

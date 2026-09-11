@@ -17,7 +17,7 @@
 ## Alpha limitations
 
 - The release has not completed an external penetration test.
-- Certificate pinning remains disabled while the temporary `*.ts.net` API origin is in use.
+- Certificate pinning remains disabled so certificates can rotate through the operator-managed `api.oninetwork.com` HTTPS proxy; normal public certificate-authority validation remains required.
 - A broad offline customer cache is not enabled.
 - Native push delivery still requires FCM credentials.
 - The bundled RoomFlow engine runs in a hardened local WebView origin; it still requires device-level field testing across the supported camera and AR hardware range.

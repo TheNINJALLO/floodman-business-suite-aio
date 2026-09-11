@@ -2,6 +2,32 @@
 
 This changelog summarizes the major cumulative milestones reconstructed from the session artifacts. Some intermediate packages were diagnostic or failed build attempts and were never intended as final production releases.
 
+## 4.7.3
+
+- Simplified the daily Business Suite navigation and dashboard.
+- Made the Properties page customer-first and strictly customer-scoped.
+- Reduced customer, estimate, invoice, and payment page clutter while preserving advanced tools in collapsed sections.
+- Added authenticated cross-customer isolation and real-browser responsive coverage.
+
+## 4.7.2
+
+- Added signed, replay-safe AI call events with deterministic local fixtures and canonical customer, property, intake, job, RoomFlow, estimate, task, appointment, and notification identifiers.
+- Added provisional and ambiguous-caller review paths; only provider-verified phone matches can attach a call to an existing customer.
+- Added an authenticated call-intake queue and accessible real-time screen-pop for signed-in staff.
+- Added durable role/workspace notifications, privacy-bounded email notices, best-effort SMS delivery, mobile notification feed support, and a push-token registration boundary.
+- Added owner-managed team accounts with email-as-username, password, roles, disable controls, and an optional E.164 call-alert phone.
+- Added an idempotent database migration and rollback/restore guide. AI-created estimates remain unpublished, unpriced, and zero-dollar until staff review.
+- Advanced only the server/web/Pterodactyl identity. Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum clients, and the RoomFlow pin remain unchanged.
+
+## 4.7.1
+
+- Added safe PLX recognition and an authorized CSV preview/confirm workflow for stable, non-duplicating insurance pricing updates.
+- Preserved insurance item codes and supported source metadata through catalog search, RoomFlow selection, estimates, and PDFs.
+- Added property-scoped customer portal conversations, staff replies, customer/staff read controls, and retry-safe deduplication.
+- Added durable payment-administrator and customer-message alerts with optional privacy-bounded email notices and existing mobile notification-feed delivery.
+- Produced a distinct deterministic 205-file Pterodactyl runtime, launcher, egg, internal manifest, and checksums without changing native versions, Mobile API compatibility, minimum clients, or the RoomFlow pin.
+- Preserved the frozen v4.7.0 runtime and launcher as byte-identical rollback evidence. Staging, devices, advisory scanning, signing/store, backup/restore, and production deployment remain external gates.
+
 ## 4.7.0
 
 - Added suite-owned RoomFlow Capture with shared schema-v2 geometry, authenticated room revisions, idempotent offline replay, and redacted audit records.

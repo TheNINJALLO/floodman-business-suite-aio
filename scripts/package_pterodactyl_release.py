@@ -14,20 +14,26 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "server"
 LAUNCHER = ROOT / "launcher" / "mobile-start.sh"
 RELEASES = ROOT / "deployment" / "releases"
-EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.0.json"
+EGG = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.3.json"
+EGG_TEMPLATE = ROOT / "deployment" / "pterodactyl" / "egg-floodman-operations-mobile-v4.7.2.json"
 BASE_IMAGE = (
     "ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@"
     "sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5"
 )
-ZIP_TIMESTAMP = (2026, 8, 18, 0, 0, 0)
+ZIP_TIMESTAMP = (2026, 9, 10, 12, 0, 0)
+RUNTIME_SOURCE_COMMIT = "6154bea091bbe096697afb949e0b79eea69c3af7"
+RUNTIME_SOURCE_URL = (
+    "https://raw.githubusercontent.com/TheNINJALLO/floodman-business-suite-aio/"
+    f"{RUNTIME_SOURCE_COMMIT}/deployment/releases/floodman-operations-runtime-v4.7.3.zip"
+)
 
 EXCLUDED_RUNTIME_PATHS = {
     "MANIFEST.sha256",
     "requirements-dev.txt",
     "source-v3.8.0.json",
 }
-EXCLUDED_RUNTIME_PREFIXES = ("requirements/",)
-OBSOLETE_EGG_VARIABLES = {
+EXCLUDED_RUNTIME_PREFIXES = ("requirements/", "tailscale/", "external-portal/")
+REMOVED_EGG_VARIABLES = {
     "FLOODMAN_SOURCE_MODE",
     "FLOODMAN_SOURCE_ARCHIVE",
     "FLOODMAN_SOURCE_URL",
@@ -35,13 +41,49 @@ OBSOLETE_EGG_VARIABLES = {
     "FLOODMAN_FORCE_SOURCE_REAPPLY",
     "FLOODMAN_PUBLIC_HOST",
     "FLOODMAN_PUBLIC_SCHEME",
-    "FLOODMAN_PUBLIC_URL",
-    "FLOODMAN_DOCUMENSO_URL",
     "FLOODMAN_MAILPIT_URL",
-    "FLOODMAN_ENGINEERING_URL",
-    "FLOODMAN_API_PUBLIC_URL",
     "ROOMFLOW_WEB_URL",
+    "TAILSCALE_HOSTNAME",
 }
+
+EXTERNAL_URL_VARIABLES = (
+    (
+        "Main Floodman URL",
+        "FLOODMAN_PUBLIC_URL",
+        "https://floodman.oninetwork.com",
+        "HTTPS origin for the staff Hub, ERP, CRM, PWA, RoomFlow, and customer routes. Protect staff paths in the external proxy.",
+    ),
+    (
+        "Floodman Signing URL",
+        "FLOODMAN_DOCUMENSO_URL",
+        "https://sign.oninetwork.com",
+        "HTTPS origin mapped to signing port 9001. Disable public signup and protect signing administration in the external proxy.",
+    ),
+    (
+        "Customer Portal URL",
+        "FLOODMAN_CUSTOMER_PUBLIC_URL",
+        "https://floodman.oninetwork.com/customer",
+        "Public HTTPS base for customer messages, documents, payments, and token links.",
+    ),
+    (
+        "Native Mobile API URL",
+        "FLOODMAN_MOBILE_API_PUBLIC_URL",
+        "https://api.oninetwork.com/mobile-api",
+        "Public HTTPS base used by Android and Apple apps. Map api.oninetwork.com to port 9004.",
+    ),
+    (
+        "Workflow API URL",
+        "FLOODMAN_API_PUBLIC_URL",
+        "https://api.oninetwork.com",
+        "HTTPS origin for provider webhooks and the authenticated workflow API on port 9004.",
+    ),
+    (
+        "Engineering URL",
+        "FLOODMAN_ENGINEERING_URL",
+        "https://lab.oninetwork.com",
+        "HTTPS origin mapped to port 9003. Keep this hostname restricted to approved staff.",
+    ),
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -127,7 +169,7 @@ def package_runtime(version: str) -> tuple[Path, int]:
     return destination, len(files)
 
 
-def build_installer_script(launcher: str, version: str) -> str:
+def build_installer_script(launcher: str, version: str, runtime_sha256: str) -> str:
     sentinel = "FLOODMAN_LAUNCHER_V4610"
     if sentinel in launcher:
         raise RuntimeError(f"Launcher unexpectedly contains reserved heredoc marker {sentinel}")
@@ -135,6 +177,25 @@ def build_installer_script(launcher: str, version: str) -> str:
 set -eu
 apk add --no-cache ca-certificates coreutils curl unzip >/dev/null
 mkdir -p /mnt/server/data /mnt/server/config /mnt/server/backups /mnt/server/diagnostics /mnt/server/logs
+runtime_path='/mnt/server/floodman-operations-runtime-v{version}.zip'
+runtime_temp="$runtime_path.download"
+runtime_url='{RUNTIME_SOURCE_URL}'
+runtime_sha256='{runtime_sha256}'
+if [ -f "$runtime_path" ]; then
+  printf '%s  %s\n' "$runtime_sha256" "$runtime_path" | sha256sum -c - >/dev/null \
+    || {{ echo 'Existing Floodman runtime ZIP does not match this egg. Refusing to overwrite it.' >&2; exit 1; }}
+  echo 'Verified the existing Floodman runtime ZIP.'
+else
+  rm -f "$runtime_temp"
+  trap 'rm -f "$runtime_temp"' EXIT INT TERM
+  curl --fail --location --retry 3 --connect-timeout 15 --max-time 300 \
+    "$runtime_url" --output "$runtime_temp"
+  printf '%s  %s\n' "$runtime_sha256" "$runtime_temp" | sha256sum -c - >/dev/null \
+    || {{ echo 'Downloaded Floodman runtime ZIP failed SHA-256 verification.' >&2; exit 1; }}
+  mv "$runtime_temp" "$runtime_path"
+  trap - EXIT INT TERM
+  echo 'Downloaded and verified the pinned Floodman runtime ZIP.'
+fi
 cat > /mnt/server/mobile-start.sh <<'{sentinel}'
 {launcher.rstrip()}
 {sentinel}
@@ -143,46 +204,49 @@ cat > /mnt/server/README-MOBILE.txt <<'README'
 Floodman Operations v{version} Pterodactyl installer
 
 Before the first start:
-1. Upload floodman-operations-runtime-v{version}.zip to the server root. Do not extract it.
+1. Confirm floodman-operations-runtime-v{version}.zip is present. The installer downloads and verifies it when missing.
 2. Set the company and Owner fields in Startup. Replace every example value.
 3. Confirm primary allocation 9000 and additional allocations 9001 through 9004.
-4. Create config/tailscale-auth-key.txt with a one-off, non-ephemeral Tailscale auth key.
-5. Keep the Startup command as: bash ./mobile-start.sh
+4. Set all six external HTTPS URLs and configure the four proxy hostnames before first start.
+5. Keep Mailpit port 9002 private and keep the Startup command as: bash ./mobile-start.sh
 
 Persistent data and generated secrets remain under data/ and config/.
 README
-echo 'Floodman Operations v{version} launcher installed. Upload the matching runtime ZIP and configure Startup/Tailscale before pressing Start.'
+echo 'Floodman Operations v{version} launcher and verified runtime installed. Configure Startup/external HTTPS before pressing Start.'
 """
 
 
-def tailscale_hostname_variable() -> dict[str, object]:
+def external_url_variable(
+    name: str, env_variable: str, default_value: str, description: str
+) -> dict[str, object]:
     return {
-        "name": "Tailscale Hostname",
-        "description": "Private MagicDNS machine name. Authentication uses config/tailscale-auth-key.txt and is never stored in an environment variable.",
-        "env_variable": "TAILSCALE_HOSTNAME",
-        "default_value": "floodman-operations",
+        "name": name,
+        "description": description,
+        "env_variable": env_variable,
+        "default_value": default_value,
         "user_viewable": True,
         "user_editable": True,
-        "rules": "required|regex:/^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$/",
+        "rules": r"required|url|regex:/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?(?:\/[^\s?#]*)?$/",
         "field_type": "text",
     }
 
 
-def update_egg(version: str, launcher: str) -> None:
-    egg = json.loads(EGG.read_text(encoding="utf-8"))
+def update_egg(version: str, launcher: str, runtime_sha256: str) -> None:
+    source = EGG if EGG.exists() else EGG_TEMPLATE
+    egg = json.loads(source.read_text(encoding="utf-8"))
     egg["name"] = f"Floodman Operations AIO v{version}"
     egg["description"] = (
-        f"Floodman Operations staging AIO v{version}. Installs the matched cumulative launcher and requires "
-        f"floodman-operations-runtime-v{version}.zip in the server root. Staff surfaces remain private through Tailscale."
+        f"Floodman Operations staging AIO v{version}. Installs the matched cumulative launcher and downloads "
+        f"the pinned, checksum-verified runtime ZIP when it is missing. TLS and staff access policy are supplied by an external HTTPS proxy."
     )
     egg["docker_images"] = {"Floodman AIO base 3.2.2 (pinned)": BASE_IMAGE}
     egg["startup"] = "bash ./mobile-start.sh"
-    egg["scripts"]["installation"]["script"] = build_installer_script(launcher, version)
+    egg["scripts"]["installation"]["script"] = build_installer_script(launcher, version, runtime_sha256)
 
     variables = [
         value
         for value in egg.get("variables", [])
-        if value.get("env_variable") not in OBSOLETE_EGG_VARIABLES
+        if value.get("env_variable") not in REMOVED_EGG_VARIABLES
     ]
     for value in variables:
         if value.get("env_variable") == "FLOODMAN_OWNER_PASSWORD":
@@ -190,12 +254,17 @@ def update_egg(version: str, launcher: str) -> None:
             value["description"] = (
                 "Required Owner password. Replace the example before first start; Floodman rejects known placeholder values."
             )
-    if not any(value.get("env_variable") == "TAILSCALE_HOSTNAME" for value in variables):
-        insert_at = next(
-            (index + 1 for index, value in enumerate(variables) if value.get("env_variable") == "TZ"),
-            len(variables),
-        )
-        variables.insert(insert_at, tailscale_hostname_variable())
+    existing = {value.get("env_variable") for value in variables}
+    insert_at = next(
+        (index + 1 for index, value in enumerate(variables) if value.get("env_variable") == "TZ"),
+        len(variables),
+    )
+    additions = [
+        external_url_variable(name, env_variable, default_value, description)
+        for name, env_variable, default_value, description in EXTERNAL_URL_VARIABLES
+        if env_variable not in existing
+    ]
+    variables[insert_at:insert_at] = additions
     egg["variables"] = variables
     EGG.write_text(json.dumps(egg, indent=2) + "\n", encoding="utf-8")
 
@@ -215,16 +284,16 @@ def write_release_checksums(version: str) -> Path:
 
 def main() -> None:
     version = (SERVER / "VERSION").read_text(encoding="utf-8").strip()
-    if version != "4.7.0":
-        raise SystemExit(f"This reviewed packager is fixed to v4.7.0; found {version!r}")
+    if version != "4.7.3":
+        raise SystemExit(f"This reviewed packager is fixed to v4.7.3; found {version!r}")
     launcher = LAUNCHER.read_text(encoding="utf-8")
-    if "[Floodman Mobile v4.7.0]" not in launcher:
-        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.0")
+    if "[Floodman Mobile v4.7.3]" not in launcher:
+        raise SystemExit("Canonical launcher does not identify Floodman Mobile v4.7.3")
 
     release_launcher = RELEASES / f"mobile-start-v{version}.sh"
     shutil.copyfile(LAUNCHER, release_launcher)
     runtime, count = package_runtime(version)
-    update_egg(version, launcher)
+    update_egg(version, launcher, sha256_file(runtime))
     checksums = write_release_checksums(version)
     print(f"Packaged {runtime.relative_to(ROOT)} with {count} tracked runtime files plus its internal manifest.")
     print(f"Synchronized {release_launcher.relative_to(ROOT)} and {EGG.relative_to(ROOT)}.")

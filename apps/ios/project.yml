@@ -29,7 +29,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: FloodmanOperations/Info.plist
-        FLOODMAN_API_BASE_URL: https://floodman-operations.tail274417.ts.net/mobile-api/
+        FLOODMAN_API_BASE_URL: https://api.oninetwork.com/mobile-api/
     scheme:
       testTargets:
         - FloodmanOperationsTests

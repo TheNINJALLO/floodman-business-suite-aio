@@ -1,6 +1,6 @@
 # API and routes
 
-The generated inventory at `docs/generated/API_ROUTE_INVENTORY.csv` enumerates every FastAPI route decorator found in this handoff. It currently reports 332 route decorators across the custom Python services and route-bearing test fixtures.
+The generated inventory at `docs/generated/API_ROUTE_INVENTORY.csv` enumerates every FastAPI route decorator found in this handoff. It currently reports 340 route decorators across the custom Python services and route-bearing test fixtures.
 
 ## Public/native Mobile API
 
@@ -55,6 +55,8 @@ Capture writes require the existing bearer token, resolve workspace/job ownershi
 ## Floodman Office browser routes
 
 Office exposes authenticated browser pages and form actions for setup, desktop/mobile workspaces, imports, customers, properties, estimates, invoices, payments, documents, staff, tasks, calendar, RoomFlow, competitor intelligence, linking/provider configuration and engineering/admin actions.
+
+The customer capability portal exposes only token-scoped document, PDF, payment, receipt, message-send, and message-read routes under `/customer/`. Estimate and invoice links for the same customer and service property share one conversation. Staff read and reply through authenticated `/office/messages`; payment and message alerts appear in authenticated `/office/alerts` and the existing Mobile API notification feed. Customer and administrator email notices contain a secure link and summary only, never message text or payment credentials.
 
 Browser authentication is unified at the genuine ERP login. Nginx sends `POST /api/auth/login` to the Office identity bridge, which validates the credentials with the internal Gauzy API, returns Gauzy's original login payload to the ERP browser, and issues the HttpOnly Office/RoomFlow session. `GET /login` records the requested local return path and opens the ERP login; `/login/local` is an explicit Owner recovery path. `POST /login/erp-session` accepts an existing same-origin ERP bearer token only long enough to validate `/user/me` and never persists it.
 
