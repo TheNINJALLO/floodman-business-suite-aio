@@ -13,6 +13,7 @@ import httpx
 from app.config import Settings
 from app.integration_setup import IntegrationSetup, SetupError, smtp_connection
 from app.providers import ProviderClient
+from app.integration_setup_ui import is_setup_owner
 
 EMAIL = dict(host="smtp.example.com", port="587", security="starttls", username="fictional@example.com",
              password="fictional-secret-email", from_email="office@example.com", from_name="Floodman Test")
@@ -32,6 +33,12 @@ async def run():
         settings = replace(Settings.from_env(), data_dir=root, internal_hmac_keys="v1:MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=",
                            ai_hmac_keys="ai:MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI=")
         service = IntegrationSetup(settings)
+        identity_settings = replace(settings, gauzy_admin_email="primary-owner@example.com")
+        identity = dict(role="ADMIN",status="ACTIVE",gauzy_role="SUPER_ADMIN",auth_source="GAUZY",email="primary-owner@example.com")
+        assert is_setup_owner(identity, identity_settings)
+        for change in ({"email":"another-admin@example.com"}, {"gauzy_role":"ADMIN"}, {"auth_source":"LOCAL"}, {"status":"DISABLED"}, {"role":"VIEWER"}):
+            assert not is_setup_owner({**identity,**change},identity_settings)
+        assert not is_setup_owner(identity,replace(identity_settings,gauzy_admin_email=""))
         client = ProviderClient(settings)
         assert not service.path.exists()
         for change in ({"host":"https://smtp.example.com"}, {"port":"22"}, {"security":"none"}, {"password":""}, {"from_name":"Injection\r\nBcc: secret@example.com"}, {"from_email":"bad"}):

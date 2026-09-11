@@ -43,7 +43,7 @@ from .importer import (
     validate,
 )
 from .providers import ProviderClient
-from .integration_setup_ui import build_setup_router
+from .integration_setup_ui import build_setup_router, is_setup_owner
 from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_deposit
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
@@ -4335,7 +4335,7 @@ async def _process_card_payment(kind: str, document: dict[str, Any], payload: di
 @app.get("/office/payment-settings")
 def payment_settings_page() -> HTMLResponse:
     _require("connections.manage")
-    if (_user() or {}).get("role") == "OWNER":
+    if is_setup_owner(_user(), settings):
         return RedirectResponse("/office/service-setup#square", status_code=303)
     config = providers.square_payment_configuration()
     status = "TEST MODE" if config.get("local_mock") else "READY" if config.get("live") else "SETUP REQUIRED"

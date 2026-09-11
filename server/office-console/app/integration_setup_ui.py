@@ -16,13 +16,28 @@ from .ui import esc
 BASE = "/office/service-setup"
 
 
+def is_setup_owner(user, settings):
+    user = user or {}
+    if user.get("status") != "ACTIVE":
+        return False
+    if user.get("role") == "OWNER":
+        return True
+    # Unified ERP projects its primary SUPER_ADMIN into Office as ADMIN.
+    # Require BOTH the server-configured owner identity and the server-verified
+    # ERP role; neither ordinary administrators nor other super-admins qualify.
+    return bool(settings.gauzy_admin_email and user.get("role") == "ADMIN"
+                and user.get("gauzy_role") == "SUPER_ADMIN"
+                and user.get("auth_source") in {"GAUZY", "LOCAL_AND_GAUZY"}
+                and str(user.get("email") or "").strip().casefold() == settings.gauzy_admin_email.strip().casefold())
+
+
 def build_setup_router(service, settings, current_user, page):
     router = APIRouter()
     signing_key = secrets.token_bytes(32)
 
     def owner():
         user = current_user() or {}
-        if user.get("role") != "OWNER" or user.get("status") != "ACTIVE":
+        if not is_setup_owner(user, settings):
             raise HTTPException(403, "Only the owner can change provider settings.")
         return user
 

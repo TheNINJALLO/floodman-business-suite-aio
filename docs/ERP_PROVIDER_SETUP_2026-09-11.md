@@ -1,8 +1,11 @@
 # ERP Payments & email setup
 
 Owner entry: `/office/settings` → **Payments & email**, or `/office/service-setup`.
-The old payment-settings link redirects owners to the new page. Administrators and
-other staff cannot read or submit the credential forms.
+The old payment-settings link redirects owners to the new page. Ordinary administrators
+and other staff cannot read or submit the credential forms. The unified ERP's primary
+owner is also recognized when its server-verified SUPER_ADMIN identity matches the
+server-configured owner email, even though its local Office role is projected as ADMIN.
+Neither another super-admin nor a matching email without that verified role is sufficient.
 
 ## Workflow
 

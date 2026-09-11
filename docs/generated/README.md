@@ -3,8 +3,8 @@
 - FastAPI route decorators found: **363**
 - Environment variable names referenced: **196**
 - Files included in the source inventory: **1469**
-- Text lines counted: **350,571**
-- Inventory bytes: **35,321,567**
+- Text lines counted: **350,600**
+- Inventory bytes: **35,324,172**
 
 ## Routes by service
 

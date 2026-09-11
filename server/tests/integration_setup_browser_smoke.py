@@ -16,7 +16,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix="floodman-setup-ui-") as root:
         port = free_port(); base = f"http://127.0.0.1:{port}"
         os.environ.update(OFFICE_CONSOLE_DATA_DIR=root, DOCUMENTS_PATH=str(Path(root)/"documents"), OFFICE_SESSION_COOKIE_SECURE="false",
-            OFFICE_CONSOLE_PUBLIC_URL=base, INTERNAL_HMAC_KEYS="v1:MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=", AI_HMAC_KEYS="ai:MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI=")
+            OFFICE_CONSOLE_PUBLIC_URL=base, GAUZY_ADMIN_EMAIL="owner@example.com", INTERNAL_HMAC_KEYS="v1:MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=", AI_HMAC_KEYS="ai:MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjI=")
         from app import main
         from fastapi.testclient import TestClient
         from playwright.sync_api import sync_playwright, expect
@@ -45,6 +45,10 @@ def run():
         assert guest.post(url+"/email/save", data=values, headers={"Origin":base}).status_code == 400
         assert EMAIL["password"] not in guest.get(url).text
         assert EMAIL["password"] not in str(main.store.snapshot())
+        main.store._state["users"][owner["id"]].update(role="ADMIN",gauzy_role="SUPER_ADMIN",auth_source="LOCAL_AND_GAUZY")
+        main.store._save()
+        assert guest.get(url).status_code == 200, "Unified primary owner was locked out"
+        assert guest.get('/office/payment-settings').status_code == 303
         assert guest.post(url+"/email/save", content=b"x"*17000, headers={"Origin":base,"Content-Type":"application/x-www-form-urlencoded"}).status_code == 413
         server = uvicorn.Server(uvicorn.Config(main.app, host="127.0.0.1", port=port, log_level="error", access_log=False))
         thread = threading.Thread(target=server.run, daemon=True); thread.start()

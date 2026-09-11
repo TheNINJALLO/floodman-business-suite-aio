@@ -325,8 +325,8 @@ office-console,POST,/setup/profile,/setup/profile,save_profile,server/office-con
 office-console,POST,/setup/test-connections,/setup/test-connections,test_connections,server/office-console/app/main.py,1164
 office-console,POST,/tasks,/tasks,create_task,server/office-console/app/mobile_operations.py,678
 office-console,PATCH,/tasks/{task_id},/tasks/{task_id},update_task,server/office-console/app/mobile_operations.py,685
-office-console,GET,,,setup_page,server/office-console/app/integration_setup_ui.py,104
-office-console,POST,,,setup_action,server/office-console/app/integration_setup_ui.py,109
+office-console,GET,,,setup_page,server/office-console/app/integration_setup_ui.py,119
+office-console,POST,,,setup_action,server/office-console/app/integration_setup_ui.py,124
 orchestrator,GET,/health/live,/health/live,health_live,server/orchestrator/app/main.py,193
 orchestrator,GET,/health/ready,/health/ready,health_ready,server/orchestrator/app/main.py,198
 orchestrator,POST,/internal/v1/ai/reports,/internal/v1/ai/reports,ai_report,server/orchestrator/app/main.py,436

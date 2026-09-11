@@ -1,6 +1,6 @@
 # Additive Office/portal update on the exact, tested shared Voice + Suite image.
 # Voice binaries, models, telephony configuration and database schemas are unchanged.
-FROM ghcr.io/theninjallo/floodman-operations:unified-portal-837d13b89b01c336ee4c3cc97ef4cce1dffb6291@sha256:fbf8194e2935f1239b6743d1fd9e1d86cda44fc3c89f3dd5d5d29635ce426fbc
+FROM ghcr.io/theninjallo/floodman-operations:unified-portal-7e1d18a754addb16116cb6cdbd9381f92471a839@sha256:f9b647b6d0a01c45a0ea2a5a860a12e405e362c8398375e06296a82fa6d58894
 ENV CUSTOMER_SMS_CONSENT_CHECK_ENABLED=true
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.title="Floodman Operations - Voice and Business Suite" \

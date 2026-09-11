@@ -878,7 +878,7 @@ containers/base-aio/Dockerfile,3815,41,56e2dc55a1be9ea72866dddcba432bca726cdfce9
 containers/base-aio/Dockerfile.legacy-v3.1.1,5547,,36e784ee08c94ad698cc28c71502de70ca6e7111356a84feb97e049ff105394f,.1
 containers/base-aio/README.md,754,13,ce988c5dc1d8803217a1ea5d5385a95a479324cda6ff341b4420f48ccfd57556,.md
 containers/derivative/Dockerfile,1769,33,76b0ef4056aed60a0455bbd0d8698aa432d8415560c942eed904c35fefa5e71a,Dockerfile
-containers/unified-portal/Dockerfile,1780,25,6e2a0e80ff35b2e8313ad55a97333f7ceb9e2f143257585f7c51c8b5e7b5210e,Dockerfile
+containers/unified-portal/Dockerfile,1780,25,a519f0e88a5a61183d3cb425ac9a77253125f9dd585709c5b0f655add24ac675,Dockerfile
 containers/unified-portal/patch_sms_policy.py,2366,48,3ac6a9832c7404db5320b24f705e7eabf97c24404944dae7e64e3d0298e1f7d9,.py
 containers/unified-portal/refresh_runtime.py,2613,49,4a529a5e4ed2b60c0a8ba9d9969075cf92f8ae4a795b607b7a869c629ec9bc23,.py
 deployment/env/apple-testflight-secrets.example,280,,d51362f7399a06c4332acf0dbb32a88e23df39b74ac43c04024363cd3e73d243,.example
@@ -892,7 +892,7 @@ deployment/pterodactyl/egg-floodman-operations-mobile-v3.3.0.json,34114,315,c99b
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.0.json,99949,194,a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.1.json,87394,244,f941362b0758882da32f87970c2239554053c4f56e680d1a3008c9cdd0380e83,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.2.json,87394,244,1ee094630024a55c880c7357968d8eb01507d4b3bd1ceeff3a0ab961cef9ed59,.json
-deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87327,244,71018b13389db567a12fd3c48f365ff54dfce5883ffd4c15a1d545fec854f3ac,.json
+deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87327,244,549cfa55205d801e805abddad100016c054e7b22d755501a5f1d4bac50f3103b,.json
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-HTTPS001.md,6031,130,994bdcead0cd590d3f4232de001442ba9795b64d8461541d80b0d3954c6f3d95,.md
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-WEB007.md,5780,110,92cb08f29d532564baf179aada8f841bd0cd5750e92c280f2577c99f8447abfe,.md
 deployment/pterodactyl/README.md,2834,57,f86b7fb1911da6f3962cd48ee8fbdf2933f8c50c3bdf2100e13e69e924c18278,.md
@@ -905,12 +905,12 @@ deployment/releases/floodman-operations-new-server-v4.7.1-web007-20260828.zip,11
 deployment/releases/floodman-operations-runtime-v4.7.0.zip,1118690,,733514138066eab31940c771918dddaf18204c4d26a071daf9a063965f7e967a,.zip
 deployment/releases/floodman-operations-runtime-v4.7.1.zip,1146697,,de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b,.zip
 deployment/releases/floodman-operations-runtime-v4.7.2.zip,1172846,,671f9151a9d95e2d9341abfc78350484e9082c630407551803b9b6041988bead,.zip
-deployment/releases/floodman-operations-runtime-v4.7.3.zip,1244330,,cbfbfcf254b4adbb3ef47a7f14dff42dcc3493cbecc6d2e34d92603fcd308357,.zip
+deployment/releases/floodman-operations-runtime-v4.7.3.zip,1244903,,f82d23fafbf032c5eecec92bbea379e0039ce24dd15ad1652f30f0df60741fcb,.zip
 deployment/releases/mobile-start-v4.7.0.sh,88021,1532,38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4,.sh
 deployment/releases/mobile-start-v4.7.1.sh,72692,1116,bacc8f2d982b3702258f2b718243bae428c2b3a80caade63407c01cfb3481fe8,.sh
 deployment/releases/mobile-start-v4.7.2.sh,72692,1116,f8169ed1d039ec94db8d8fecaf8708e3d322d1dea489dff09afd2766f81c3c96,.sh
 deployment/releases/mobile-start-v4.7.3.sh,72621,1116,7721ed4d89cbea3dd089021ebf27345629ee9d82d15b17f6316654517e7c1977,.sh
-deployment/releases/SHA256SUMS,196,,78887c8860bf3b61bf986f3a7f5457217b6dd89ffe64c28a90ed5ccd938ebebd,SHA256SUMS
+deployment/releases/SHA256SUMS,196,,97d388ac86e8745f89cb9f69fc4718a711298e25ab83a464f5fcfddfedc3e0e5,SHA256SUMS
 deployment/releases/SHA256SUMS-HTTPS001-20260828,127,,44b08fe5b9a0900c089970330dd84bf2a8bffb84d00d916c3ea060b897fcfb0e,SHA256SUMS-HTTPS001-20260828
 deployment/releases/SHA256SUMS-v4.7.0,194,,fa832b86f699f5b5e29247f6d5f977c577f1ab1396ff721da8767632b0f1f02d,.0
 deployment/releases/SHA256SUMS-v4.7.1-published-20260821,416,,2049aa5d5587266fda5f96077d3f8422f3185cb593ce9c2b88f20d14d2617020,.1-published-20260821
@@ -951,7 +951,7 @@ docs/CUSTOMER_SMS_DEPLOYMENT_2026-09-11.md,3697,32,6a7a330416524ecc08852f59474d7
 docs/DATA_AND_STORAGE.md,5099,100,51c699a8991bad4139a1a5ecdc6f34051ce06a101ca48d4334730b5b61a0fff3,.md
 docs/DECISIONS.md,40819,289,8fb328f77440df7d7e48f30f3348f778831e4f27c77dbd43264d027403dc6527,.md
 docs/DEPLOYMENT.md,3561,98,d03550ed1981351cb6678e3e4726ff8524f8af4c4c960527ac728bc75220cf96,.md
-docs/ERP_PROVIDER_SETUP_2026-09-11.md,4512,73,a474ffe44701bf3ffcbcaf04444b24ac6c593cfa6077de1a12a3dccc414f9f28,.md
+docs/ERP_PROVIDER_SETUP_2026-09-11.md,4809,76,6ff4fc8c6092b2edbe229aff97fac6d8adfec12b113f5ee14d38331e633e5301,.md
 docs/evidence/ui-layout/final/chromium-1024x768-office-desktop-desktop-1.png,548636,,6ca73940c8b896f4b5ad121e6ac4fe8cca4a1deba3700eb486c802a6d3a67cc5,.png
 docs/evidence/ui-layout/final/chromium-1440x900-office-settings-desktop-1.png,617552,,bd93a6cb8bef672bed076c309673e481e8a99763336c89a60cd88a9df17f36d8,.png
 docs/evidence/ui-layout/final/chromium-1440x900-office-settings.png,475782,,c9f9df36ec35bd91fc6a36a6419519445077523ce5ad9f1b9fd614c8eb564411,.png
@@ -1270,7 +1270,7 @@ server/local-lab/app/archive_import.py,21573,443,38f9f6b9f8d0f9890f8448269689cc4
 server/local-lab/app/main.py,57921,1302,584003011cbd566ae1522f114b3eb2948fbd0f151f8c592e06bc04cf6a1836e8,.py
 server/local-lab/app/persistence.py,2482,68,e6f11e0086f7fa8e0ce984a39610f4ba48b69e2830e60ef6a1a50ce29386976c,.py
 server/local-lab/app/util.py,2669,75,db770eba6d7a4413facc8bc1c921b631e09906ba39da0f479754659b0a490a0a,.py
-server/MANIFEST.sha256,26070,,b5b230ae54b0bd2630c5d4962cf2e83eac4549fd7f9104bf41fabcf07f4dbdb7,.sha256
+server/MANIFEST.sha256,26070,,485a538291733df7163de4746548e269dadd3be9396f7b700bca7403e8f187a0,.sha256
 server/messaging-ai/app/__init__.py,48,1,8c7c5dcc1f462477c5ecdea2025b9899b03c93412d3fe4048effe8d122d4d12b,.py
 server/messaging-ai/app/config.py,3081,79,d83f6b94c0ea2a6d31d6aab2e35c6c35fe458e7d6ff9882a8a1ee8aaf4513685,.py
 server/messaging-ai/app/knowledge.py,366,11,e545e895fc4f80508c192d0b75c4e2d2526d23ca0acbec232457cb6dc27f9979,.py
@@ -1291,8 +1291,8 @@ server/office-console/app/customer_sms.py,10893,183,77b03dfb971c2d7769e6b94b320e
 server/office-console/app/estimate_catalog.py,13178,273,1d2c88abd73bcef3447558a96482fd81b4dced2da5596617c34ccf81c4ce33ca,.py
 server/office-console/app/importer.py,25913,559,3c70772bb8d6519cb53f22c20977596e465460a85e8438f2654ca88539ec4dad,.py
 server/office-console/app/integration_setup.py,16092,304,23d746aba5e5d8444d27f123650e6aa210ded114630b672adea91630689f04e2,.py
-server/office-console/app/integration_setup_ui.py,13455,153,7b668908ea351420ea6b1b62d69e00413913c1e22daeb88f37f95ef3e220c1e1,.py
-server/office-console/app/main.py,510728,8123,dfde396ad9e6c3ba4031c86808ede154ee2a54bf2243f1b10016324b07934fc1,.py
+server/office-console/app/integration_setup_ui.py,14166,168,7a8b2c924ade94a83cf7ac3cf287e9494e08250ad95726546962c4f723a2720f,.py
+server/office-console/app/main.py,510739,8123,4d0f04456c6c5296067fb8a6c8e30283f14e813d04c502a5f2821d87ffcc4575,.py
 server/office-console/app/mobile_api.py,105017,2040,78890b753a0294ab9101b5c8d86c08b578722657077864af9ec14f475a2fb666,.py
 server/office-console/app/mobile_operations.py,43941,730,73f95ddb9e9763e2eecaa7fc25b2c7fe113d990e0db225c57044cbddd8d14dfc,.py
 server/office-console/app/pdf_documents.py,40530,707,18360b42081e5fa0a4fc8a73a13b3e9e1e48e45f5cf4cadb8d3f8740dacc002d,.py
@@ -1441,8 +1441,8 @@ server/tests/customer_sms_smoke.py,5742,114,6f457d5301ba9bc706baff508292b740db1d
 server/tests/dual_workspace_smoke.py,5614,124,ec4788d4f6165041d306fe8c8a2af738b32bcb1a41b7699ea065931bd6c5ec55,.py
 server/tests/fixtures/roomflow_capture/geometry-cases.json,1152,32,03e8cad0c16e01bf1f8369a0ffa99a1c046a5417a819dc63314f9eec561612a9,.json
 server/tests/full_erp_routing_smoke.py,2129,48,4ade70f0d3c7393e07231cd3cf11b206f7875a551bb128247505b7f5ddd72d30,.py
-server/tests/integration_setup_browser_smoke.py,6308,92,4714d671f4197c31e76518eace90be56a11ec8e3e44f23450118dad2a9d9dbaa,.py
-server/tests/integration_setup_smoke.py,8346,131,c71cb1ded34ec0fd689736cc73ae9e153549094501b3d8eb4cdff418772e9382,.py
+server/tests/integration_setup_browser_smoke.py,6659,96,f9d8c729170fa79f3326714e968444f1316fe3274f5207c20affe8e76b6a8be8,.py
+server/tests/integration_setup_smoke.py,9008,138,0428498699a7cc3f03c8555234c7eb5cb1e772cf4ba50a6483d19c557da9503f,.py
 server/tests/mobile_api_smoke.py,5739,163,7c24570a8b6bd87657b499ca256572c123314ce1cd7b7651cb9d20fa4378a4e6,.py
 server/tests/mobile_operations_smoke.py,6155,98,9fce48934c9975618570786b70777792e2f59f6eb333d2e825fb5f388fe6c6e0,.py
 server/tests/pdf_runtime_smoke.py,2851,47,fad5af4dbe9eaa064d290f77a63a07e24931403fe65307d4c253e5198217a05c,.py
