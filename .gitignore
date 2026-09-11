@@ -22,6 +22,12 @@ customer-data/
 imports/
 uploads/
 data/
+!server/external-portal/data/
+server/external-portal/data/*
+!server/external-portal/data/.htaccess
+!server/external-portal/data/floodman-suite/
+server/external-portal/data/floodman-suite/*
+!server/external-portal/data/floodman-suite/.htaccess
 !apps/android/app/src/main/java/com/floodman/operations/data/
 !apps/android/app/src/main/java/com/floodman/operations/data/*.kt
 logs/

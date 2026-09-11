@@ -32,7 +32,7 @@ EXCLUDED_RUNTIME_PATHS = {
     "requirements-dev.txt",
     "source-v3.8.0.json",
 }
-EXCLUDED_RUNTIME_PREFIXES = ("requirements/", "tailscale/")
+EXCLUDED_RUNTIME_PREFIXES = ("requirements/", "tailscale/", "external-portal/")
 REMOVED_EGG_VARIABLES = {
     "FLOODMAN_SOURCE_MODE",
     "FLOODMAN_SOURCE_ARCHIVE",

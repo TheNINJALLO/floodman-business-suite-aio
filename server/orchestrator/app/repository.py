@@ -731,7 +731,9 @@ def update_call_projection(conn: Connection, intake_id: str, result: dict[str, A
     """), {
         "id": intake_id,
         **allowed,
-        "review_status": result.get("review_status") or "PROJECTED",
+        # Keep the existing SQL contract; detailed approval state lives in Office.
+        "review_status": {"PENDING_APPROVAL": "PENDING", "APPROVED": "PROJECTED"}.get(
+            str(result.get("review_status") or ""), result.get("review_status") or "PROJECTED"),
         "projection_status": result.get("projection_status") or "PROJECTED",
         "projection_result": _json({key: value for key, value in allowed.items() if value}),
     }))

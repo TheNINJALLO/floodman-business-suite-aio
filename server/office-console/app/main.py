@@ -26,6 +26,8 @@ from pydantic import ValidationError
 
 from .auth import ROLE_PERMISSIONS, has_permission
 from .call_intake import CallIntakeLinksRequest, CallIntakeProjectionRequest
+from .call_approval import approval_form, approve_call
+from .portal_connection import PortalConnection
 from .config import Settings
 from .customer_csv import CustomerCsvError, customer_template, parse_customer_csv
 from .estimate_catalog import default_document, document_payload, group_document_lines, normalize_catalog_item, normalize_document_payload
@@ -76,9 +78,20 @@ settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
+portal_connection = PortalConnection(store, providers, settings)
 app = FastAPI(title="Floodman Operations", version="4.7.3", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
+
+
+@app.on_event("startup")
+async def start_portal_connection() -> None:
+    await portal_connection.start()
+
+
+@app.on_event("shutdown")
+async def stop_portal_connection() -> None:
+    await portal_connection.stop()
 
 PUBLIC_PATHS = {
     "/health/live",
@@ -366,7 +379,7 @@ async def project_ai_call_intake(request: Request) -> dict[str, Any]:
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
     try:
-        result = store.project_call_intake(payload.model_dump(mode="json"))
+        result = store.project_call_intake(payload.model_dump(mode="json"), require_approval=settings.call_intake_approval_required)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await _deliver_call_intake_notifications(result)
@@ -3674,6 +3687,8 @@ def _payment_security_headers(*, allow_sdk: bool = False) -> dict[str, str]:
     connect_sources = "'self'"
     style_sources = "'self' 'unsafe-inline'"
     font_sources = "'self' data:"
+    if portal_connection.enabled:
+        frame_sources += " " + portal_connection.origin
     if allow_sdk:
         script_sources += " https://web.squarecdn.com https://sandbox.web.squarecdn.com"
         frame_sources += " https://web.squarecdn.com https://sandbox.web.squarecdn.com"
@@ -4416,7 +4431,7 @@ def _customer_document_response(expected_kind: str, token: str) -> HTMLResponse:
     kind, document = _public_document(token)
     if kind != expected_kind:
         raise HTTPException(404, "Document link not found")
-    body = _customer_document_body(kind, document) + _customer_conversation_body(kind, document)
+    body = _customer_document_body(kind, document) + portal_connection.gallery_html(document) + _customer_conversation_body(kind, document)
     return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), body), headers=_payment_security_headers())
 
 
@@ -5664,7 +5679,7 @@ def call_intake_queue() -> HTMLResponse:
 
 
 @app.get("/office/calls/{intake_id}")
-def call_intake_detail(intake_id: str) -> HTMLResponse:
+def call_intake_detail(intake_id: str, customer_id: str = "") -> HTMLResponse:
     user = _require("call_intakes.view")
     values, _ = _call_intakes_for_user(user)
     record = next((value for value in values if str(value.get("id") or "") == intake_id), None)
@@ -5686,8 +5701,10 @@ def call_intake_detail(intake_id: str) -> HTMLResponse:
         str(prop.get("state") or ""), str(prop.get("postal_code") or ""),
     ) if value)
     reviews = "".join(f"<li>{esc(str(reason).replace('_', ' ').title())}</li>" for reason in item["review_reasons"])
+    approval = approval_form(store, record, customer_id) if has_permission(user, "call_intakes.manage") else ""
     body = f"""
 <div class='actions'><a class='button secondary' href='/office/calls'>Back to call queue</a>{link_buttons}</div>
+{approval}
 <div class='grid two' style='margin-top:16px'>
   <section class='card'><h2>Caller</h2><p><b>{esc(caller.get('name') or 'Incoming caller')}</b><br>{esc(caller.get('phone_e164') or caller.get('phone') or 'Phone unavailable')}<br>{esc(caller.get('email') or 'Email unavailable')}</p><p>{badge(item['status'])} {badge(item['review_status'])}</p><small>{esc(_detroit_time(item.get('occurred_at')))}</small></section>
   <section class='card'><h2>Service property</h2><p>{esc(address or 'Address still being collected')}</p><p>{esc(prop.get('property_type') or 'Property type not confirmed')}</p></section>
@@ -5698,6 +5715,28 @@ def call_intake_detail(intake_id: str) -> HTMLResponse:
 <section class='card'><h2>Financial safety</h2><p>This intake can prepare an unpublished estimate draft, but it cannot invent measurements or prices, send an estimate, accept it, or charge a customer.</p></section>
 """
     return _page("Call Intake", body, "calls")
+
+
+@app.post("/office/calls/{intake_id}/approve")
+async def approve_call_intake(intake_id: str, request: Request) -> RedirectResponse:
+    actor = _require("call_intakes.manage")
+    from urllib.parse import urlsplit
+    expected = urlsplit(settings.public_url)
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin != f"{expected.scheme}://{expected.netloc}":
+        raise HTTPException(403, "Approval must be submitted from Floodman Office")
+    records, _ = _call_intakes_for_user(actor)
+    record = next((row for row in records if str(row['id']) == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    form = await request.form()
+    fields = {key: str(form.get(key) or "") for key in ("name", "email", "phone", "street", "city", "state", "postal_code", "customer_id", "property_id")}
+    try:
+        approve_call(store, record, str(actor['id']), fields)
+        store.set_notice("Call approved. Customer, property, and RoomFlow files are ready; connected systems will synchronize automatically.")
+    except (ValueError, ValidationError) as error:
+        store.set_notice(str(error)[:300])
+    return RedirectResponse(f"/office/calls/{intake_id}", status_code=303)
 
 
 @app.get("/office/api/call-intakes/latest")

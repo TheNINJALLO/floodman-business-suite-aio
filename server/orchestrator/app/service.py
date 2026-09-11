@@ -118,6 +118,8 @@ class WorkflowService:
             )
             if (
                 str(result.get("projection_status") or "") == "PROJECTED"
+                # Approved intake synchronization belongs to the Office durable worker.
+                and result.get("approval_status") != "APPROVED"
                 and result.get("customer_id")
                 and result.get("property_id")
                 and complete_identity

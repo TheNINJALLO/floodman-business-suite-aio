@@ -70,6 +70,9 @@ class Settings:
     auth_enabled: bool
     session_cookie_secure: bool
     max_upload_bytes: int
+    call_intake_approval_required: bool = True
+    external_portal_api_url: str = ""
+    external_portal_api_token: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -134,4 +137,7 @@ class Settings:
             auth_enabled=_bool("OFFICE_AUTH_ENABLED", True),
             session_cookie_secure=_bool("OFFICE_SESSION_COOKIE_SECURE", False),
             max_upload_bytes=int(os.getenv("OFFICE_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024))),
+            call_intake_approval_required=_bool("CALL_INTAKE_APPROVAL_REQUIRED", True),
+            external_portal_api_url=os.getenv("FLOODMAN_PORTAL_API_URL", "").strip(),
+            external_portal_api_token=os.getenv("FLOODMAN_PORTAL_API_TOKEN", "").strip(),
         )

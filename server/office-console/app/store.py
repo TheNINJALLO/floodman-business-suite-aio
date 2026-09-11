@@ -673,7 +673,69 @@ class OfficeStore:
         values = list(self.snapshot()["operations"].get(kind, {}).values())
         return sorted(values, key=lambda item: item.get("updated_at", ""), reverse=True)
 
-    def project_call_intake(self, payload: dict[str, Any], *, actor_id: str = "floodman-orchestrator") -> dict[str, Any]:
+    def _call_intake_notifications(self, operations, payload, intake_id, workspace_id, caller_name, actor_id, now):
+        notification_ids: list[str] = []
+        recipient_ids: list[str] = []
+        for user in self._state.get("users", {}).values():
+            if str(user.get("status") or "ACTIVE").upper() != "ACTIVE" or not has_permission(user, "call_intakes.view"):
+                continue
+            user_id = str(user.get("id") or "")
+            selection_id = str(uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"floodman:roomflow-supabase:workspace-selection:{user_id}",
+            ))
+            selection = operations["roomflow_workspace_selections"].get(selection_id)
+            selected_workspace_id = str((selection or {}).get("workspace_id") or "")
+            if not selected_workspace_id:
+                workspaces = list(operations["roomflow_workspaces"].values())
+                if workspaces:
+                    selected_workspace_id = str(min(
+                        workspaces,
+                        key=lambda value: (
+                            0 if value.get("roomflow_organization_id") or value.get("source_organization_id")
+                            else (1 if value.get("imported") else 2),
+                            str(value.get("name") or "").casefold(),
+                            str(value.get("id") or ""),
+                        ),
+                    ).get("id") or "")
+            if selected_workspace_id != workspace_id:
+                continue
+            notification_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-call-notification:{intake_id}:{user_id}"))
+            notification = operations["notifications"].get(notification_id) or {
+                "id": notification_id,
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "kind": "AI_CALL_INTAKE",
+                "reference_id": intake_id,
+                "status": "UNREAD",
+                "email_status": "PENDING" if user.get("email") else "NO_EMAIL",
+                "sms_status": "PENDING" if user.get("phone") else "NO_PHONE",
+                "push_status": "READY" if any(
+                    str(token.get("user_id") or "") == user_id and str(token.get("status") or "ACTIVE") == "ACTIVE"
+                    for token in operations["push_tokens"].values()
+                ) else "MOBILE_FEED",
+                "source": "AI_CALLING",
+                "created_at": now,
+                "created_by": actor_id,
+            }
+            notification.update({
+                "title": f"Incoming call: {caller_name}",
+                "body": str(payload.get("summary") or payload.get("service_reason") or "Open the call intake for live details.")[:500],
+                "action_url": f"/office/calls/{intake_id}",
+                "updated_at": now,
+                "updated_by": actor_id,
+            })
+            operations["notifications"][notification_id] = notification
+            notification_ids.append(notification_id)
+            recipient_ids.append(user_id)
+
+        return notification_ids, recipient_ids
+
+    def project_call_intake(
+        self, payload: dict[str, Any], *, actor_id: str = "floodman-orchestrator",
+        require_approval: bool = False, approved_by: str = "",
+        selected_customer_id: str = "", selected_property_id: str = "",
+    ) -> dict[str, Any]:
         """Atomically project one AI call into the local operational record graph.
 
         Exact workspace-scoped phone/email matches are the only automatic identity
@@ -711,8 +773,37 @@ class OfficeStore:
             if workspace_id not in operations["roomflow_workspaces"]:
                 raise ValueError("Call intake workspace does not exist.")
             existing_intake = operations["call_intakes"].get(intake_id)
-            if existing_intake and int(existing_intake.get("event_sequence", -1)) >= sequence:
+            if existing_intake and approved_by and existing_intake.get("approval_status") == "APPROVED":
                 return {**deepcopy(existing_intake), "replayed": True}
+            if existing_intake and not approved_by and int(existing_intake.get("event_sequence", -1)) >= sequence:
+                return {**deepcopy(existing_intake), "replayed": True}
+
+            if require_approval and not approved_by and (existing_intake or {}).get("approval_status") != "APPROVED":
+                record = {
+                    **deepcopy(existing_intake or {}), **deepcopy(payload), "id": intake_id,
+                    "approval_status": "PENDING", "review_status": "PENDING_APPROVAL",
+                    "projection_status": "PENDING", "source": "AI_CALLING",
+                    "created_at": (existing_intake or {}).get("created_at") or now,
+                    "updated_at": now, "updated_by": actor_id,
+                }
+                operations["call_intakes"][intake_id] = record
+                notification_ids, recipient_ids = self._call_intake_notifications(
+                    operations, payload, intake_id, workspace_id,
+                    str(caller.get("name") or "Incoming caller"), actor_id, now,
+                )
+                self._state["operations"] = operations
+                try:
+                    self._save()
+                except Exception:
+                    self._state["operations"] = previous_operations
+                    raise
+                return {**deepcopy(record), "notification_ids": notification_ids, "recipient_user_ids": recipient_ids, "replayed": False}
+
+            if (existing_intake or {}).get("approval_status") == "APPROVED":
+                caller = deepcopy(existing_intake.get("approved_caller") or caller)
+                property_input = deepcopy(existing_intake.get("approved_property") or property_input)
+                selected_customer_id = str(existing_intake.get("customer_id") or "")
+                selected_property_id = str(existing_intake.get("property_id") or "")
 
             phone_key = self._normalized_phone(caller.get("phone_e164") or caller.get("phone"))
             phone_verified = bool(caller.get("phone_verified"))
@@ -728,7 +819,11 @@ class OfficeStore:
                     contact_matches[str(contact["id"])] = contact
 
             review_reasons = [str(value)[:200] for value in (payload.get("review_reasons") or []) if str(value).strip()]
-            if len(contact_matches) > 1:
+            if selected_customer_id:
+                contact = operations["contacts"].get(selected_customer_id)
+                if not contact or str(contact.get("workspace_id") or "") != workspace_id:
+                    raise ValueError("Selected customer does not belong to this workspace.")
+            elif len(contact_matches) > 1:
                 review_reasons.append("AMBIGUOUS_CUSTOMER_MATCH")
                 contact: dict[str, Any] | None = None
             elif contact_matches:
@@ -794,6 +889,15 @@ class OfficeStore:
                 "postal_code": str(property_input.get("postal_code") or "").strip(),
             }
             address_complete = all(address.values())
+            if selected_property_id:
+                selected_property = operations["properties"].get(selected_property_id)
+                if (
+                    not selected_property or str(selected_property.get("workspace_id") or "") != workspace_id
+                    or str(selected_property.get("contact_id") or "") != contact_id
+                ):
+                    raise ValueError("Selected property does not belong to the selected customer.")
+                address = {key: str(selected_property.get("service_" + key) or selected_property.get(key) or "").strip() for key in address}
+                address_complete = all(address.values())
             if contact and address_complete:
                 address_key = "|".join(address.values()).casefold()
                 property_record = next(
@@ -808,6 +912,8 @@ class OfficeStore:
                     ),
                     None,
                 )
+                if selected_property_id:
+                    property_record = operations["properties"][selected_property_id]
                 if property_record is None:
                     property_id = str(proposed.get("property_id") or "").strip()
                     if not property_id:
@@ -992,63 +1098,22 @@ class OfficeStore:
                 "updated_by": actor_id,
                 "source": "AI_CALLING",
             }
+            if (existing_intake or {}).get("approval_status") == "APPROVED":
+                record.update({"caller": deepcopy(caller), "property": deepcopy(property_input), "review_status": "APPROVED"})
+            if approved_by:
+                if not contact_id or not property_record or not roomflow_job:
+                    raise ValueError("Confirm a customer and complete service address before approving this call.")
+                record.update({
+                    "approval_status": "APPROVED", "approved_by": approved_by, "approved_at": now,
+                    "approved_caller": deepcopy(caller), "approved_property": deepcopy(property_input),
+                    "review_status": "APPROVED", "portal_sync_status": "PENDING", "erp_sync_status": "PENDING",
+                })
             operations["call_intakes"][intake_id] = record
 
-            notification_ids: list[str] = []
-            recipient_ids: list[str] = []
-            for user in self._state.get("users", {}).values():
-                if str(user.get("status") or "ACTIVE").upper() != "ACTIVE" or not has_permission(user, "call_intakes.view"):
-                    continue
-                user_id = str(user.get("id") or "")
-                selection_id = str(uuid.uuid5(
-                    uuid.NAMESPACE_URL,
-                    f"floodman:roomflow-supabase:workspace-selection:{user_id}",
-                ))
-                selection = operations["roomflow_workspace_selections"].get(selection_id)
-                selected_workspace_id = str((selection or {}).get("workspace_id") or "")
-                if not selected_workspace_id:
-                    workspaces = list(operations["roomflow_workspaces"].values())
-                    if workspaces:
-                        selected_workspace_id = str(min(
-                            workspaces,
-                            key=lambda value: (
-                                0 if value.get("roomflow_organization_id") or value.get("source_organization_id")
-                                else (1 if value.get("imported") else 2),
-                                str(value.get("name") or "").casefold(),
-                                str(value.get("id") or ""),
-                            ),
-                        ).get("id") or "")
-                if selected_workspace_id != workspace_id:
-                    continue
-                notification_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-call-notification:{intake_id}:{user_id}"))
-                notification = operations["notifications"].get(notification_id) or {
-                    "id": notification_id,
-                    "user_id": user_id,
-                    "workspace_id": workspace_id,
-                    "kind": "AI_CALL_INTAKE",
-                    "reference_id": intake_id,
-                    "status": "UNREAD",
-                    "email_status": "PENDING" if user.get("email") else "NO_EMAIL",
-                    "sms_status": "PENDING" if user.get("phone") else "NO_PHONE",
-                    "push_status": "READY" if any(
-                        str(token.get("user_id") or "") == user_id and str(token.get("status") or "ACTIVE") == "ACTIVE"
-                        for token in operations["push_tokens"].values()
-                    ) else "MOBILE_FEED",
-                    "source": "AI_CALLING",
-                    "created_at": now,
-                    "created_by": actor_id,
-                }
-                caller_name = str((contact or {}).get("name") or "Incoming caller")
-                notification.update({
-                    "title": f"Incoming call: {caller_name}",
-                    "body": str(payload.get("summary") or payload.get("service_reason") or "Open the call intake for live details.")[:500],
-                    "action_url": f"/office/calls/{intake_id}",
-                    "updated_at": now,
-                    "updated_by": actor_id,
-                })
-                operations["notifications"][notification_id] = notification
-                notification_ids.append(notification_id)
-                recipient_ids.append(user_id)
+            notification_ids, recipient_ids = self._call_intake_notifications(
+                operations, payload, intake_id, workspace_id,
+                str((contact or {}).get("name") or "Incoming caller"), actor_id, now,
+            )
 
             audit_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-call-audit:{intake_id}:{sequence}"))
             operations["call_intake_audit"].setdefault(audit_id, {

@@ -53,6 +53,8 @@ FLOODMAN_OWNER_EMAIL,"""""",server/aio/finalize-gauzy.sh | server/aio/link-offic
 FLOODMAN_OWNER_FIRST_NAME,,server/aio/finalize-gauzy.sh | server/aio/start-suite.sh,2
 FLOODMAN_OWNER_LAST_NAME,,server/aio/finalize-gauzy.sh | server/aio/start-suite.sh,2
 FLOODMAN_OWNER_PASSWORD,,server/aio/link-office-owner.sh | server/aio/start-suite.sh,2
+FLOODMAN_PORTAL_API_TOKEN,"""""",server/office-console/app/config.py,1
+FLOODMAN_PORTAL_API_URL,"""""",server/office-console/app/config.py,1
 FLOODMAN_PUBLIC_HOST,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_SCHEME,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_URL,,server/aio/start-suite.sh,1
