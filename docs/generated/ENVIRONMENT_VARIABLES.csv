@@ -19,6 +19,7 @@ BOOTSTRAP_SUFFIX,,server/aio/start-suite.sh,1
 BUSINESS_SUITE_ORGANIZATION_ID,"""floodman""",server/office-console/app/config.py,1
 COMPETITOR_INTEL_URL,"""http://competitor-intel-api:8090""",server/local-lab/app/main.py,1
 COMPETITOR_URL,"""http://competitor-intel-api:8090""",server/office-console/app/config.py,1
+CUSTOMER_SMS_ORGANIZATION_ID,"""floodman""",server/orchestrator/app/config.py,1
 DOCUMENSO_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh,2
 DOCUMENSO_DEFAULT_MESSAGE,"""Please review and complete the attached Floodman document.""",server/orchestrator/app/config.py,1
 DOCUMENSO_DEFAULT_SUBJECT,"""Floodman document ready for signature""",server/orchestrator/app/config.py,1

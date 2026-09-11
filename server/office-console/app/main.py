@@ -60,6 +60,8 @@ from .roomflow_supabase import (
     workspace_public,
 )
 from .customer_portal import page as customer_page, grouped_lines as customer_grouped_lines, payment_page as customer_payment_page
+from .customer_sms import CustomerSms, phone_number as sms_phone_number
+from .sms_policy import render_policy
 from .security import SignedRequestError, verify_signed_body
 from .store import CaptureOperationConflict, CaptureOperationNotFound, OfficeStore
 from .mobile_api import build_mobile_router
@@ -86,6 +88,7 @@ tempfile.tempdir = str(upload_temp_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
 portal_connection = PortalConnection(store, providers, settings)
+customer_sms = CustomerSms(store, providers, settings)
 app = FastAPI(title="Floodman Operations", version="4.7.3", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
@@ -94,10 +97,12 @@ app.include_router(build_mobile_router(store, providers, settings))
 @app.on_event("startup")
 async def start_portal_connection() -> None:
     await portal_connection.start()
+    await customer_sms.start()
 
 
 @app.on_event("shutdown")
 async def stop_portal_connection() -> None:
+    await customer_sms.stop()
     await portal_connection.stop()
 
 PUBLIC_PATHS = {
@@ -4438,7 +4443,7 @@ def _customer_document_response(expected_kind: str, token: str) -> HTMLResponse:
     kind, document = _public_document(token)
     if kind != expected_kind:
         raise HTTPException(404, "Document link not found")
-    body = _customer_document_body(kind, document) + portal_connection.gallery_html(document) + _customer_conversation_body(kind, document)
+    body = _customer_document_body(kind, document) + portal_connection.gallery_html(document) + customer_sms.form(kind, document) + _customer_conversation_body(kind, document)
     return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), body), headers=_payment_security_headers())
 
 
@@ -4458,6 +4463,72 @@ def customer_estimate(token: str) -> HTMLResponse:
 @app.get("/customer/invoice/{token}")
 def customer_invoice(token: str) -> HTMLResponse:
     return _customer_document_response("invoice", token)
+
+
+@app.get("/customer/sms/{page}")
+def customer_sms_policy(page: str) -> HTMLResponse:
+    if page not in {"privacy", "terms", "program"}:
+        raise HTTPException(404, "Page not found")
+    return HTMLResponse(render_policy(page), headers=_payment_security_headers())
+
+
+@app.post("/customer/{kind}/{token}/sms-consent")
+async def customer_sms_preference(kind: str, token: str, request: Request) -> Response:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    try:
+        declared_length = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "Invalid form length") from None
+    if declared_length < 0:
+        raise HTTPException(400, "Invalid form length")
+    if declared_length > 8192:
+        raise HTTPException(413, "Form is too large")
+    raw = await request.body()
+    if len(raw) > 8192:
+        raise HTTPException(413, "Form is too large")
+    form = await request.form()
+    if any(len(form.getlist(key)) != 1 for key in ("ticket", "choice")) or len(form.getlist("consent")) > 1:
+        raise HTTPException(422, "Invalid consent form")
+    error = notice = ""
+    try:
+        event = customer_sms.save(kind, document, ticket=str(form.get("ticket") or ""),
+            phone=str(form.get("phone") or ""), choice=str(form.get("choice") or ""),
+            consent=str(form.get("consent") or ""), origin=request.headers.get("origin", ""),
+            website=str(form.get("website") or ""))
+        notice = "Your text preference was saved. " + ("Texts are turned off." if event["status"] == "OPTED_OUT" else "Service texts can begin after carrier approval; this does not remove a previous STOP block.")
+    except ValueError as exc:
+        error = str(exc)
+    # The preference is already durable. A background retry synchronizes it;
+    # there is no provider call or SMS send on this public request.
+    body = customer_sms.form(kind, document, error=error, notice=notice)
+    body += f"<a class='button secondary' href='/customer/{esc(kind)}/{esc(token)}'>Return to your document</a>"
+    return HTMLResponse(customer_page("Text preferences", body), status_code=422 if error else 200, headers=_payment_security_headers())
+
+
+@app.post("/internal/v1/customer-sms/check")
+async def customer_sms_check(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    if len(body) > 2048:
+        raise HTTPException(413, "Request too large")
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys)
+    except SignedRequestError as exc:
+        raise HTTPException(401, "Internal authentication required") from exc
+    try:
+        payload = json.loads(body)
+        phone = sms_phone_number(payload.get("phone_e164", ""))
+    except (ValueError, AttributeError):
+        raise HTTPException(422, "Invalid consent query")
+    if payload.get("organization_id") != customer_sms.organization:
+        return {"managed":False}
+    events = [r for r in store.records("customer_sms_events")
+              if r.get("organization_id") == payload["organization_id"] and r.get("phone_e164") == phone]
+    if not events:
+        return {"managed":False}
+    latest = max(events, key=lambda r: (r["captured_at"], r["status"] == "OPTED_OUT"))
+    return {"managed":True, "status":latest["status"], "captured_at":latest["captured_at"], "sync_status":latest["sync_status"]}
 
 
 @app.post("/customer/{kind}/{token}/messages")
@@ -7082,11 +7153,15 @@ async def messages_page(thread: str = "") -> HTMLResponse:
     sms = _rows(state.get("sms_messages"))
     emails = _rows(state.get("emails"))
     sms_rows = [[esc(item.get("created_at")), esc(item.get("to")), badge(item.get("status")), esc(item.get("body"))] for item in sms]
+    consent_rows = [[esc(_contact_display_name(store.record("contacts", str(item["id"])) or {})),
+        esc(item.get("phone_e164")), badge(item.get("status")), esc(item.get("captured_at"))]
+        for item in store.records("customer_sms_preferences")]
     email_rows = [[esc(item.get("received_at")), esc(", ".join(item.get("to") or [])), esc(item.get("subject")), f"<details><summary>Open</summary><pre>{esc(item.get('text') or item.get('html') or '')}</pre></details>"] for item in emails]
     test_tools = ""
     if has_permission(user, "messages.manage"):
         test_tools = """<div class='card'><h2>Send local test SMS</h2><form method='post' action='/office/messages/send'><div class='form-grid'><div class='field'><label>Phone</label><input name='phone' value='+13135550199' required></div><div class='field full'><label>Message</label><textarea name='body' required></textarea></div></div><button style='margin-top:12px'>Send test message</button></form></div>"""
     body = f"<div class='callout success'><b>Customer portal messaging is active.</b> Customers can write from a secure estimate or invoice link. Staff with message access receive an in-app/mobile alert and email notification; customer replies are never exposed on public administrative pages.</div><div class='conversation-shell'><aside class='card'><h2>Customer conversations</h2><div class='thread-list'>{''.join(thread_links) or '<div class=\'empty\'>No portal conversations yet.</div>'}</div></aside><section>{conversation}</section></div><details class='card plain-details'><summary>SMS, captured email, and testing tools</summary><div style='margin-top:14px'>{test_tools}<div class='card'><h2>Outbound and automated SMS</h2>{table(('Time','To','Status','Message'), sms_rows)}</div><div class='card'><h2>Captured email</h2>{table(('Time','To','Subject','Body'), email_rows)}</div><div class='card'><h2>Try the AI text assistant</h2><form method='post' action='{esc(settings.engineering_public_url)}/lab/sms/inbound'><div class='form-grid'><div class='field full'><label>Customer message</label><input name='body' value='What is my balance?' required></div></div><button>Send local inbound SMS</button></form></div></div></details>"
+    body += "<details class='card plain-details'><summary>Customer text permissions</summary><p>Customers manage these optional permissions in their secure estimate or invoice portal. Staff cannot enroll customers here. STOP also blocks delivery at the carrier.</p>" + table(("Customer", "Mobile", "Portal preference", "Recorded (UTC)"), consent_rows) + "</details>"
     return _page("Messages", body, "messages")
 
 

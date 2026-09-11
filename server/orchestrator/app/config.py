@@ -219,6 +219,8 @@ class Settings:
     outbox_max_attempts: int
     outbox_lock_seconds: int
     webhook_max_body_bytes: int
+    customer_sms_check_enabled: bool = False
+    customer_sms_organization_id: str = "floodman"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -434,6 +436,8 @@ class Settings:
             outbox_max_attempts=_integer("OUTBOX_MAX_ATTEMPTS", 8, 1),
             outbox_lock_seconds=_integer("OUTBOX_LOCK_SECONDS", 300, 30),
             webhook_max_body_bytes=_integer("WEBHOOK_MAX_BODY_BYTES", 1024 * 1024, 1024),
+            customer_sms_check_enabled=_boolean("CUSTOMER_SMS_CONSENT_CHECK_ENABLED", False),
+            customer_sms_organization_id=os.getenv("CUSTOMER_SMS_ORGANIZATION_ID", "floodman").strip(),
         )
 
 

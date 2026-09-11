@@ -38,7 +38,7 @@ OPERATION_KINDS = {
     "contacts", "properties", "estimates", "invoices", "payments", "documents", "notes", "time_entries", "tasks",
     "roomflow_jobs", "catalog_items", "public_links", "payment_attempts", "mobile_devices", "mobile_refresh_tokens",
     "mobile_audit", "appointments", "announcements", "notifications", "push_tokens", "calendar_subscriptions",
-    "customer_threads", "customer_messages",
+    "customer_threads", "customer_messages", "customer_sms_preferences", "customer_sms_events",
     "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections",
     "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit",
     "call_intakes", "call_intake_audit", "portal_uploads", "portal_actions"

@@ -1216,6 +1216,9 @@ def upsert_sms_consent(
                     opted_in_at=CASE WHEN EXCLUDED.status='OPTED_IN' THEN now() ELSE communication_consents.opted_in_at END,
                     opted_out_at=CASE WHEN EXCLUDED.status='OPTED_OUT' THEN now() ELSE communication_consents.opted_out_at END,
                     evidence=communication_consents.evidence || EXCLUDED.evidence
+                WHERE EXCLUDED.source <> 'FLOODMAN_CUSTOMER_PORTAL'
+                   OR communication_consents.captured_at IS NULL
+                   OR EXCLUDED.captured_at > communication_consents.captured_at
                 RETURNING *
             """),
             {

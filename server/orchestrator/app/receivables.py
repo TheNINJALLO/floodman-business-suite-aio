@@ -7,6 +7,7 @@ from typing import Any
 from .adapters.email import EmailClient
 from .adapters.messaging_ai import MessagingAIClient
 from .adapters.twilio import TwilioClient
+from .adapters.office import FloodmanOfficeClient
 from .ar import days_past_due, next_reminder, next_send_window, promise_pause_until, within_send_window
 from .config import Settings
 from .db import transaction
@@ -170,6 +171,18 @@ class ReceivablesManager:
             recent = count_recent_outbound_sms(conn, str(thread["id"]), days=7)
         if self.settings.ar_require_sms_consent and (not consent or consent["status"] != "OPTED_IN"):
             return False, "SMS_CONSENT_REQUIRED"
+        if self.settings.customer_sms_check_enabled:
+            office = FloodmanOfficeClient(self.settings)
+            try:
+                preference = office.customer_sms_status(str(case["organization_id"]), phone)
+                if not isinstance(preference.get("managed"), bool):
+                    return False, "SMS_CONSENT_CHECK_UNAVAILABLE"
+                if preference["managed"] and (preference.get("status") != "OPTED_IN" or preference.get("sync_status") != "SYNCED"):
+                    return False, "SMS_PORTAL_CONSENT_REQUIRED"
+            except Exception:
+                return False, "SMS_CONSENT_CHECK_UNAVAILABLE"
+            finally:
+                office.close()
         if recent >= self.settings.ar_max_sms_per_seven_days:
             return False, "SMS_RATE_LIMIT"
         return True, "ALLOWED"

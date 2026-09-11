@@ -825,7 +825,14 @@ def layout_browser_matrix(playwright: Any, base: str, portal_token: str) -> None
             for path, office_shell in representative_routes:
                 response = page.goto(base + path, wait_until="domcontentloaded")
                 assert response is None or response.status == 200, f"{browser_name} route failed at {width}x{height}: {path}"
-                page.wait_for_timeout(40)
+                # Adaptive mode may navigate again after DOMContentLoaded.
+                # Wait for the final Office document rather than measuring an
+                # empty intermediate document during Firefox's redirect.
+                if office_shell:
+                    page.wait_for_load_state("networkidle")
+                    page.locator('main#fm-main-content').wait_for(state='visible')
+                else:
+                    page.wait_for_timeout(40)
                 assert_layout_contract(page, f"{browser_name} {width}x{height} {path}", office_shell=office_shell)
                 assert not page_errors, f"{browser_name} page errors at {width}x{height} {path}: {page_errors}"
                 assert not console_errors, f"{browser_name} console errors at {width}x{height} {path}: {console_errors}"

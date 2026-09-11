@@ -17,6 +17,7 @@ from sqlalchemy import text
 
 from .ai_calling import provider_for
 from .config import Settings, get_settings
+from .customer_sms import CustomerSmsConsent, event_is_newer, may_resume_existing_consent
 from .db import database_ready, transaction
 from .logging_json import configure_logging
 from .repository import (
@@ -536,6 +537,16 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
     with transaction() as conn:
         if not record_webhook(conn, "twilio", message_sid, "INBOUND_SMS", raw):
             return PlainTextResponse("<Response></Response>", media_type="application/xml")
+        # Honor carrier keywords even before an invoice/A/R case exists. START
+        # can resume an evidenced enrollment; it cannot enroll an unknown caller.
+        if keyword and keyword.kind in {"STOP", "START"}:
+            previous = get_sms_consent(conn, settings.customer_sms_organization_id, from_phone)
+            if keyword.kind == "STOP" or may_resume_existing_consent(previous):
+                upsert_sms_consent(conn, organization_id=settings.customer_sms_organization_id,
+                    job_id=None, phone_e164=from_phone,
+                    status="OPTED_OUT" if keyword.kind == "STOP" else "OPTED_IN",
+                    source="TWILIO_STOP" if keyword.kind == "STOP" else "TWILIO_START",
+                    captured_at=datetime.now(UTC), evidence={"message_sid":message_sid, "keyword":keyword.normalized_body})
         thread = find_message_thread_by_phone(conn, from_phone)
         open_cases = list_open_ar_cases_by_phone(conn, from_phone)
         if not thread and open_cases:
@@ -620,6 +631,8 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
                 if identity in seen:
                     continue
                 seen.add(identity)
+                if decision.kind == "START" and not may_resume_existing_consent(get_sms_consent(conn, identity[0], from_phone)):
+                    continue
                 upsert_sms_consent(
                     conn,
                     organization_id=identity[0],
@@ -631,8 +644,10 @@ async def twilio_inbound(request: Request, x_twilio_signature: str = Header(defa
                     evidence={"message_sid": message_sid, "keyword": decision.normalized_body},
                 )
                 audit(conn, identity[0], "CUSTOMER", from_phone, audit_action, "workflow_job", identity[1], {})
-        elif decision and decision.kind == "HELP":
+        elif decision and decision.kind == "HELP" and opt_out_type != "HELP":
             enqueue(conn, str(job["id"]), "SEND_HELP_REPLY", {"message_id": str(inbound["id"])})
+        elif decision and decision.kind == "HELP":
+            pass  # Advanced Opt-Out already sent the configured help response.
         else:
             enqueue(
                 conn,
@@ -791,6 +806,26 @@ def resume_ar_case(case_id: str, request: ArResumeRequest, actor: str = Depends(
         )
         return {"case_id": case_id, "status": updated["status"]}
     return _idempotent(f"ar-resume:{case_id}", request, action)
+
+
+@app.post("/internal/v1/customer-sms/consent")
+def sync_customer_sms_consent(request: CustomerSmsConsent, actor: str = Depends(internal_auth)) -> dict[str, Any]:
+    if request.organization_id != settings.customer_sms_organization_id:
+        raise HTTPException(403, "Consent organization is not configured for this sender")
+    def action(conn):
+        # Lock even when the first row does not exist yet, so concurrent events
+        # for this organization/number cannot reorder an opt-out and opt-in.
+        conn.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))"),
+                     {"identity":f"customer-sms:{request.organization_id}:{request.phone_e164}"})
+        current = get_sms_consent(conn, request.organization_id, request.phone_e164)
+        if event_is_newer(current, request.captured_at):
+            upsert_sms_consent(conn, organization_id=request.organization_id, job_id=None,
+                phone_e164=request.phone_e164, status=request.status, source="FLOODMAN_CUSTOMER_PORTAL",
+                disclosure_version=request.disclosure_version, captured_at=request.captured_at,
+                evidence={"actor":actor, "contact_id":request.contact_id, "event_id":request.idempotency_key,
+                          "disclosure_text":request.disclosure_text})
+        return {"recorded":True}
+    return _idempotent("customer-sms-consent:" + request.organization_id, request, action)
 
 
 @app.post("/internal/v1/ar/{case_id}/sms-consent")
