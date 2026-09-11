@@ -10,9 +10,9 @@
     "tests": 6
   },
   "environment_variable_count": 192,
-  "source_file_count": 1463,
-  "source_bytes": 35249087,
-  "text_line_count": 349719,
+  "source_file_count": 1464,
+  "source_bytes": 35252784,
+  "text_line_count": 349751,
   "file_counts_by_extension": {
     ".0": 1,
     ".1": 1,
@@ -37,7 +37,7 @@
     ".kt": 19,
     ".kts": 3,
     ".manual": 4,
-    ".md": 428,
+    ".md": 429,
     ".mdc": 1,
     ".mjs": 19,
     ".npmrc": 1,
