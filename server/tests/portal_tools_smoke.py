@@ -115,6 +115,8 @@ async def checks():
         for tab in ('photos','videos','notes','receipts','contents'):
             rendered=await tools.render(owner,'workspace',42,tab)
             assert config.external_portal_api_token not in rendered and 'Job tools' in rendered
+            assert "<form method='post' action='/office/photo-portal/42/actions'" in rendered
+            assert "type='submit' disabled" in rendered, 'Forms must fail closed before upload handlers attach'
         assert 'staff-receipt' in tools.asset(42,'receipt',1)
         assert 'staff-photo' in tools.asset(42,'photo',1)
     print('Job tools: local-first actions, receipt validation, permission/revocation, chunk replay, restart resume, video fairness and cleanup passed')

@@ -1266,7 +1266,7 @@ server/local-lab/app/archive_import.py,21573,443,38f9f6b9f8d0f9890f8448269689cc4
 server/local-lab/app/main.py,57921,1302,584003011cbd566ae1522f114b3eb2948fbd0f151f8c592e06bc04cf6a1836e8,.py
 server/local-lab/app/persistence.py,2482,68,e6f11e0086f7fa8e0ce984a39610f4ba48b69e2830e60ef6a1a50ce29386976c,.py
 server/local-lab/app/util.py,2669,75,db770eba6d7a4413facc8bc1c921b631e09906ba39da0f479754659b0a490a0a,.py
-server/MANIFEST.sha256,25027,,a6f746a96b18f9d988ab7a14643a9d8a181d769e41e61e31b876566a9566a498,.sha256
+server/MANIFEST.sha256,25027,,c0b397dcc46457f9dedc3579f8c8a9f9ae3fa5f7671813f9483bfbf3185f4742,.sha256
 server/messaging-ai/app/__init__.py,48,1,8c7c5dcc1f462477c5ecdea2025b9899b03c93412d3fe4048effe8d122d4d12b,.py
 server/messaging-ai/app/config.py,3081,79,d83f6b94c0ea2a6d31d6aab2e35c6c35fe458e7d6ff9882a8a1ee8aaf4513685,.py
 server/messaging-ai/app/knowledge.py,366,11,e545e895fc4f80508c192d0b75c4e2d2526d23ca0acbec232457cb6dc27f9979,.py
@@ -1291,8 +1291,8 @@ server/office-console/app/mobile_operations.py,43941,730,73f95ddb9e9763e2eecaa7f
 server/office-console/app/pdf_documents.py,40530,707,18360b42081e5fa0a4fc8a73a13b3e9e1e48e45f5cf4cadb8d3f8740dacc002d,.py
 server/office-console/app/photo_portal.py,8608,117,155837435fa180e57fd7f4f78906655f7f16f0a69675c1aa43feecf1c5ec9244,.py
 server/office-console/app/portal_connection.py,12789,195,923d316fc8683095f1f909256a4307ac870e4425a6de646b34352a07d6a488c0,.py
-server/office-console/app/portal_tools.py,23267,309,f7f8ccda5f36cb282877edcb71216effaeaa8c0cc1acb225563356de4d2a4abc,.py
-server/office-console/app/portal_tools_ui.py,7377,109,b0277d2deaf7db2ce17b1b8689ced085708aeddfd2d061d765326fdf98fd964b,.py
+server/office-console/app/portal_tools.py,23403,309,13a1d22100de5b3d7e7d84765877a49975d34273e7e4dc9fb3220635288282c9,.py
+server/office-console/app/portal_tools_ui.py,7435,110,31c747ff0a4384d1580d89395b3edeb7048b0b1fd180c1335bf403f484bfd885,.py
 server/office-console/app/project_plans.py,22716,422,d2505213c0a55a3d6dad54773ec53bbfbf1de488b5cb72b1b3ca9d6d8c7eab4f,.py
 server/office-console/app/providers.py,51260,1110,fa1aae7ed8cb6300b3e2a6aac4e3bbf1daa50fbf09a24388a81499002c8b0612,.py
 server/office-console/app/roomflow_assets.py,5952,151,18c40f0405cfe2d6d64e84562d905bf27e0d4db8427dad89a9b5a9b8d27d8693,.py
@@ -1436,8 +1436,8 @@ server/tests/photo_portal_smoke.py,5501,105,6f79d5fa169f1fc01430e3007b8728598d35
 server/tests/portal_approval_browser_smoke.py,6176,90,ee402affd8690a46edbccd7474363902bd5e938a7a2cfc0eb7d13d36395e52d0,.py
 server/tests/portal_connection_smoke.py,6408,116,cf3ffd5ee261e54e9a6e7b82bd5db87a2f651be5e515dbebd8bf7196b0138358,.py
 server/tests/portal_projection_contract_smoke.py,2366,36,311780d08f07d001af14b6cadf03e0021e7259a31cd1d88e11e7d1a2afb59891,.py
-server/tests/portal_tools_browser_smoke.py,9500,123,cea4a8422bda234ffcafd24d4bf0bc795471794f2818846f11bf90c19c397720,.py
-server/tests/portal_tools_smoke.py,7072,124,1672e584d9a01d1c3bc34fb0142e2b7aace77d16d680a58f42ad69cd0742b50a,.py
+server/tests/portal_tools_browser_smoke.py,10206,132,99e740269472767cb67a77b605f374e147ff80cf7b7833b32e2429d0a059ab25,.py
+server/tests/portal_tools_smoke.py,7278,126,c92f58487004a6bcbb4fe076f26f1ace1065d87ce4187c1257175db3e3bab5f3,.py
 server/tests/roomflow_capture_api_smoke.py,9119,187,68118abdc3e04989a923f112e85f552efd1a31e5764c00da8e79293ab31b5627,.py
 server/tests/roomflow_capture_geometry_smoke.py,4264,116,a2eba39d5ad5aa29273477ea931984f187888a4297fef41cde22e97a481808ea,.py
 server/tests/roomflow_native_smoke.py,6413,107,f8bbe061f8260462a75e675264eea0251e84efe5d7bfdd00e589cb93a11a4adc,.py

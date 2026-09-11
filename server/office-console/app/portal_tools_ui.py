@@ -34,6 +34,7 @@ PORTAL_TOOLS_JS = r"""(() => {
     status.textContent = 'Saved safely in Floodman. Synchronization continues in the background. Refresh later for the result.';
   };
   document.querySelectorAll('[data-portal-tool]').forEach(form => {
+    form.querySelector('[type=submit]').disabled = false;
     let attempts = new Map(), batch = '';
     form.querySelectorAll('input[type=file]').forEach(input => input.addEventListener('change', () => {
       if (form.dataset.kind === 'receipt') form.querySelectorAll('input[type=file]').forEach(other => { if (other !== input) other.value=''; });

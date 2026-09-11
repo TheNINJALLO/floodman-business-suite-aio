@@ -114,6 +114,15 @@ def run():
                         assert any(row['kind']=='note' for row in main.store.records('portal_actions'))
                     assert not errors,errors
                     context.close(); browser.close()
+                browser=p.chromium.launch(headless=True)
+                context=browser.new_context(java_script_enabled=False,service_workers='block')
+                assert context.request.post(base+'/login',form={'email':'owner@example.test','password':'Fictional-Pass-2026!'}).status==200
+                page=context.new_page()
+                page.goto(base+'/office/photo-portal?job_id=42&tab=notes',wait_until='domcontentloaded')
+                page.locator('.portal-upload>summary').click()
+                assert page.locator('.portal-upload form').get_attribute('method')=='post'
+                assert page.locator('.portal-upload [type=submit]').is_disabled()
+                browser.close()
         finally:
             server.should_exit=True; thread.join(timeout=10)
     print('Job tools browser: five tabs, 320-1440 layouts, Chromium/Firefox/WebKit, batch photos, receipt camera/totals/print, notes, CSRF and limits passed')
