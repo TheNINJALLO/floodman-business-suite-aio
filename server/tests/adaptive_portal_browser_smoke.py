@@ -35,6 +35,12 @@ def run():
         assert client.post('/login',data={'email':'owner@example.test','password':'Fictional-Pass-2026!'}).status_code == 200
         assert client.post('/office/photo-portal/42/photos',headers={'Origin':'https://untrusted.example.test'},files={'photo':('test.png',IMAGE)}).status_code == 403
         assert not main.store.records('portal_uploads')
+        assert Path(tempfile.gettempdir()).is_relative_to(Path(temporary))
+        uploaded = client.post('/office/photo-portal/42/photos',headers={'Origin':base},
+            data={'operation_id':'11111111-1111-4111-8111-111111111111','caption':'Fictional upload'},
+            files={'photo':('fictional.png',IMAGE+b'0'*(1024*1024))},follow_redirects=False)
+        assert uploaded.status_code==303
+        assert len(main.store.records('portal_uploads'))==1
         server = uvicorn.Server(uvicorn.Config(build_browser_app(main),host='127.0.0.1',port=port,log_level='error',lifespan='off'))
         thread = threading.Thread(target=server.run,daemon=True)
         thread.start()

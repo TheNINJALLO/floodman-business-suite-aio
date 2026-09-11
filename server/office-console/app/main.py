@@ -10,6 +10,7 @@ import os
 import zipfile
 import re
 import secrets
+import tempfile
 import uuid
 from collections import defaultdict
 from contextvars import ContextVar
@@ -77,6 +78,11 @@ from .xactimate_catalog import (
 
 settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
+# Multipart parsers spill large photos to disk before the durable upload is
+# committed. Keep those temporary files inside this service's configured data.
+upload_temp_dir = Path(settings.data_dir).resolve() / "tmp"
+upload_temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+tempfile.tempdir = str(upload_temp_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
 portal_connection = PortalConnection(store, providers, settings)
