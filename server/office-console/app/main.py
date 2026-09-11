@@ -5662,11 +5662,88 @@ def _detroit_time(value: Any) -> str:
 
 
 @app.get("/office/photo-portal")
-async def photo_portal_page(job_id: int = 0, search: str = "", before: str = "") -> HTMLResponse:
+async def photo_portal_page(job_id: int = 0, search: str = "", before: str = "", tab: str = "photos") -> HTMLResponse:
     user = _require("properties.view")
     _, workspace = _call_intakes_for_user(user)
-    body = await PhotoPortal(portal_connection).render(user, workspace, job_id=job_id, search=search, before=before)
+    body = await PhotoPortal(portal_connection).render(user, workspace, job_id=job_id, search=search, before=before, tab=tab)
     return _page("Photo Portal", body, "photo-portal")
+
+
+@app.get('/office/photo-portal/tools.js')
+def photo_portal_script() -> Response:
+    _require('properties.view')
+    from .portal_tools_ui import PORTAL_TOOLS_JS
+    return Response(PORTAL_TOOLS_JS, media_type='text/javascript', headers={'Cache-Control':'no-store'})
+
+
+def _portal_tools_context(request: Request, *, write: bool = True):
+    from .portal_tools import PortalTools
+    from urllib.parse import urlsplit
+    user = _require('properties.view')
+    if write:
+        expected = urlsplit(settings.public_url)
+        if request.headers.get('origin', '').rstrip('/') != f'{expected.scheme}://{expected.netloc}':
+            raise HTTPException(403, 'Submit changes from Floodman Office')
+    if not portal_connection.enabled:
+        raise HTTPException(503, 'Photo portal is not connected')
+    _, workspace = _call_intakes_for_user(user)
+    return PortalTools(PhotoPortal(portal_connection)), user, workspace
+
+
+async def _portal_body(request: Request, limit: int) -> bytes:
+    body = bytearray()
+    async for part in request.stream():
+        if len(body) + len(part) > limit:
+            raise HTTPException(413, 'Upload is too large')
+        body.extend(part)
+    return bytes(body)
+
+
+def _portal_action_response(record: dict) -> JSONResponse:
+    return JSONResponse({'operation_id':record['id'], 'status':record['status'],
+                         'error':record.get('error',''), 'remote_chunk':record.get('remote_chunk',0)}, status_code=202 if record['status'] in ('STAGING','PENDING') else 200)
+
+
+@app.post('/office/photo-portal/{job_id}/actions')
+async def photo_portal_action(job_id: int, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request)
+    try:
+        payload = json.loads(await _portal_body(request, 64000))
+        if not isinstance(payload, dict):
+            raise ValueError('Invalid job change')
+        record = await tools.stage(user, workspace, job_id, payload)
+        return _portal_action_response(record)
+    except HTTPException:
+        raise
+    except PermissionError as error:
+        raise HTTPException(403, str(error))
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    except Exception:
+        raise HTTPException(503, 'Unable to verify this job. Try again to resume.')
+
+
+@app.post('/office/photo-portal/{job_id}/uploads/{operation_id}/{index}')
+async def photo_portal_chunk(job_id: int, operation_id: str, index: int, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request)
+    try:
+        tools.record(user, workspace, job_id, operation_id)
+        content = await _portal_body(request, 4 * 1024 * 1024)
+        record = tools.chunk(user, workspace, job_id, operation_id, index, content)
+        return _portal_action_response(record)
+    except PermissionError as error:
+        raise HTTPException(403, str(error))
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+
+
+@app.get('/office/photo-portal/{job_id}/actions/{operation_id}')
+def photo_portal_action_status(job_id: int, operation_id: str, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request, write=False)
+    try:
+        return _portal_action_response(tools.record(user, workspace, job_id, operation_id))
+    except (PermissionError, ValueError):
+        raise HTTPException(404, 'Upload unavailable')
 
 
 @app.post("/office/photo-portal/{job_id}/photos")

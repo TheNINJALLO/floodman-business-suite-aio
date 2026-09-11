@@ -36,7 +36,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     "TECHNICIAN": {
         "dashboard.view", "contacts.view", "properties.view", "estimates.view", "invoices.view",
         "documents.view", "notes.manage", "messages.view", "time.self", "tasks.manage", "calendar.view", "apps.view",
-        "call_intakes.view",
+        "call_intakes.view", "portal.upload",
     },
     "VIEWER": {
         "dashboard.view", "contacts.view", "properties.view", "estimates.view", "invoices.view",

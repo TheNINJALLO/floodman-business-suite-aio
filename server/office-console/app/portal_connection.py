@@ -161,12 +161,16 @@ class PortalConnection:
 
     async def run(self) -> None:
         from .photo_portal import PhotoPortal
+        from .portal_tools import PortalTools
         browser = PhotoPortal(self)
         while True:
             for upload in self.store.records("portal_uploads"):
                 if upload.get("status") != "PENDING" or float(upload.get("retry_at") or 0) > time.time():
                     continue
                 await browser.sync_upload(upload)
+            for action in sorted(self.store.records('portal_actions'), key=lambda row: row.get('created_at','')):
+                if action.get('status') == 'PENDING' and float(action.get('retry_at') or 0) <= time.time():
+                    await PortalTools(browser).sync(action)
             for intake in self.store.records("call_intakes"):
                 if intake.get("approval_status") != "APPROVED" or float(intake.get("portal_retry_at") or 0) > time.time():
                     continue

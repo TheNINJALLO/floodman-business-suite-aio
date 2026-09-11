@@ -91,7 +91,7 @@ class PhotoPortal:
             self.store.update_record('portal_uploads', record['id'], {'status':'FAILED' if permanent else 'PENDING',
                 'error':'The photo was rejected; check the file and job access.' if permanent else 'Connection unavailable. Your saved photo will retry.', 'retry_at':time.time()+60}, actor_id='portal-sync')
 
-    async def render(self, user: dict, workspace: str, *, job_id: int = 0, search: str = '', before: str = '') -> str:
+    async def render(self, user: dict, workspace: str, *, job_id: int = 0, search: str = '', before: str = '', tab: str = 'photos') -> str:
         if not has_permission(user, "properties.view"):
             raise PermissionError("Photo portal access is required")
         if not self.connection.enabled:
@@ -106,12 +106,12 @@ class PhotoPortal:
         more = f"<a class='button secondary' href='/office/photo-portal?{esc(urlencode({'before':next_id,'search':search}))}'>More jobs</a>" if next_id else ''
         content = "<section class='card'><h2>Select a job</h2><p>Choose a job to see its floor plan and photos.</p></section>"
         if selected:
-            upload = ''
-            if has_permission(user,'properties.manage'):
-                upload = f"<form class='portal-upload-form' method='post' enctype='multipart/form-data' action='/office/photo-portal/{job_id}/photos'><input type='hidden' name='operation_id' value='{uuid.uuid4()}'><div class='field'><label for='portal-photo'>Add photo</label><input id='portal-photo' name='photo' type='file' accept='image/jpeg,image/png,image/webp,image/gif' required></div><div class='field'><label for='portal-caption'>Caption (optional)</label><input id='portal-caption' name='caption' maxlength='1000'></div><button>Upload photo</button></form>"
+            from .portal_tools import PortalTools
+            try:
+                tools = await PortalTools(self).render(user, workspace, job_id, tab)
+            except Exception:
+                tools = "<p>Job tools are temporarily unavailable. Your hosted files are unchanged; refresh to reconnect.</p>"
             pending = [row for row in self.store.records('portal_uploads') if row.get('workspace_id') == workspace and int(row.get('portal_job_id') or 0) == job_id and row.get('status') != 'SENT']
-            if upload:
-                upload = "<details class='portal-upload'><summary>Add a photo</summary>" + upload + "</details>"
             states = ''.join(f"<p role='status'>{esc(row.get('status'))}: {esc(row.get('error') or 'Photo saved locally and waiting to upload.')}</p>" for row in pending[:10])
-            content = f"<section class='card portal-project'><h2>{esc(selected.get('job_name'))}</h2><p>{esc(selected.get('address'))}</p>{upload}{states}<a class='button secondary' href='/office/photo-portal?job_id={job_id}'>Refresh photos</a><iframe class='portal-gallery-frame' title='Job floor plan and photos' src='{esc(self.gallery(job_id))}' referrerpolicy='no-referrer'></iframe><small>Private image links refresh when you reopen this page.</small></section>"
+            content = f"<section class='card portal-project'><h2>{esc(selected.get('job_name'))}</h2><p>{esc(selected.get('address'))}</p>{states}{tools}</section>"
         return f"<form method='get' class='portal-search'><label class='sr-only' for='portal-search'>Search jobs</label><input id='portal-search' name='search' value='{esc(search)}' placeholder='Search jobs or addresses' maxlength='200'><button>Search</button></form><div class='portal-workspace'><section class='portal-job-list' aria-label='Portal jobs'>{cards or '<p>No matching jobs in this workspace.</p>'}{more}</section><div>{content}</div></div>"

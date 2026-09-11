@@ -35,6 +35,8 @@ class FakeConnection:
             raise PortalRequestError(404)
         if action == 'get-job':
             return {'job':{'id':42,'job_name':'Fictional Residence','address':'12 Test Lane'}}
+        if action == 'job-tools':
+            return {'media':[], 'notes':[], 'receipts':[], 'contents':[], 'receipt_total':0}
         assert action == 'upload-photo'
         record = self.store.record('portal_uploads', payload['operation_id'])
         assert record and record['status'] == 'PENDING', 'Remote write preceded local business record'

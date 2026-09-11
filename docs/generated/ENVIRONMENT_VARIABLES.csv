@@ -60,7 +60,7 @@ FLOODMAN_PUBLIC_HOST,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_SCHEME,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_URL,,server/aio/start-suite.sh,1
 FLOODMAN_RELEASE,"""windows-business-suite-v3.0.0""",server/local-lab/app/main.py | server/office-console/app/config.py,2
-FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/adaptive_portal_browser_smoke.py | server/tests/web_ui_smoke.py,2
+FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/adaptive_portal_browser_smoke.py | server/tests/portal_tools_browser_smoke.py | server/tests/web_ui_smoke.py,3
 FLOODMAN_VOICE_URL,,server/aio/start-suite.sh,1
 FM_CONFIG,,server/aio/common.sh | server/aio/finalize-gauzy.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,4
 FM_DATA,,server/aio/common.sh | server/aio/start-documenso.sh | server/aio/start-local-lab.sh | server/aio/start-mailpit.sh | server/aio/start-postgres.sh | server/aio/start-suite.sh,6

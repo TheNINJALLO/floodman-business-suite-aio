@@ -41,7 +41,8 @@ Confirm the private directory and the database return HTTP 403 without login.
 Create private `data/floodman-suite/config.php` containing a generated shared
 secret (at least 32 characters) in a PHP array with the key `secret`, readable
 only by the hosting account. Never commit it. Install `includes/floodman_bridge.php`,
-`includes/floodman_catalog.php`, then `api/floodman.php`. The optional shared
+`includes/floodman_catalog.php`, `includes/floodman_job_tools.php`, then
+`api/floodman.php`. The optional shared
 theme updates `includes/layout.php`, `login.php`, `assets/floodman-erp.css`,
 and `sw.js`; compare against and back up the existing versions before replacing.
 PHP must support PDO SQLite; the existing jobs table must
@@ -69,6 +70,51 @@ estimate. Keep the signing key private. The gallery's allowed embedding origin
 is `https://floodman.oninetwork.com`; review it if changing the Office domain.
 
 ## Verification and rollback
+
+### ERP job tools
+
+Photo Portal retains five job sections: photos, videos, staff notes, receipts,
+and contents inventory. Staff can add multiple photos, capture from a phone
+camera, upload videos up to 100 MB, record receipt vendor/amount/notes, print
+receipt images and totals using the browser's Save PDF option, and maintain
+contents items with linked photos. Receipt entry accepts one image at a time so
+its amount is not accidentally counted once per scan in a batch. Photos/receipt
+images support JPEG, PNG, WebP and GIF up to 12 MB each. Video support is MP4,
+QuickTime/MOV, WebM and AVI; playback also depends on the browser's codec support.
+
+Existing job metadata, captions, topics, notes, receipt details and inventory
+can be edited by property managers. Technicians gain `portal.upload` for additions
+to jobs they can access, without gaining removal, global legacy-job access or
+marketing privileges. Original posting/advanced tools remain available under
+the collapsed **Original portal tools** link using the existing portal staff
+login. New uploads do not publish images for marketing. Editing portal job
+metadata does not silently overwrite the canonical ERP customer/property.
+
+All writes are staged as `portal_actions` in the existing local Office store
+before remote synchronization. Interrupted multi-chunk uploads resume from the
+job's Saved changes and uploads section after selecting the original file.
+Completed files continue synchronizing even after the browser closes; do not
+close the page before it confirms they are saved locally. No browser offline
+camera queue is claimed. Outstanding local uploads are limited to 500 MB and
+100 operations per actor. Videos advance one 4 MB remote chunk per worker pass
+to preserve call-intake responsiveness. SHA-256 verifies every hosted original.
+
+The existing portal tables are used without schema migrations. Private
+`operation-<uuid>.json` journals record before/after rows, conflict revisions,
+and acknowledgements. A lost acknowledgement is replay-safe; conflicting edits
+require review. Removing an item hides its database row but retains the original
+file and private recovery record. Recovery requires an administrator to review
+that journal against current rows; there is no automatic destructive rollback.
+Staff receipt/video links have distinct, ten-minute signatures. Customer
+estimate galleries still contain only project photos and floor plans, never
+staff receipts or notes. Legacy raw media URLs retain the original portal's
+access behavior; this update does not retroactively privatize those URLs.
+
+Each native section shows the newest 500 entries with a notice when truncated;
+the original portal retains older entries. Receipt totals cover the whole job.
+Large truncated jobs should use the original portal for a complete image export.
+
+### Release checks
 
 Run `photo_portal_smoke.py`, `adaptive_portal_browser_smoke.py`, the
 `portal_*_smoke.py` tests under `server/tests`, the existing call

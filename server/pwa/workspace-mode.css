@@ -6,6 +6,37 @@
 .portal-search input{min-width:0;flex:1}
 .portal-search .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .portal-upload{margin:16px 0}.portal-upload summary{cursor:pointer;color:var(--accent);font-weight:650;padding:10px 0;min-height:44px}
+.portal-tabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);padding-bottom:12px;margin:20px 0}
+.portal-tabs a{padding:10px 14px;border-radius:9px;color:var(--muted);text-decoration:none;min-height:44px;display:flex;align-items:center}
+.portal-tabs a[aria-current=page]{background:#183e65;color:#fff}
+.portal-tool-form{display:grid;gap:12px;padding:16px 0;min-width:0}
+.portal-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
+.portal-tool-form .field{min-width:0;margin:0}.portal-tool-form input,.portal-tool-form textarea{width:100%;min-width:0;max-width:100%}
+.portal-tool-form label{display:grid;gap:8px}.portal-tool-form button{justify-self:start}
+.portal-camera{position:relative;overflow:hidden;width:fit-content;cursor:pointer;min-height:44px}
+.portal-camera input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.portal-camera:focus-within{outline:2px solid #32a7ff;outline-offset:3px}
+.portal-media-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:16px;margin:16px 0}
+.portal-item{border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0;overflow-wrap:anywhere;background:var(--panel)}
+.portal-item>img,.portal-item>a>img,.portal-item video{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:8px;background:#07111f}
+.portal-item h3{font-size:17px;margin:12px 0 8px}.portal-item p{overflow-wrap:anywhere}
+.portal-item details{margin-top:12px}.portal-item summary,.portal-manage-media summary,.portal-sync summary{padding:12px 0;min-height:44px;cursor:pointer}
+.portal-content-photos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.portal-content-photos img{width:100%;height:85px;object-fit:cover;border-radius:8px}
+.portal-preserve{white-space:pre-wrap}.portal-note-list{display:grid;gap:12px;margin-top:16px}
+.portal-refresh{margin:14px 0}.portal-sync{margin-bottom:14px}.portal-tools [role=status]{overflow-wrap:anywhere}
+.portal-job-details summary,.portal-advanced summary{padding:12px 0;cursor:pointer;min-height:44px}.portal-advanced{margin-top:20px}
+.portal-tools [role=status]:empty{display:none}.portal-receipt-total{justify-content:space-between}
+@media(max-width:560px){.portal-tabs{gap:3px}.portal-tabs a{padding:10px 9px;font-size:14px}.portal-media-grid{grid-template-columns:minmax(0,1fr)}}
+@media print{
+ body.portal-print-receipts{background:#fff!important;color:#111!important}
+ body.portal-print-receipts .office-sidebar,body.portal-print-receipts .mobile-bottom-nav,body.portal-print-receipts .mobile-topbar,body.portal-print-receipts .page-header,body.portal-print-receipts .portal-search,body.portal-print-receipts .portal-job-list,body.portal-print-receipts .portal-tabs,body.portal-print-receipts .portal-upload,body.portal-print-receipts .portal-sync,body.portal-print-receipts .portal-refresh,body.portal-print-receipts .portal-private,body.portal-print-receipts .portal-edit,body.portal-print-receipts button,body.portal-print-receipts [role=status]{display:none!important}
+ body.portal-print-receipts .shell,body.portal-print-receipts .portal-workspace,body.portal-print-receipts .portal-media-grid{display:block!important}
+ body.portal-print-receipts .portal-advanced,body.portal-print-receipts .portal-job-details,body.portal-print-receipts .mobile-header{display:none!important}
+ body.portal-print-receipts main{margin:0!important;padding:0!important;width:100%!important;max-width:none!important}
+ body.portal-print-receipts .card,body.portal-print-receipts .portal-item{background:#fff!important;color:#111!important;border-color:#bbb!important;box-shadow:none!important}
+ body.portal-print-receipts .portal-item{break-inside:avoid;margin:12px 0;padding:12px}
+ body.portal-print-receipts .portal-item img{max-height:650px;object-fit:contain;background:#fff!important}
+}
 .portal-workspace{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:20px;align-items:start}
 .portal-workspace>*{min-width:0}
 .portal-job-list{display:grid;gap:8px;max-height:75vh;overflow:auto;padding:3px}

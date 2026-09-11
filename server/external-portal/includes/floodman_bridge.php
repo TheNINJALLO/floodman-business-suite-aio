@@ -58,7 +58,7 @@ function fm_verify_view(array $query, array $config): bool {
     $expires = (string)($query['expires'] ?? '');
     if (!ctype_digit($expires) || (int)$expires < time() || (int)$expires > time() + 7200) return false;
     $purpose = (string)($query['view'] ?? '');
-    if (!in_array($purpose, ['gallery', 'photo', 'layout', 'staff-gallery', 'staff-photo'], true)) return false;
+    if (!in_array($purpose, ['gallery', 'photo', 'layout', 'staff-gallery', 'staff-photo', 'staff-receipt', 'staff-video'], true)) return false;
     return hash_equals(fm_public_signature($purpose, (string)($query['key'] ?? ''),
         (string)($query['asset'] ?? ''), (int)$expires, $config), (string)($query['signature'] ?? ''));
 }

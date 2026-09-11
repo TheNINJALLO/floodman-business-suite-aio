@@ -30,7 +30,13 @@ def run():
         (root / 'includes/auth.php').write_text("<?php class FixtureAuth {function isLoggedIn(){return false;} function getUserName(){return 'Fictional Staff';} function isAdmin(){return true;}} function getAuth(){return new FixtureAuth();}",encoding='utf-8')
         (root / 'theme-fixture.php').write_text("<?php require 'includes/auth.php'; require 'includes/layout.php'; $layout=new Layout(getAuth()); $layout->setTitle('Photo Portal'); echo $layout->start(); echo '<section class=card><h1>Fictional project</h1><p>12 Test Lane</p><button class=btn>Open photos</button></section>'; echo $layout->end();",encoding='utf-8')
         with closing(sqlite3.connect(root / 'data/portal.db')) as db, db:
-            db.executescript('CREATE TABLE jobs(id INTEGER PRIMARY KEY,job_name TEXT,address TEXT,notes TEXT,employee_id INTEGER,client_job_id TEXT UNIQUE); CREATE TABLE photos(id INTEGER PRIMARY KEY,job_id INTEGER,filename TEXT,caption TEXT,uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,media_type TEXT,client_photo_id TEXT,client_job_id TEXT); CREATE UNIQUE INDEX photos_client ON photos(job_id,client_photo_id);')
+            db.executescript('''CREATE TABLE jobs(id INTEGER PRIMARY KEY AUTOINCREMENT,job_name TEXT,address TEXT,notes TEXT,employee_id INTEGER,client_job_id TEXT UNIQUE,default_topic TEXT);
+                CREATE TABLE photos(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER,filename TEXT,caption TEXT,topic TEXT,copied_for_posting INTEGER DEFAULT 0,uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,media_type TEXT DEFAULT 'photo',client_photo_id TEXT,client_job_id TEXT);
+                CREATE UNIQUE INDEX photos_client ON photos(job_id,client_photo_id);
+                CREATE TABLE job_notes(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,note TEXT NOT NULL,created_by TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP,updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE TABLE receipts(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,filename TEXT NOT NULL,vendor TEXT,amount REAL,notes TEXT,uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE TABLE contents(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,name TEXT NOT NULL,description TEXT,category TEXT,condition TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE TABLE content_photos(id INTEGER PRIMARY KEY AUTOINCREMENT,content_id INTEGER NOT NULL,photo_id INTEGER NOT NULL);''')
         container = subprocess.check_output(['docker','run','--rm','-d','-p','127.0.0.1::8080','--mount',f'type=bind,source={root},target=/app',IMAGE,'php','-S','0.0.0.0:8080','-t','/app'], text=True).strip()
         try:
             port = subprocess.check_output(['docker','port',container,'8080/tcp'], text=True).strip().split(':')[-1]
@@ -110,6 +116,8 @@ def run():
             assert httpx.get(staff).status_code == 200
             assert httpx.get(view('staff-photo','2',source_key=str(data['portal_job_id']))).status_code == 404
             assert httpx.get(view('staff-gallery', source_key=str(data['portal_job_id']), expiry=int(time.time())-1)).status_code == 403
+            from test_portal_job_tools import check_tools
+            check_tools(request, view, root, scope, data, other, image)
             from playwright.sync_api import sync_playwright
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(headless=True)
