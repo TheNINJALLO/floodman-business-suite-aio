@@ -47,8 +47,8 @@ b61bfcd4881ad283560791312d22aa622b0601a1b3a3e5199ea642b998ca2c83  ./external-por
 fa28d421a28ed9b6f4b997d5119c2b8adbacff6e2dd119a179b71230f9664934  ./external-portal/data/floodman-suite/.htaccess
 456206d9b93ba54815d2834e839238b0c6bb1028db066e78f04aba6b6ae87278  ./external-portal/includes/floodman_bridge.php
 b31c04cf29709dc369db312ee6e5d30bb8f7bf24d27f5c517c878db789f39d10  ./external-portal/includes/floodman_catalog.php
-e39b66c885a895ea86fcb8b256296d04c98277d96016587c033577de68317644  ./external-portal/includes/layout.php
-f993866841ada600a1b441936160eb4d31687204670459aa6a01ad26f97b4e47  ./external-portal/login.php
+d7036043a2ab7082070be9e6d09012a9b5e007c50fd749cd9291b5007c671633  ./external-portal/includes/layout.php
+9b2dc77ca85b6cceaf29758b1f5d4a6e2c21bfa67188ae4d1b40b933b1b8a19e  ./external-portal/login.php
 ab0b23ab82d240fc88db3e3b28e6c8d855cdd99f15d2b00b4531979db15adf4e  ./external-portal/sw.js
 30a3964800256bd70c0fb8fcdee908fd2bfae71f8c24e62e703a33c89f3f3038  ./hub/brand/floodman-mark.svg
 2857af30a97cb4802e61584ffe00a4316d14f44abfdd7533a325153787545a09  ./hub/brand/floodman-wordmark.svg

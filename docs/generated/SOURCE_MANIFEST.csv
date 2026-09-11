@@ -891,7 +891,7 @@ deployment/pterodactyl/egg-floodman-operations-mobile-v3.3.0.json,34114,315,c99b
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.0.json,99949,194,a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.1.json,87394,244,f941362b0758882da32f87970c2239554053c4f56e680d1a3008c9cdd0380e83,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.2.json,87394,244,1ee094630024a55c880c7357968d8eb01507d4b3bd1ceeff3a0ab961cef9ed59,.json
-deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87387,244,a1f5bfacf4edcdc41d33b64bbbc2dfa87ce86a583c292af4cacfd65e453392f0,.json
+deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87327,244,5f90ddd4f1065c013744852dd2cfbee4c6cb7cee92b02b97217d53ea7027b4e4,.json
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-HTTPS001.md,6031,130,994bdcead0cd590d3f4232de001442ba9795b64d8461541d80b0d3954c6f3d95,.md
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-WEB007.md,5780,110,92cb08f29d532564baf179aada8f841bd0cd5750e92c280f2577c99f8447abfe,.md
 deployment/pterodactyl/README.md,2834,57,f86b7fb1911da6f3962cd48ee8fbdf2933f8c50c3bdf2100e13e69e924c18278,.md
@@ -904,12 +904,12 @@ deployment/releases/floodman-operations-new-server-v4.7.1-web007-20260828.zip,11
 deployment/releases/floodman-operations-runtime-v4.7.0.zip,1118690,,733514138066eab31940c771918dddaf18204c4d26a071daf9a063965f7e967a,.zip
 deployment/releases/floodman-operations-runtime-v4.7.1.zip,1146697,,de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b,.zip
 deployment/releases/floodman-operations-runtime-v4.7.2.zip,1172846,,671f9151a9d95e2d9341abfc78350484e9082c630407551803b9b6041988bead,.zip
-deployment/releases/floodman-operations-runtime-v4.7.3.zip,1186329,,731004d39eadbec8c07c29338cf1bfe5df25e9bc5814bfa2acc6be8e2b392082,.zip
+deployment/releases/floodman-operations-runtime-v4.7.3.zip,1193199,,7d7ab8374829966bc1dd88dff0b0862bcfef88b1ada14e2168d86aa376860ef0,.zip
 deployment/releases/mobile-start-v4.7.0.sh,88021,1532,38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4,.sh
 deployment/releases/mobile-start-v4.7.1.sh,72692,1116,bacc8f2d982b3702258f2b718243bae428c2b3a80caade63407c01cfb3481fe8,.sh
 deployment/releases/mobile-start-v4.7.2.sh,72692,1116,f8169ed1d039ec94db8d8fecaf8708e3d322d1dea489dff09afd2766f81c3c96,.sh
-deployment/releases/mobile-start-v4.7.3.sh,72685,1116,511a87e9b771ef733c6937000db577a18c5313438495533db5fcb6add2855124,.sh
-deployment/releases/SHA256SUMS,196,,0f48fde33dc66fdf863047c902f75c4cf80db3ae5dddb2b262f0f0e17d54cc48,SHA256SUMS
+deployment/releases/mobile-start-v4.7.3.sh,72621,1116,7721ed4d89cbea3dd089021ebf27345629ee9d82d15b17f6316654517e7c1977,.sh
+deployment/releases/SHA256SUMS,196,,80fdcc28a731fa1581afe46ff552b3caea3577fde6b849a5ddac0cc358ab6308,SHA256SUMS
 deployment/releases/SHA256SUMS-HTTPS001-20260828,127,,44b08fe5b9a0900c089970330dd84bf2a8bffb84d00d916c3ea060b897fcfb0e,SHA256SUMS-HTTPS001-20260828
 deployment/releases/SHA256SUMS-v4.7.0,194,,fa832b86f699f5b5e29247f6d5f977c577f1ab1396ff721da8767632b0f1f02d,.0
 deployment/releases/SHA256SUMS-v4.7.1-published-20260821,416,,2049aa5d5587266fda5f96077d3f8422f3185cb593ce9c2b88f20d14d2617020,.1-published-20260821
@@ -1184,7 +1184,7 @@ scripts/generate_checksums.py,784,22,9f3731123cd4983c85d24b25d8280c6e83570a13508
 scripts/generate_inventory.py,9581,240,31a4114e10dd3fa9da224eb9a690e6023045a230ffb63bde89cc91073fa3839f,.py
 scripts/generate_source_manifests.py,1858,63,d5da5a1dc47ae9fb8028e5bb7cf50441ece907a6d02eec884de859cccb44b9d5,.py
 scripts/package_fresh_server_handoff.py,3713,93,afb325c34870f81bd7c85ad21c23337a3d66a1dd6144da0fc6ebf8db68b78aac,.py
-scripts/package_pterodactyl_release.py,11982,304,7ca1338da2c47d08b189fdc8072f81331a1312bd0b05c5925ffc924e4f48c627,.py
+scripts/package_pterodactyl_release.py,11982,304,a3fa4475d8e352a2d1b8132707ecf69edc3ccb700d0166de0d5d05f7734b1df9,.py
 scripts/package_roomflow_release_assets.py,3617,86,a218eff070e437b93ef1b1be37c12923031f757788137bf7f2f939af915d6185,.py
 scripts/patch_roomflow_bundle.py,2063,53,acd02f0fce0a27cc0dc875be799f49c461c94cf1349a7fda63c84d1c01a65acb,.py
 scripts/run_roomflow_browser_tests.py,7386,164,383f8d5f98650701c9c4c6ee6736bb067cd1ae4b80b4c0a26660d603a14c0ec2,.py
@@ -1247,8 +1247,8 @@ server/external-portal/data/.htaccess,223,,365f4851267ee7106ee32f22d0e24c4dd9be6
 server/external-portal/data/floodman-suite/.htaccess,19,,fa28d421a28ed9b6f4b997d5119c2b8adbacff6e2dd119a179b71230f9664934,.htaccess
 server/external-portal/includes/floodman_bridge.php,12561,,456206d9b93ba54815d2834e839238b0c6bb1028db066e78f04aba6b6ae87278,.php
 server/external-portal/includes/floodman_catalog.php,5468,,b31c04cf29709dc369db312ee6e5d30bb8f7bf24d27f5c517c878db789f39d10,.php
-server/external-portal/includes/layout.php,10491,,e39b66c885a895ea86fcb8b256296d04c98277d96016587c033577de68317644,.php
-server/external-portal/login.php,2032,,f993866841ada600a1b441936160eb4d31687204670459aa6a01ad26f97b4e47,.php
+server/external-portal/includes/layout.php,10358,,d7036043a2ab7082070be9e6d09012a9b5e007c50fd749cd9291b5007c671633,.php
+server/external-portal/login.php,1988,,9b2dc77ca85b6cceaf29758b1f5d4a6e2c21bfa67188ae4d1b40b933b1b8a19e,.php
 server/external-portal/README.md,5689,94,a59c4f4cd1affe45cd1293fe0cfbcde683241e69b1687f69f8a0a924157f1b8b,.md
 server/external-portal/sw.js,3702,118,ab0b23ab82d240fc88db3e3b28e6c8d855cdd99f15d2b00b4531979db15adf4e,.js
 server/hub/brand/floodman-mark.svg,962,,30a3964800256bd70c0fb8fcdee908fd2bfae71f8c24e62e703a33c89f3f3038,.svg
@@ -1263,7 +1263,7 @@ server/local-lab/app/archive_import.py,21573,443,38f9f6b9f8d0f9890f8448269689cc4
 server/local-lab/app/main.py,57921,1302,584003011cbd566ae1522f114b3eb2948fbd0f151f8c592e06bc04cf6a1836e8,.py
 server/local-lab/app/persistence.py,2482,68,e6f11e0086f7fa8e0ce984a39610f4ba48b69e2830e60ef6a1a50ce29386976c,.py
 server/local-lab/app/util.py,2669,75,db770eba6d7a4413facc8bc1c921b631e09906ba39da0f479754659b0a490a0a,.py
-server/MANIFEST.sha256,24502,,47951221d75f9e68d9f8f6d7f96f13b481934b32c9437268cf1e488180c2c8ad,.sha256
+server/MANIFEST.sha256,24502,,8ec488a456c28901804f2973966edcf23335faf99d503322bfa39c974b7700fd,.sha256
 server/messaging-ai/app/__init__.py,48,1,8c7c5dcc1f462477c5ecdea2025b9899b03c93412d3fe4048effe8d122d4d12b,.py
 server/messaging-ai/app/config.py,3081,79,d83f6b94c0ea2a6d31d6aab2e35c6c35fe458e7d6ff9882a8a1ee8aaf4513685,.py
 server/messaging-ai/app/knowledge.py,366,11,e545e895fc4f80508c192d0b75c4e2d2526d23ca0acbec232457cb6dc27f9979,.py

@@ -1,7 +1,7 @@
 <?php
 /**
  * Layout Shell - Provides the professional app structure with sidebar navigation
- * 
+ *
  * Usage:
  *   require_once __DIR__ . '/layout.php';
  *   $layout = new Layout($auth);
@@ -18,34 +18,34 @@ class Layout {
     private $title = 'Floodman Portal';
     private $breadcrumbs = [];
     private $activePage = 'jobs';
-    
+
     public function __construct($auth) {
         $this->auth = $auth;
     }
-    
+
     public function setTitle($title) {
         $this->title = $title . ' - Floodman Portal';
         return $this;
     }
-    
+
     public function setBreadcrumbs($breadcrumbs) {
         $this->breadcrumbs = $breadcrumbs;
         return $this;
     }
-    
+
     public function setActivePage($page) {
         $this->activePage = $page;
         return $this;
     }
-    
+
     private function isActive($page) {
         return $this->activePage === $page ? 'active' : '';
     }
-    
+
     public function start() {
         $userName = htmlspecialchars($this->auth->getUserName());
         $isAdmin = $this->auth->isAdmin();
-        
+
         $breadcrumbHtml = '';
         foreach ($this->breadcrumbs as $i => $crumb) {
             if ($i > 0) {
@@ -57,7 +57,7 @@ class Layout {
                 $breadcrumbHtml .= '<span class="breadcrumb-current">' . htmlspecialchars($crumb['label']) . '</span>';
             }
         }
-        
+
         ob_start();
         ?>
 <!DOCTYPE html>
@@ -79,7 +79,7 @@ class Layout {
 <body class="app-layout">
     <!-- Sidebar Overlay (mobile) -->
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
-    
+
     <!-- Sidebar Navigation -->
     <aside class="app-sidebar" id="app-sidebar">
         <div class="sidebar-header">
@@ -88,7 +88,7 @@ class Layout {
                 <span class="logo-text">FLOODMAN</span>
             </div>
         </div>
-        
+
         <nav class="sidebar-nav">
             <div class="nav-group">
                 <div class="nav-group-label">Operations</div>
@@ -102,7 +102,7 @@ class Layout {
                     <span class="nav-label">New Job</span>
                 </a>
             </div>
-            
+
             <?php if ($isAdmin): ?>
             <div class="nav-group">
                 <div class="nav-group-label">Admin</div>
@@ -117,7 +117,7 @@ class Layout {
             </div>
             <?php endif; ?>
         </nav>
-        
+
         <div class="sidebar-footer">
             <small class="creator-credit">Created by Josh Aldrich</small>
             <div class="sidebar-user">
@@ -133,7 +133,7 @@ class Layout {
             </a>
         </div>
     </aside>
-    
+
     <!-- Main Content Area -->
     <div class="app-main">
         <!-- Top Header -->
@@ -161,7 +161,7 @@ class Layout {
                 </div>
             </div>
         </header>
-        
+
         <!-- Page Content -->
         <main class="app-content">
             <!-- Global Pending Uploads Banner -->
@@ -175,28 +175,28 @@ class Layout {
         <?php
         return ob_get_clean();
     }
-    
+
     public function end() {
         ob_start();
         ?>
         </main>
     </div>
-    
+
     <script>
     // Sidebar Toggle
     const sidebar = document.getElementById('app-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
     const hamburger = document.getElementById('hamburger-btn');
-    
+
     function toggleSidebar() {
         sidebar.classList.toggle('open');
         overlay.classList.toggle('visible');
         document.body.classList.toggle('sidebar-open');
     }
-    
+
     hamburger.addEventListener('click', toggleSidebar);
     overlay.addEventListener('click', toggleSidebar);
-    
+
     // Close sidebar on navigation on mobile
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -207,18 +207,18 @@ class Layout {
             }
         });
     });
-    
+
     // User Dropdown
     const userDropdown = document.getElementById('user-dropdown');
     userDropdown.querySelector('.user-dropdown-btn').addEventListener('click', function(e) {
         e.stopPropagation();
         userDropdown.classList.toggle('open');
     });
-    
+
     document.addEventListener('click', () => {
         userDropdown.classList.remove('open');
     });
-    
+
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -236,11 +236,11 @@ class Layout {
         const banner = document.getElementById('global-sync-banner');
         const message = document.getElementById('global-sync-message');
         if (!banner) return;
-        
+
         const pendingPhotos = e.detail.pendingPhotosCount || 0;
         const pendingJobs = e.detail.pendingJobsCount || 0;
         const total = pendingPhotos + pendingJobs;
-        
+
         if (total > 0) {
             banner.classList.remove('hidden');
             banner.style.display = 'flex';

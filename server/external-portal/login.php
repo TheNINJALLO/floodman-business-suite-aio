@@ -17,7 +17,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    
+
     if ($auth->login($username, $password)) {
         header('Location: index.php');
         exit;
@@ -43,22 +43,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a class="btn btn-primary btn-full" href="https://floodman.oninetwork.com/office/photo-portal">Open through Floodman ERP</a>
             <p class="creator-credit">Created by Josh Aldrich</p>
         </div>
-        
+
         <?php if ($error): ?>
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
-        
+
         <form method="POST" class="login-form">
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" required autofocus autocomplete="username">
             </div>
-            
+
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required autocomplete="current-password">
             </div>
-            
+
             <button type="submit" class="btn btn-primary btn-full">Sign In</button>
         </form>
     </div>
