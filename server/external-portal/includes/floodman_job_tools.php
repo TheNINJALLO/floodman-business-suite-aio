@@ -22,17 +22,19 @@ function fm_tool_rows(PDO $db, string $table, int $job): array {
 function fm_job_tools(PDO $db, array $input): array {
     $job = fm_catalog_job($db, $input); $result = ['job'=>$job, 'truncated'=>false];
     $fullJob=fm_row($db,'jobs',(int)$job['id']);
-    $result['job']=[...$job,'notes'=>$fullJob['notes'] ?? '', 'default_topic'=>$fullJob['default_topic'] ?? '', 'revision'=>fm_revision($fullJob)];
+    $result['job']=array_merge($job,['notes'=>$fullJob['notes'] ?? '', 'default_topic'=>$fullJob['default_topic'] ?? '', 'revision'=>fm_revision($fullJob)]);
     foreach (['notes'=>'job_notes', 'receipts'=>'receipts', 'contents'=>'contents', 'media'=>'photos'] as $key=>$table) {
         $rows = fm_tool_rows($db, $table, (int)$job['id']);
         if (count($rows) > 500) { $result['truncated'] = true; array_pop($rows); }
         foreach ($rows as &$row) {
             $row['revision'] = fm_revision($row);
+            $row['id'] = (int)$row['id'];
+            $row['job_id'] = (int)$row['job_id'];
             unset($row['filename'], $row['client_photo_id'], $row['client_job_id']);
             if ($key === 'contents') {
                 $query = $db->prepare('SELECT p.id FROM content_photos cp JOIN photos p ON p.id=cp.photo_id WHERE cp.content_id=? AND p.job_id=? ORDER BY p.id');
                 $query->execute([$row['id'], $job['id']]);
-                $row['photo_ids'] = $query->fetchAll(PDO::FETCH_COLUMN);
+                $row['photo_ids'] = array_map('intval',$query->fetchAll(PDO::FETCH_COLUMN));
             }
         }
         unset($row); $result[$key] = $rows;
@@ -148,7 +150,7 @@ function fm_tool_mutate(PDO $db, array $input): array {
         if ($plan && !hash_equals($plan['fingerprint'],$fingerprint)) throw new InvalidArgumentException('Operation reference conflict');
         if ($plan && $plan['status']==='DONE') {
             if ($kind==='video' && $mode==='add') fm_video_cleanup($input);
-            return [...$plan['result'],'replayed'=>true];
+            return array_merge($plan['result'],['replayed'=>true]);
         }
         $db->exec('BEGIN IMMEDIATE'); $transaction = true;
         if (!$plan) {
@@ -193,7 +195,7 @@ function fm_tool_mutate(PDO $db, array $input): array {
                         $fields['client_job_id']=$job['client_job_id'] ?: null;
                     }
                 }
-                $change=fm_change($db,$table,$before,$kind==='job' ? $fields : [...$fields,'job_id'=>(int)$job['id']]);
+                $change=fm_change($db,$table,$before,$kind==='job' ? $fields : array_merge($fields,['job_id'=>(int)$job['id']]));
             }
             $changes[]=$change;
             if ($kind==='photo' && $mode==='add' && !empty($input['content_id'])) {

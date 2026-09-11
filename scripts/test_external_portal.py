@@ -17,7 +17,8 @@ from urllib.parse import urlencode
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
-IMAGE = 'php@sha256:afdf8b1fee58486ccc0dab5f30f634b86873d56dac985f71ba217945647c05ad'
+# Match the separately hosted portal's PHP 8.0 runtime, not only newer local PHP.
+IMAGE = 'php@sha256:d3cd7dd3d043b0de163d36e9e8837f8a76770b970ad4df4e737a215793e9070b'
 SECRET = 'fictional-portal-test-secret-' * 3
 
 
@@ -38,6 +39,7 @@ def run():
                 CREATE TABLE contents(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,name TEXT NOT NULL,description TEXT,category TEXT,condition TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);
                 CREATE TABLE content_photos(id INTEGER PRIMARY KEY AUTOINCREMENT,content_id INTEGER NOT NULL,photo_id INTEGER NOT NULL);''')
         container = subprocess.check_output(['docker','run','--rm','-d','-p','127.0.0.1::8080','--mount',f'type=bind,source={root},target=/app',IMAGE,'php','-S','0.0.0.0:8080','-t','/app'], text=True).strip()
+        fixture_client = httpx.Client(timeout=15, trust_env=False)
         try:
             port = subprocess.check_output(['docker','port',container,'8080/tcp'], text=True).strip().split(':')[-1]
             url = f'http://127.0.0.1:{port}/api/floodman.php'
@@ -55,7 +57,7 @@ def run():
                 headers = {'Content-Type': 'application/json'}
                 if signed:
                     headers.update({'X-Floodman-Timestamp': timestamp, 'X-Floodman-Signature': hmac.new(SECRET.encode(), timestamp.encode()+b'.'+body, hashlib.sha256).hexdigest()})
-                return httpx.post(url, content=body, headers=headers)
+                return fixture_client.post(url, content=body, headers=headers)
 
             assert request({'action':'health'}, signed=False).status_code == 401
             assert request({'action':'health'}, timestamp=int(time.time())-400).status_code == 401
@@ -146,6 +148,7 @@ def run():
                 assert db.execute('SELECT count(*) FROM photos WHERE client_photo_id IS NOT NULL').fetchone()[0] == 1
             print('PHP portal authentication, expiry, idempotency, workspace isolation, image ownership, XSS, and floor plan checks passed')
         finally:
+            fixture_client.close()
             subprocess.run(['docker','stop',container], stdout=subprocess.DEVNULL, check=True)
 
 

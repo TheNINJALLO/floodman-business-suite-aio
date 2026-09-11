@@ -34,3 +34,8 @@ WebKit. PHP tests use a pinned disposable container and cover scoping, signature
 staff-only media, CRUD, stale edits, crash acknowledgement replay, video ranges,
 invalid files, receipt amounts and retained originals. These fixture checks do
 not substitute for a real staff-approved call and customer estimate acceptance.
+
+The live external host reports PHP 8.0. Its associative-array compatibility
+was verified with signed read-only job-tool requests, and the disposable PHP
+fixture is pinned to that runtime to exercise mutations without production data.
+This patch does not change the hosting account's PHP version.

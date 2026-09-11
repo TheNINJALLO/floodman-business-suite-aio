@@ -28,7 +28,7 @@ try {
     if ($action === 'health') {
         $columns = $db->query('PRAGMA table_info(jobs)')->fetchAll(PDO::FETCH_COLUMN, 1);
         if (!in_array('client_job_id', $columns, true)) throw new RuntimeException('Portal stable job identifiers are unavailable');
-        $result = ['status' => 'ready', 'schema_version' => 1, 'capabilities' => ['job-upsert', 'roomflow-layout', 'signed-gallery', 'staff-catalog', 'staff-upload', 'staff-job-tools', 'chunked-video']];
+        $result = ['status' => 'ready', 'schema_version' => 1, 'php_runtime' => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION, 'capabilities' => ['job-upsert', 'roomflow-layout', 'signed-gallery', 'staff-catalog', 'staff-upload', 'staff-job-tools', 'chunked-video']];
     } elseif ($action === 'upsert-job') $result = fm_upsert($db, $input);
     elseif ($action === 'save-layout') $result = fm_save_layout($db, $input);
     elseif ($action === 'list-jobs') $result = fm_catalog($db, $input);
