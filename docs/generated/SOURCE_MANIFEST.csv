@@ -892,7 +892,7 @@ deployment/pterodactyl/egg-floodman-operations-mobile-v3.3.0.json,34114,315,c99b
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.0.json,99949,194,a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.1.json,87394,244,f941362b0758882da32f87970c2239554053c4f56e680d1a3008c9cdd0380e83,.json
 deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.2.json,87394,244,1ee094630024a55c880c7357968d8eb01507d4b3bd1ceeff3a0ab961cef9ed59,.json
-deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87327,244,042252891b7079e6cc7553e5954fd686554db73b69d35a5c493e2195d0f81d7a,.json
+deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json,87327,244,3fb38173c4a006516e0e06f07290cd72a467ef2642fb070ca7f6abdba31a40f0,.json
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-HTTPS001.md,6031,130,994bdcead0cd590d3f4232de001442ba9795b64d8461541d80b0d3954c6f3d95,.md
 deployment/pterodactyl/FRESH-SERVER-SETUP-v4.7.1-WEB007.md,5780,110,92cb08f29d532564baf179aada8f841bd0cd5750e92c280f2577c99f8447abfe,.md
 deployment/pterodactyl/README.md,2834,57,f86b7fb1911da6f3962cd48ee8fbdf2933f8c50c3bdf2100e13e69e924c18278,.md
@@ -1187,7 +1187,7 @@ scripts/generate_checksums.py,784,22,9f3731123cd4983c85d24b25d8280c6e83570a13508
 scripts/generate_inventory.py,9581,240,31a4114e10dd3fa9da224eb9a690e6023045a230ffb63bde89cc91073fa3839f,.py
 scripts/generate_source_manifests.py,1858,63,d5da5a1dc47ae9fb8028e5bb7cf50441ece907a6d02eec884de859cccb44b9d5,.py
 scripts/package_fresh_server_handoff.py,3713,93,afb325c34870f81bd7c85ad21c23337a3d66a1dd6144da0fc6ebf8db68b78aac,.py
-scripts/package_pterodactyl_release.py,11982,304,9cbf6517447d77a17afe099f58a14794d7885d640679a3466ecb298ea5f7ee34,.py
+scripts/package_pterodactyl_release.py,11982,304,8feb0a9833221aeafc26dedb03325326b52c3ea2ae5cb112a31d2feac575f5f0,.py
 scripts/package_roomflow_release_assets.py,3617,86,a218eff070e437b93ef1b1be37c12923031f757788137bf7f2f939af915d6185,.py
 scripts/patch_roomflow_bundle.py,2063,53,acd02f0fce0a27cc0dc875be799f49c461c94cf1349a7fda63c84d1c01a65acb,.py
 scripts/run_roomflow_browser_tests.py,7386,164,383f8d5f98650701c9c4c6ee6736bb067cd1ae4b80b4c0a26660d603a14c0ec2,.py
