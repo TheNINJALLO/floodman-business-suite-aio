@@ -41,7 +41,7 @@ OPERATION_KINDS = {
     "customer_threads", "customer_messages",
     "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections",
     "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit",
-    "call_intakes", "call_intake_audit"
+    "call_intakes", "call_intake_audit", "portal_uploads"
 }
 
 DEFAULT_STATE: dict[str, Any] = {

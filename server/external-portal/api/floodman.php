@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/floodman_bridge.php';
+require_once __DIR__ . '/../includes/floodman_catalog.php';
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
 header('X-Content-Type-Options: nosniff');
@@ -25,9 +26,12 @@ try {
     if ($action === 'health') {
         $columns = $db->query('PRAGMA table_info(jobs)')->fetchAll(PDO::FETCH_COLUMN, 1);
         if (!in_array('client_job_id', $columns, true)) throw new RuntimeException('Portal stable job identifiers are unavailable');
-        $result = ['status' => 'ready', 'schema_version' => 1, 'capabilities' => ['job-upsert', 'roomflow-layout', 'signed-gallery']];
+        $result = ['status' => 'ready', 'schema_version' => 1, 'capabilities' => ['job-upsert', 'roomflow-layout', 'signed-gallery', 'staff-catalog', 'staff-upload']];
     } elseif ($action === 'upsert-job') $result = fm_upsert($db, $input);
     elseif ($action === 'save-layout') $result = fm_save_layout($db, $input);
+    elseif ($action === 'list-jobs') $result = fm_catalog($db, $input);
+    elseif ($action === 'get-job') $result = ['job' => fm_catalog_job($db, $input)];
+    elseif ($action === 'upload-photo') $result = fm_catalog_upload($db, $input);
     else throw new InvalidArgumentException('Unknown action');
     echo json_encode($result, JSON_THROW_ON_ERROR);
 } catch (InvalidArgumentException | JsonException $exception) {

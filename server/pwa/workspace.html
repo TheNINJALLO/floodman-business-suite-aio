@@ -1,69 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102443"><meta name="author" content="Josh Aldrich"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/floodman-pwa-icons/icon-192.png"><title>Floodman Operations Workspace</title><style>:root{color-scheme:dark}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 75% -5%,#19456d 0,#07111f 48%);color:#edf4ff;font:16px/1.5 "Segoe UI",Arial,sans-serif}.card{width:min(720px,100%);padding:30px;border:1px solid #29415f;border-radius:22px;background:#101d2f;box-shadow:0 22px 60px #0007}.head{display:flex;align-items:center;gap:15px}.mark{width:56px;height:56px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(135deg,#1d4ed8,#0ea5e9);font-size:26px;font-weight:900}h1{margin:0;font-size:29px}p{color:#bcd0e4}.status{margin:20px 0 0;padding:12px 14px;border:1px solid #2d587b;border-radius:12px;background:#0a192b;color:#c8def1}.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}.choice{display:flex;flex-direction:column;justify-content:space-between;min-height:172px;padding:20px;border:1px solid #355979;border-radius:17px;background:linear-gradient(150deg,#15304e,#0b1829);color:#fff;text-decoration:none}.choice:hover{border-color:#69c8ff;text-decoration:none}.choice b{font-size:21px}.choice span{margin-top:8px;color:#bcd0e4}.choice strong{margin-top:20px;color:#79d4ff}.foot{margin:18px 0 0;color:#7f96ad;font-size:12px}.auto{margin-top:14px;text-align:center}.auto button{border:0;background:transparent;color:#8bd3ff;font:inherit;font-weight:750;cursor:pointer}@media(max-width:650px){.card{padding:22px}.choices{grid-template-columns:1fr}.choice{min-height:140px}}</style></head><body><main class="card"><div class="head"><div class="mark">F</div><div><h1>Floodman Operations</h1><p style="margin:3px 0 0">Desktop and mobile are separate workspaces.</p></div></div><div id="status" class="status">Detecting this device. You can always choose manually below.</div><div class="choices"><a class="choice" href="/office/desktop?desktop=1&source=workspace" data-mode="desktop"><div><b>Desktop workspace</b><span>Permanent left navigation, full-width tables, multi-column forms, reporting, administration, estimates, invoices, and customer files.</span></div><strong>Open desktop →</strong></a><a class="choice" href="/office/mobile?mobile=1&source=workspace" data-mode="mobile"><div><b>Mobile workspace</b><span>Phone and tablet navigation, touch-sized controls, field workflows, RoomFlow, time, customers, and billing.</span></div><strong>Open mobile →</strong></a></div><div class="auto"><button id="auto" type="button">Reset to automatic device selection</button></div><p class="foot">Floodman Operations · Created by Josh Aldrich · Release 4.7.3</p></main><script>
-(async () => {
-  const RELEASE = '4.7.3';
-  const key = 'floodmanWorkspaceMode';
-  const params = new URLSearchParams(location.search);
-  const ua = String(navigator.userAgent || '');
-  const ipad = navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints || 0) > 1;
-  const handheld = Boolean(
-    (navigator.userAgentData && navigator.userAgentData.mobile === true) ||
-    ipad || /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua)
-  );
-
-  const set = (mode) => {
-    try {
-      if (mode === 'desktop' || mode === 'mobile') localStorage.setItem(key, mode);
-      else localStorage.removeItem(key);
-      if (mode === 'desktop') localStorage.setItem('floodmanDesktopMode', '1');
-      else localStorage.removeItem('floodmanDesktopMode');
-    } catch (_) {}
-  };
-
-  document.querySelectorAll('[data-mode]').forEach((link) => {
-    link.addEventListener('click', () => set(link.dataset.mode));
-  });
-  document.getElementById('auto').addEventListener('click', () => {
-    set('auto');
-    location.replace('/workspace?workspace=auto&source=manual');
-  });
-
-  let preference = 'auto';
-  try { preference = localStorage.getItem(key) || 'auto'; } catch (_) {}
-  if (params.get('workspace') === 'auto') { set('auto'); preference = 'auto'; }
-  if (params.get('desktop') === '1') preference = 'desktop';
-  if (params.get('mobile') === '1') preference = 'mobile';
-  const mode = preference === 'desktop' || preference === 'mobile' ? preference : (handheld ? 'mobile' : 'desktop');
-  document.getElementById('status').textContent = mode === 'mobile'
-    ? 'Phone or tablet detected. Refreshing Floodman, then opening the mobile workspace…'
-    : 'Computer detected. Refreshing Floodman, then opening the true desktop workspace…';
-
-  // The workspace chooser is intentionally static and quick. Refresh the
-  // service worker here before entering Office so an older worker cannot apply
-  // its short navigation timeout and mislabel a healthy desktop as offline.
-  if ('serviceWorker' in navigator && window.isSecureContext) {
-    try {
-      let changed = false;
-      const changedPromise = new Promise((resolve) => {
-        const done = () => { changed = true; resolve(); };
-        navigator.serviceWorker.addEventListener('controllerchange', done, { once: true });
-        setTimeout(resolve, 2200);
-      });
-      const registration = await navigator.serviceWorker.register(
-        `/floodman-sw.js?release=${encodeURIComponent(RELEASE)}`,
-        { scope: '/', updateViaCache: 'none' }
-      );
-      await registration.update().catch(() => {});
-      if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      await changedPromise;
-      if (changed) await new Promise((resolve) => setTimeout(resolve, 120));
-    } catch (_) {}
-  } else {
-    await new Promise((resolve) => setTimeout(resolve, 420));
-  }
-
-  location.replace(mode === 'mobile'
-    ? '/office/mobile?mobile=1&source=auto'
-    : '/office/desktop?desktop=1&source=auto');
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102443"><meta name="author" content="Josh Aldrich"><title>Floodman Operations</title><script>
+(function(){
+  try{localStorage.removeItem('floodmanWorkspaceMode');localStorage.removeItem('floodmanDesktopMode')}catch(e){}
+  function mode(){var ua=String(navigator.userAgent||''),w=window.innerWidth||document.documentElement.clientWidth,ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));return handheld||w<=720||(matchMedia('(pointer:coarse)').matches&&w<=1100)?'mobile':'desktop'}
+  location.replace(mode()==='mobile'?'/office/mobile':'/office');
 })();
-</script></body></html>
+</script><noscript><meta http-equiv="refresh" content="0;url=/office"></noscript></head><body><noscript><a href="/office">Open Floodman Operations</a></noscript></body></html>

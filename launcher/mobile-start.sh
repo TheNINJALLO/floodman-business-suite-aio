@@ -935,20 +935,20 @@ grep -Fq 'dynamicOfficeRoute ? 30000 : 15000' "$overlay_root/pwa/floodman-sw.js"
 grep -Fq '/floodman-starting.html' "$overlay_root/pwa/floodman-sw.js" || die 'The service worker cannot distinguish Office startup from a true offline state.'
 grep -Fq 'async def _dashboard_state' "$overlay_root/office-console/app/main.py" || die 'The desktop dashboard does not bound optional provider startup time.'
 grep -Fq 'asyncio.wait_for(providers.lab_state()' "$overlay_root/office-console/app/main.py" || die 'The desktop dashboard provider snapshot can still block navigation.'
-grep -Fq '/office/desktop?desktop=1' "$overlay_root/pwa/workspace.html" || die 'Could not install the dedicated desktop workspace target.'
-grep -Fq '/office/mobile?mobile=1' "$overlay_root/pwa/workspace.html" || die 'Could not install the dedicated mobile workspace target.'
-grep -Fq 'serviceWorker.register' "$overlay_root/pwa/workspace.html" || die 'The workspace chooser cannot refresh an older service worker before desktop navigation.'
+grep -Fq "location.replace" "$overlay_root/pwa/workspace.html" || die 'Automatic workspace routing is missing.'
+grep -Fq '/office/mobile' "$overlay_root/pwa/workspace.html" || die 'Automatic phone/tablet workspace routing is missing.'
+grep -Fq "localStorage.removeItem('floodmanWorkspaceMode')" "$overlay_root/pwa/workspace.html" || die 'Stale manual workspace preferences are not cleared.'
 grep -Fq 'html[data-workspace="desktop"] .shell' "$overlay_root/pwa/workspace-mode.css" || die 'Could not force the desktop shell independently of viewport width.'
 grep -Fq 'html[data-workspace="mobile"] .mobile-bottom-nav' "$overlay_root/pwa/workspace-mode.css" || die 'Could not force the phone/tablet shell independently of viewport width.'
 grep -Fq 'document.documentElement.dataset.workspace=mode' "$overlay_root/office-console/app/ui.py" || die 'Could not set the workspace before the Office page is painted.'
 grep -Fq '<style>{BASE_CSS}</style>{WORKSPACE_CSS}' "$overlay_root/office-console/app/ui.py" || die 'The explicit workspace stylesheet does not override the legacy responsive rules.'
 grep -Fq '"start_url": "/workspace?source=pwa' "$overlay_root/pwa/manifest.webmanifest" || die 'The Floodman PWA still opens the mobile workspace unconditionally.'
-grep -Fq 'Desktop Operations' "$overlay_root/hub/hub.js" || die 'Could not add the desktop workspace to the Hub.'
-grep -Fq 'Mobile Operations' "$overlay_root/hub/hub.js" || die 'Could not add the mobile workspace to the Hub.'
+grep -Fq 'deviceMode' "$overlay_root/hub/hub.js" || die 'Automatic device detection is missing from the Hub.'
+grep -Fq '/office/photo-portal' "$overlay_root/hub/hub.js" || die 'Photo Portal is missing from the Hub.'
 if grep -Fq '${hubOrigin}/#/pages/' "$overlay_root/hub/hub.js"; then
   die 'An ERP hash link still uses the workspace-owned root path.'
 fi
-grep -Fq '${hubOrigin}/index.html?desktop=1#/pages/' "$overlay_root/hub/hub.js" || die 'Could not preserve full ERP hash routes behind /index.html.'
+grep -Fq '${hubOrigin}/index.html?erp=1#/pages/' "$overlay_root/hub/hub.js" || die 'Could not preserve full ERP hash routes behind /index.html.'
 if grep -Fq "pointer: coarse" "$overlay_root/hub/hub.js"; then
   die 'The Hub still classifies every touch-enabled desktop as a mobile device.'
 fi

@@ -11,14 +11,15 @@ PWA_HEAD = """<meta name='mobile-web-app-capable' content='yes'><meta name='appl
 PWA_BODY = "<script defer src='/floodman-pwa.js?release=4.7.3'></script>"
 WORKSPACE_CSS = "<link rel='stylesheet' href='/floodman-workspace.css?release=4.7.3'>"
 
-WORKSPACE_HEAD = """<script>(function(){var q=new URLSearchParams(location.search),path=location.pathname,key='floodmanWorkspaceMode',mode='auto';try{mode=localStorage.getItem(key)||'auto'}catch(e){}if(q.get('workspace')==='auto'){mode='auto';try{localStorage.removeItem(key);localStorage.removeItem('floodmanDesktopMode')}catch(e){}}if(path==='/office/desktop'||q.get('desktop')==='1')mode='desktop';else if(path==='/office/mobile'||q.get('mobile')==='1')mode='mobile';if(mode!=='desktop'&&mode!=='mobile'){var ua=String(navigator.userAgent||''),ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));mode=handheld?'mobile':'desktop'}document.documentElement.dataset.workspace=mode;try{if(path==='/office/desktop'||q.get('desktop')==='1')localStorage.setItem(key,'desktop');if(path==='/office/mobile'||q.get('mobile')==='1')localStorage.setItem(key,'mobile');if(mode==='desktop')localStorage.setItem('floodmanDesktopMode','1');else localStorage.removeItem('floodmanDesktopMode')}catch(e){}})();</script>"""
+WORKSPACE_HEAD = """<script>(function(){try{localStorage.removeItem('floodmanWorkspaceMode');localStorage.removeItem('floodmanDesktopMode')}catch(e){}window.floodmanDeviceMode=function(){var ua=String(navigator.userAgent||''),w=window.innerWidth||document.documentElement.clientWidth,ipad=navigator.platform==='MacIntel'&&Number(navigator.maxTouchPoints||0)>1,handheld=Boolean((navigator.userAgentData&&navigator.userAgentData.mobile===true)||ipad||/Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(ua));return handheld||w<=720||(matchMedia('(pointer:coarse)').matches&&w<=1100)?'mobile':'desktop'};function apply(){var mode=window.floodmanDeviceMode();if(document.documentElement.dataset.workspace!==mode){document.documentElement.dataset.workspace=mode;window.dispatchEvent(new Event('floodman:layoutchange'))}}apply();window.addEventListener('resize',apply);var path=location.pathname,mode=window.floodmanDeviceMode();if((path==='/office'||path==='/office/desktop')&&mode==='mobile')location.replace('/office/mobile');else if(path==='/office/mobile'&&mode==='desktop')location.replace('/office');})();</script>"""
 
 
 PRIMARY_NAV = [
-    ("/office/desktop", "Dashboard", "dashboard", "dashboard.view"),
+    ("/office", "Dashboard", "dashboard", "dashboard.view"),
     ("/office/calls", "Calls", "calls", "call_intakes.view"),
     ("/office/contacts", "Customers", "contacts", "contacts.view"),
     ("/office/roomflow", "RoomFlow", "roomflow", "estimates.view"),
+    ("/office/photo-portal", "Photo Portal", "photo-portal", "properties.view"),
     ("/office/estimates", "Estimates", "estimates", "estimates.view"),
     ("/office/invoices", "Billing", "invoices", "invoices.view"),
 ]
@@ -26,7 +27,6 @@ PRIMARY_NAV = [
 
 NAV_GROUPS = [
     ("Workspaces", [
-        ("/office/mobile?mobile=1", "Mobile Workspace", "mobile", "dashboard.view"),
         ("/office/apps", "All Applications", "apps", "apps.view"),
         ("/install-app", "Install App", "pwa", "dashboard.view"),
         ("/office/platform", "Floodman ERP", "platform", "apps.view"),
@@ -57,7 +57,7 @@ NAV_GROUPS = [
 
 
 MOBILE_PRIMARY = [
-    ("/office/mobile?mobile=1", "Home", "home", "mobile", "dashboard.view"),
+    ("/office", "Home", "home", "mobile", "dashboard.view"),
     ("/office/contacts", "Customers", "users", "contacts", "contacts.view"),
     ("/office/roomflow", "RoomFlow", "scan", "roomflow", "estimates.view"),
     ("/office/invoices", "Billing", "receipt", "invoices", "invoices.view"),
@@ -204,14 +204,7 @@ OFFICE_JS = r"""
   };
   if (desktop.addEventListener) desktop.addEventListener('change', updateMode); else desktop.addListener(updateMode);
   updateMode();
-  const setWorkspaceMode = (mode) => { try { localStorage.setItem('floodmanWorkspaceMode', mode); if (mode === 'desktop') localStorage.setItem('floodmanDesktopMode', '1'); else localStorage.removeItem('floodmanDesktopMode'); document.documentElement.dataset.workspace = mode; updateMode(); } catch (_) {} };
-  const workspaceParams = new URLSearchParams(location.search);
-  if (workspaceParams.get('desktop') === '1') setWorkspaceMode('desktop');
-  if (workspaceParams.get('mobile') === '1') setWorkspaceMode('mobile');
-  document.querySelectorAll('[data-use-desktop]').forEach((link) => link.addEventListener('click', () => setWorkspaceMode('desktop')));
-  document.querySelectorAll('[data-use-mobile]').forEach((link) => link.addEventListener('click', () => setWorkspaceMode('mobile')));
-  if (location.pathname === '/office/mobile') document.documentElement.dataset.workspace = 'mobile';
-  else if (location.pathname === '/office/desktop' || location.pathname === '/office') document.documentElement.dataset.workspace = 'desktop';
+  window.addEventListener('floodman:layoutchange', updateMode);
 
   const escapeText = (value) => String(value == null ? '' : value);
   const debounce = (fn, wait = 250) => {

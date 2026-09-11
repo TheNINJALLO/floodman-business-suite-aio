@@ -6,6 +6,8 @@ on:
     paths:
       - 'server/office-console/app/**'
       - 'server/orchestrator/app/**'
+      - 'server/pwa/**'
+      - 'server/hub/**'
       - 'containers/unified-portal/**'
       - '.github/workflows/build-unified-portal.yml'
 permissions:

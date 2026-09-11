@@ -20,7 +20,7 @@
     <div class="spinner" aria-label="Loading"></div>
     <div class="actions">
       <button id="retry" type="button">Try again</button>
-      <a class="button secondary" href="/office/desktop?desktop=1">Return to Desktop Operations</a>
+      <a class="button secondary" href="/office">Return to Operations</a>
       <a class="button secondary" href="/floodman-status.html">Runtime status</a>
     </div>
     <p class="muted" style="font-size:12px;margin:18px 0 0">Release 4.7.3 · Created by Josh Aldrich</p>
@@ -44,7 +44,7 @@
     if (requested === 'login') route = 'auth/login';
     else if (requested === 'dashboard') route = isAuthenticated ? 'pages/dashboard' : 'auth/login';
     else route = isAuthenticated ? 'pages/dashboard' : 'auth/login';
-    return `/index.html?desktop=1&fm=${encodeURIComponent(release)}#/${route}`;
+    return `/index.html?erp=1&fm=${encodeURIComponent(release)}#/${route}`;
   }
 
   async function openErp() {
@@ -67,10 +67,6 @@
       status.textContent = isAuthenticated
         ? 'ERP session found. Opening the dashboard…'
         : 'Login required. Opening the Floodman ERP login…';
-      try {
-        localStorage.setItem('floodmanWorkspaceMode', 'desktop');
-        localStorage.setItem('floodmanDesktopMode', '1');
-      } catch (_) {}
       window.location.replace(target(isAuthenticated));
     } catch (error) {
       status.textContent = `Floodman ERP is still starting: ${error && error.message ? error.message : 'connection unavailable'}`;

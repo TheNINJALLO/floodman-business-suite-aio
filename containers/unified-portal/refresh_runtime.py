@@ -1,4 +1,4 @@
-"""Refresh only Office/orchestrator Python source inside the immutable bundled ZIP."""
+"""Refresh reviewed application and static UI source in the immutable runtime ZIP."""
 from __future__ import annotations
 import hashlib
 import zipfile
@@ -19,6 +19,15 @@ def refresh(archive: Path, source: Path) -> None:
         for path in sorted((source / service / 'app').rglob('*.py')):
             relative = path.relative_to(source).as_posix()
             name = prefix + relative
+            info = entries.get(name, (zipfile.ZipInfo(name, (2026,9,11,0,0,0)), b''))[0]
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            entries[name] = (info, path.read_bytes())
+    for directory in ('pwa', 'hub'):
+        for path in sorted((source / directory).rglob('*')):
+            if not path.is_file():
+                continue
+            name = prefix + path.relative_to(source).as_posix()
             info = entries.get(name, (zipfile.ZipInfo(name, (2026,9,11,0,0,0)), b''))[0]
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16

@@ -2,8 +2,8 @@
 'use strict';
 
 const RELEASE = '4.7.3';
-const STATIC_CACHE = `floodman-static-${RELEASE}`;
-const OFFLINE_CACHE = `floodman-offline-${RELEASE}`;
+const STATIC_CACHE = `floodman-static-${RELEASE}-automatic-portal-1`;
+const OFFLINE_CACHE = `floodman-offline-${RELEASE}-automatic-portal-1`;
 const MANAGED_PREFIXES = ['floodman-static-', 'floodman-offline-'];
 const PRECACHE = [
   '/manifest.webmanifest',

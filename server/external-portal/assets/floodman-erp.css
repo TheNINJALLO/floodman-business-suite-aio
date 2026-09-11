@@ -1,0 +1,35 @@
+/* Floodman Operations shared visual language. Created by Josh Aldrich. */
+:root{color-scheme:dark;--primary:#32a7ff;--primary-dark:#2099ed;--primary-light:#80c9ff;--dark:#edf4ff;--gray:#9fb0c6;--gray-light:#29415f;--bg:#07111f;--white:#101d2f;--sidebar-bg:#081426;--sidebar-bg-hover:#15263d;--sidebar-text:#9fb0c6;--sidebar-text-active:#edf4ff;--sidebar-width:265px;--radius:12px;--radius-lg:16px;--shadow:0 4px 18px #0002;--shadow-lg:0 12px 36px #0004}
+html,body{min-width:0}
+body{background:var(--bg);color:var(--dark);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:var(--primary)}
+.app-sidebar{border-right:1px solid #29415f}
+.sidebar-header,.sidebar-footer,.app-header{border-color:#29415f}
+.app-header{background:#101d2f;color:#edf4ff}
+.logo-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#32a7ff;color:#07111f;font:800 22px system-ui}
+.logo-text{letter-spacing:.04em}
+.nav-item{border:1px solid transparent;border-radius:10px}
+.nav-item.active{background:#15263d;border-color:#29415f;color:#edf4ff}
+.nav-item:hover{color:#edf4ff}
+.app-main,.app-content,.header-left,.header-right{min-width:0}
+.app-content{max-width:1700px;width:100%;margin:0 auto}
+.job-card,.card,.login-container,.modal-content,.user-dropdown-menu{background:#101d2f;border:1px solid #29415f;border-radius:16px}
+.job-card:hover{border-color:#32a7ff}
+input,select,textarea,.search-box input,.form-control{background:#07111f!important;color:#edf4ff!important;border-color:#29415f!important;font:inherit;max-width:100%;min-width:0}
+input::placeholder,textarea::placeholder{color:#9fb0c6}
+input:focus,select:focus,textarea:focus{outline:2px solid #32a7ff;outline-offset:2px}
+button,.btn{min-height:42px;border-radius:10px;font-weight:650}
+.btn-primary{background:#32a7ff;color:#07111f;border-color:#32a7ff}
+.btn-secondary{background:#15263d;color:#edf4ff;border:1px solid #29415f}
+.btn-danger{color:#fff}
+.creator-credit{display:block;color:#9fb0c6;font-size:12px;margin:10px 0}
+.login-page{background:radial-gradient(ellipse at top,#15263d,#07111f 65%);padding:24px}
+.login-logo h1{font-size:26px;letter-spacing:.06em}
+.login-logo a{margin:22px 0 12px;text-decoration:none}
+.breadcrumb-current,.user-name,.job-title,.page-title{color:#edf4ff}
+.breadcrumb-link,.job-address,.page-subtitle{color:#9fb0c6}
+table{color:#edf4ff}th,td{border-color:#29415f}
+.photo-grid img{max-width:100%;height:auto}
+:focus-visible{outline:2px solid #80c9ff;outline-offset:3px}
+@media(max-width:767px){.app-content{padding:16px}.login-container{padding:26px 20px}.app-header{padding-inline:16px}.job-card{padding:16px}.header-breadcrumb{overflow-wrap:anywhere}.btn{min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}

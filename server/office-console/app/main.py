@@ -28,6 +28,7 @@ from .auth import ROLE_PERMISSIONS, has_permission
 from .call_intake import CallIntakeLinksRequest, CallIntakeProjectionRequest
 from .call_approval import approval_form, approve_call
 from .portal_connection import PortalConnection
+from .photo_portal import PhotoPortal
 from .config import Settings
 from .customer_csv import CustomerCsvError, customer_template, parse_customer_csv
 from .estimate_catalog import default_document, document_payload, group_document_lines, normalize_catalog_item, normalize_document_payload
@@ -1267,7 +1268,7 @@ async def mobile_operations() -> HTMLResponse:
     body = f"""
 <section class='mobile-hero'>
   <div><span class='mobile-hero-kicker'>PHONE & TABLET WORKSPACE</span><h2>Run Floodman from the field</h2><p>Large touch controls, card-based lists, direct CSV/ZIP importing, customer files, job tools, billing, documents, time, messages, and intelligence without the desktop ERP shell.</p></div>
-  <div class='actions mobile-hero-actions'><a class='button good' href='/install-app'>Install Floodman app</a><a class='button secondary mobile-desktop-link' href='/office/desktop?desktop=1' data-use-desktop>Open desktop workspace</a><a class='button secondary mobile-desktop-link' href='/full-erp' data-use-desktop>Open full ERP</a></div>
+  <div class='actions mobile-hero-actions'><a class='button good' href='/install-app'>Install Floodman app</a><a class='button secondary' href='/office/photo-portal'>Photo Portal</a><a class='button secondary' href='/full-erp'>Open full ERP</a></div>
 </section>
 <div class='mobile-kpi-grid'>
   <a href='/office/contacts'><small>Customers</small><strong>{len(contacts)}</strong></a>
@@ -5652,6 +5653,47 @@ def _detroit_time(value: Any) -> str:
         return f"{local.strftime('%b')} {local.day}, {local.year} {local.strftime('%I:%M %p').lstrip('0')} ET"
     except (ValueError, TypeError):
         return ""
+
+
+@app.get("/office/photo-portal")
+async def photo_portal_page(job_id: int = 0, search: str = "", before: str = "") -> HTMLResponse:
+    user = _require("properties.view")
+    _, workspace = _call_intakes_for_user(user)
+    body = await PhotoPortal(portal_connection).render(user, workspace, job_id=job_id, search=search, before=before)
+    return _page("Photo Portal", body, "photo-portal")
+
+
+@app.post("/office/photo-portal/{job_id}/photos")
+async def photo_portal_upload(job_id: int, request: Request) -> RedirectResponse:
+    user = _require("properties.manage")
+    from urllib.parse import urlsplit
+    expected = urlsplit(settings.public_url)
+    if request.headers.get("origin", "").rstrip("/") != f"{expected.scheme}://{expected.netloc}":
+        raise HTTPException(403, "Upload must be submitted from Floodman Office")
+    if not portal_connection.enabled:
+        raise HTTPException(503, "Photo portal is not connected")
+    try:
+        length = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        raise HTTPException(400, "Invalid upload length")
+    if length > 13 * 1024 * 1024:
+        raise HTTPException(413, "Choose a photo smaller than 12 MB")
+    if length <= 0:
+        raise HTTPException(411, "Upload length is required")
+    _, workspace = _call_intakes_for_user(user)
+    async with request.form(max_files=1, max_fields=3) as form:
+        photo = form.get("photo")
+        if not hasattr(photo, "read"):
+            raise HTTPException(422, "Choose a photo")
+        content = await photo.read(12 * 1024 * 1024 + 1)
+        try:
+            await PhotoPortal(portal_connection).stage_upload(user, workspace, job_id,
+                str(form.get("operation_id") or ""), content, str(form.get("caption") or ""))
+        except ValueError:
+            raise HTTPException(422, "Choose a supported photo smaller than 12 MB, then refresh and try again")
+        except Exception:
+            raise HTTPException(503, "Unable to verify this job. Your hosted files are unchanged")
+    return RedirectResponse(f"/office/photo-portal?job_id={job_id}", status_code=303)
 
 
 @app.get("/office/calls")

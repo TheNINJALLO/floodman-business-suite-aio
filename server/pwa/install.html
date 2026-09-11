@@ -22,7 +22,7 @@
   <section class="hero">
     <div class="brand"><img src="/floodman-pwa-icons/icon-192.png" alt=""><div><h1>Floodman Operations App</h1><p>Created by Josh Aldrich</p></div></div>
     <p class="hero-copy">Install one adaptive Floodman app. Computers open a true desktop shell; phones and tablets open the dedicated field shell. You can switch workspaces at any time, and live customer and billing data remains network-only.</p>
-    <div class="actions"><button id="install">Install adaptive Floodman app</button><a class="button secondary" href="/office/desktop?desktop=1" data-desktop>Open desktop workspace</a><a class="button secondary" href="/office/mobile?mobile=1" data-mobile>Open mobile workspace</a></div>
+    <div class="actions"><button id="install">Install adaptive Floodman app</button><a class="button secondary" href="/workspace">Open Floodman</a></div>
   </section>
   <section class="card"><h2>PWA readiness</h2><div id="status" class="status"></div></section>
   <section id="ios" class="card instructions hidden"><h2>Install on iPhone or iPad</h2><ol><li>Open Floodman in Safari or another current iOS browser.</li><li>Tap the Share button.</li><li>Choose <b>Add to Home Screen</b>.</li><li>Confirm <b>Floodman</b>, then tap Add.</li></ol></section>
@@ -46,8 +46,8 @@
   document.getElementById('status').innerHTML = rows.map(([label,value,ok]) => `<div class="row"><span>${label}</span><span class="${ok?'good':'warn'}">${value}</span></div>`).join('');
   document.getElementById('ios').classList.toggle('hidden', !ios || standalone);
   document.getElementById('https').classList.toggle('hidden', secure);
-  document.querySelector('[data-desktop]')?.addEventListener('click', () => localStorage.setItem('floodmanWorkspaceMode','desktop'));
-  document.querySelector('[data-mobile]')?.addEventListener('click', () => localStorage.setItem('floodmanWorkspaceMode','mobile'));
+
+
   const button = document.getElementById('install');
   if (standalone) { button.textContent = 'Floodman is installed'; button.disabled = true; }
   else button.addEventListener('click', () => window.FloodmanPWA ? window.FloodmanPWA.install() : location.reload());

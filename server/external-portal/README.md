@@ -17,7 +17,12 @@ customer message is performed by installing this overlay.
    The call shows the connection status and a staff photo-portal link. ERP email
    ambiguity stops synchronization for staff review. Approval is not telephone
    ownership verification or messaging consent.
-5. Upload photos to that job in the existing portal. Capture and save the actual
+5. Open **Photo Portal** in the ERP sidebar and select the job. View its gallery
+   without a second portal login, or upload a photo with property-management
+   permission. Uploads are stored under DATA_DIR first and retried safely; the
+   temporary local copy is released only after the hosted original is verified.
+   Owners/administrators may browse unlinked legacy jobs. Other staff see only
+   jobs linked to their selected workspace and organization. Capture and save the actual
    RoomFlow layout. Price/review the estimate and explicitly send it using the
    existing estimate workflow. Its customer page then includes a signed gallery
    of that job's photos and saved floor plan. No invented diagram is generated.
@@ -35,10 +40,19 @@ Back up existing portal source/database. Install `data/.htaccess`, then create
 Confirm the private directory and the database return HTTP 403 without login.
 Create private `data/floodman-suite/config.php` containing a generated shared
 secret (at least 32 characters) in a PHP array with the key `secret`, readable
-only by the hosting account. Never commit it. Install `includes/floodman_bridge.php`
-and `api/floodman.php`. PHP must support PDO SQLite; the existing jobs table must
+only by the hosting account. Never commit it. Install `includes/floodman_bridge.php`,
+`includes/floodman_catalog.php`, then `api/floodman.php`. The optional shared
+theme updates `includes/layout.php`, `login.php`, `assets/floodman-erp.css`,
+and `sw.js`; compare against and back up the existing versions before replacing.
+PHP must support PDO SQLite; the existing jobs table must
 have its unique `client_job_id` index. This connector never calls legacy schema
-migration routines.
+migration routines. Staff uploads require the existing photos table's
+`client_photo_id` and `client_job_id` fields and unique `(job_id,client_photo_id)`
+index. Staff image links expire after ten minutes; customer links after one hour.
+
+Office, Hub, and the installed web app choose their layout automatically before
+first paint. Old manual mode preferences are ignored, and resizing preserves
+the current job or unsaved form. Existing desktop/mobile URLs remain aliases.
 
 Set these in the shared server's private `DATA_DIR/runtime.env`:
 
@@ -56,7 +70,8 @@ is `https://floodman.oninetwork.com`; review it if changing the Office domain.
 
 ## Verification and rollback
 
-Run the `portal_*_smoke.py` tests under `server/tests`, the existing call
+Run `photo_portal_smoke.py`, `adaptive_portal_browser_smoke.py`, the
+`portal_*_smoke.py` tests under `server/tests`, the existing call
 intake tests, and `scripts/test_external_portal.py` in the repository test venv.
 The PHP test uses a pinned disposable Docker image and fictional data; browser
 tests include narrow/mobile/desktop layouts. All live setup health checks are

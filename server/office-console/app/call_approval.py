@@ -12,7 +12,7 @@ def approval_form(store: Any, record: dict[str, Any], selected_customer_id: str 
         portal = esc(record.get("portal_sync_status") or "PENDING")
         erp = esc(record.get("erp_sync_status") or "PENDING")
         error = esc(record.get("portal_sync_error") or "")
-        link = f"<a class='button secondary' href='{esc(record['portal_url'])}' target='_blank' rel='noopener'>Open photo portal</a>" if record.get("portal_url") else ""
+        link = f"<a class='button secondary' href='/office/photo-portal?job_id={esc(record['portal_job_id'])}'>Open photo portal</a>" if record.get("portal_job_id") else ""
         return f"<section class='card'><h2>Customer files approved</h2><p>Photo portal: {portal} · ERP: {erp}</p>{f'<p>{error}</p>' if error else ''}{link}</section>"
     workspace = str(record.get("workspace_id") or "")
     customers = [row for row in store.records("contacts") if str(row.get("workspace_id") or "") == workspace]

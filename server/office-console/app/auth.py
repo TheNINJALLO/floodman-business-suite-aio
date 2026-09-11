@@ -15,7 +15,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "dashboard.view", "contacts.manage", "properties.manage", "estimates.manage", "invoices.manage",
         "payments.manage", "documents.manage", "notes.manage", "messages.manage", "receivables.manage",
         "time.manage", "tasks.manage", "calendar.manage", "intelligence.manage", "alerts.manage", "members.manage",
-        "connections.manage", "imports.manage", "apps.view", "call_intakes.manage",
+        "connections.manage", "imports.manage", "apps.view", "call_intakes.manage", "portal.manage",
     },
     "OFFICE_MANAGER": {
         "dashboard.view", "contacts.manage", "properties.manage", "estimates.manage", "invoices.manage",

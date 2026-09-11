@@ -58,7 +58,7 @@ function fm_verify_view(array $query, array $config): bool {
     $expires = (string)($query['expires'] ?? '');
     if (!ctype_digit($expires) || (int)$expires < time() || (int)$expires > time() + 7200) return false;
     $purpose = (string)($query['view'] ?? '');
-    if (!in_array($purpose, ['gallery', 'photo', 'layout'], true)) return false;
+    if (!in_array($purpose, ['gallery', 'photo', 'layout', 'staff-gallery', 'staff-photo'], true)) return false;
     return hash_equals(fm_public_signature($purpose, (string)($query['key'] ?? ''),
         (string)($query['asset'] ?? ''), (int)$expires, $config), (string)($query['signature'] ?? ''));
 }
@@ -155,17 +155,25 @@ function fm_serve_file(string $path, string $type): void {
 
 function fm_render_view(PDO $db, array $query, array $config): void {
     $key = (string)$query['key'];
-    $job = fm_job($db, $key);
     $view = (string)$query['view'];
+    $staff = in_array($view, ['staff-gallery', 'staff-photo'], true);
+    if ($staff) {
+        if (!ctype_digit($key) || (int)$key < 1) throw new InvalidArgumentException('Invalid job');
+        $statement = $db->prepare('SELECT id,job_name,address,client_job_id FROM jobs WHERE id=?');
+        $statement->execute([(int)$key]);
+        $job = $statement->fetch();
+        if (!$job) throw new OutOfBoundsException('Job unavailable');
+    } else $job = fm_job($db, $key);
     $expires = (int)$query['expires'];
-    $layoutPath = fm_storage() . '/' . $key . '-layout.json';
+    $layoutKey = $staff ? (str_starts_with((string)$job['client_job_id'], 'FLOODMAN:') ? substr($job['client_job_id'], 9) : '') : $key;
+    $layoutPath = fm_storage() . '/' . $layoutKey . '-layout.json';
     if ($view === 'layout') {
         if (!is_file($layoutPath)) throw new OutOfBoundsException('Floor plan is unavailable');
         $layout = json_decode((string)file_get_contents($layoutPath), true, 16, JSON_THROW_ON_ERROR);
         fm_serve_file(fm_storage() . '/' . basename($layout['filename']), $layout['mime']);
         return;
     }
-    if ($view === 'photo') {
+    if ($view === 'photo' || $view === 'staff-photo') {
         $photoId = (string)($query['asset'] ?? '');
         if (!ctype_digit($photoId)) throw new InvalidArgumentException('Invalid image reference');
         $statement = $db->prepare("SELECT filename FROM photos WHERE id=? AND job_id=? AND (media_type='photo' OR media_type IS NULL)");
@@ -188,13 +196,14 @@ function fm_render_view(PDO $db, array $query, array $config): void {
     header('Content-Type: text/html; charset=utf-8');
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors https://floodman.oninetwork.com");
     echo '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Floodman project images</title><style>body{margin:0;padding:16px;font:16px system-ui;color:#12344b;background:#fff}h2{font-size:21px;margin:0 0 16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:16px}figure{margin:0;border:1px solid #d6e0e6;border-radius:12px;overflow:hidden}img{display:block;max-width:100%;height:auto}figcaption{padding:12px;overflow-wrap:anywhere}.plan{max-width:900px;margin:0 auto 24px}p{color:#526b7b}</style><body>';
+    if ($staff) echo '<style>body{color:#edf4ff;background:#07111f}figure{background:#101d2f;border-color:#29415f}p{color:#9fb0c6}a:focus-visible{outline:2px solid #32a7ff;outline-offset:3px}h2{font-size:18px}</style>';
     if (is_file($layoutPath)) {
-        $url = $esc(fm_asset_url('layout', $key, '', $expires, $config));
+        $url = $esc(fm_asset_url('layout', $layoutKey, '', $expires, $config));
         echo '<h2>Floor plan</h2><figure class="plan"><a target="_blank" rel="noopener" href="' . $url . '"><img src="' . $url . '" alt="Saved RoomFlow floor plan"></a><figcaption>Captured RoomFlow floor plan</figcaption></figure>';
     } else echo '<h2>Floor plan</h2><p>A floor plan has not been added yet.</p>';
     echo '<h2>Project photos</h2><div class="grid">';
     foreach ($photos as $photo) {
-        $url = $esc(fm_asset_url('photo', $key, (string)$photo['id'], $expires, $config));
+        $url = $esc(fm_asset_url($staff ? 'staff-photo' : 'photo', $key, (string)$photo['id'], $expires, $config));
         echo '<figure><a target="_blank" rel="noopener" href="' . $url . '"><img loading="lazy" src="' . $url . '" alt="Project photo"></a><figcaption>' . $esc($photo['caption'] ?: 'Project photo') . '</figcaption></figure>';
     }
     echo '</div>';

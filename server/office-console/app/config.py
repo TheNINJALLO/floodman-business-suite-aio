@@ -73,6 +73,7 @@ class Settings:
     call_intake_approval_required: bool = True
     external_portal_api_url: str = ""
     external_portal_api_token: str = ""
+    external_portal_organization_id: str = "floodman"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -140,4 +141,5 @@ class Settings:
             call_intake_approval_required=_bool("CALL_INTAKE_APPROVAL_REQUIRED", True),
             external_portal_api_url=os.getenv("FLOODMAN_PORTAL_API_URL", "").strip(),
             external_portal_api_token=os.getenv("FLOODMAN_PORTAL_API_TOKEN", "").strip(),
+            external_portal_organization_id=os.getenv("BUSINESS_SUITE_ORGANIZATION_ID", "floodman").strip(),
         )

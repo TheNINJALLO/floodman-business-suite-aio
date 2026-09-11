@@ -20,6 +20,12 @@ from .roomflow_assets import layout_path
 logger = logging.getLogger(__name__)
 
 
+class PortalRequestError(RuntimeError):
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+        super().__init__(f"Photo portal returned HTTP {status_code}")
+
+
 class PortalConnection:
     """Retryable synchronization of approved, locally committed call records."""
 
@@ -51,7 +57,7 @@ class PortalConnection:
             response = await client.post(self.settings.external_portal_api_url, content=body,
                                         headers={"Content-Type": "application/json", "X-Floodman-Timestamp": timestamp, "X-Floodman-Signature": signature})
         if response.status_code != 200:
-            raise RuntimeError(f"Photo portal returned HTTP {response.status_code}")
+            raise PortalRequestError(response.status_code)
         result = response.json()
         if not isinstance(result, dict):
             raise RuntimeError("Photo portal returned an invalid response")
@@ -154,7 +160,13 @@ class PortalConnection:
             self.store.update_record("call_intakes", intake_id, {"portal_sync_error": "", "portal_retry_at": 0}, actor_id="portal-sync")
 
     async def run(self) -> None:
+        from .photo_portal import PhotoPortal
+        browser = PhotoPortal(self)
         while True:
+            for upload in self.store.records("portal_uploads"):
+                if upload.get("status") != "PENDING" or float(upload.get("retry_at") or 0) > time.time():
+                    continue
+                await browser.sync_upload(upload)
             for intake in self.store.records("call_intakes"):
                 if intake.get("approval_status") != "APPROVED" or float(intake.get("portal_retry_at") or 0) > time.time():
                     continue

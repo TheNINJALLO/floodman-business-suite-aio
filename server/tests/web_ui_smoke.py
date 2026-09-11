@@ -653,6 +653,8 @@ def build_browser_app(main: Any) -> Any:
     app = FastAPI()
 
     files = {
+        "/workspace": ROOT / "pwa" / "workspace.html",
+        "/full-erp": ROOT / "pwa" / "erp.html",
         "/floodman-pwa.css": ROOT / "pwa" / "floodman-pwa.css",
         "/floodman-pwa.js": ROOT / "pwa" / "floodman-pwa.js",
         "/floodman-sw.js": ROOT / "pwa" / "floodman-sw.js",
@@ -718,7 +720,7 @@ def authenticate_browser_page(page: Any, base: str) -> None:
     form.locator("input[name='email']").fill("owner@example.test")
     form.locator("input[name='password']").fill("Floodman-Test-2026!")
     form.locator("button").click()
-    page.wait_for_url(re.compile(r"/office/desktop"))
+    page.wait_for_url(re.compile(r"/office(?:/desktop|/mobile)?(?:[?#]|$)"))
 
 
 def assert_layout_contract(page: Any, label: str, *, office_shell: bool = False) -> None:
@@ -790,6 +792,7 @@ def layout_browser_matrix(playwright: Any, base: str, portal_token: str) -> None
         ("/office/settings", True),
         ("/office/contacts", True),
         ("/office/calls", True),
+        ("/office/photo-portal", True),
         ("/office/estimates/new", True),
         ("/office/roomflow", True),
         ("/office/roomflow/import", True),

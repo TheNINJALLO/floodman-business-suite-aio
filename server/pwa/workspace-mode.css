@@ -1,6 +1,22 @@
-/* Floodman v4.7.3 explicit workspace shells.
-   Workspace choice controls information density, while the viewport still
+/* Floodman v4.7.3 automatic workspace shells.
+   Device detection controls information density, while the viewport still
    controls whether navigation is fixed or dismissible. */
+
+.portal-search{display:flex;gap:10px;margin-bottom:18px;max-width:640px}
+.portal-search input{min-width:0;flex:1}
+.portal-search .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.portal-upload{margin:16px 0}.portal-upload summary{cursor:pointer;color:var(--accent);font-weight:650;padding:10px 0;min-height:44px}
+.portal-workspace{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:20px;align-items:start}
+.portal-workspace>*{min-width:0}
+.portal-job-list{display:grid;gap:8px;max-height:75vh;overflow:auto;padding:3px}
+.portal-job-card{display:grid;gap:6px;padding:15px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);text-decoration:none;overflow-wrap:anywhere}
+.portal-job-card span{color:var(--muted);font-size:13px}
+.portal-job-card:hover,.portal-job-card.active{border-color:var(--accent);background:var(--panel2)}
+.portal-gallery-frame{display:block;width:100%;height:65vh;min-height:380px;border:0;border-radius:12px;margin:18px 0;background:var(--bg)}
+.portal-upload-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px;align-items:end;margin:20px 0}
+.portal-upload-form input[type=file]{max-width:100%;padding:9px}
+.portal-upload-form .field{min-width:0}
+@media(max-width:1000px){.portal-workspace{grid-template-columns:minmax(0,1fr)}.portal-job-list{max-height:240px}.portal-upload-form{grid-template-columns:minmax(0,1fr)}.portal-gallery-frame{height:60vh}.portal-project{padding:16px}}
 
 html[data-workspace="desktop"],
 html[data-workspace="desktop"] body,

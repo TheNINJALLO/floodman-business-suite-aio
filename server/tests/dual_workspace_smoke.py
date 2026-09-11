@@ -25,12 +25,11 @@ def run() -> None:
     assert "server down" not in erp_launcher.lower()
 
     workspace = (root / "pwa" / "workspace.html").read_text(encoding="utf-8")
-    assert "/office/desktop?desktop=1" in workspace
-    assert "/office/mobile?mobile=1" in workspace
-    assert "pointer: coarse" not in workspace
-    assert "true desktop workspace" in workspace.lower()
-    assert "serviceWorker.register" in workspace
-    assert "Refreshing Floodman" in workspace
+    assert "/office/mobile" in workspace and "'/office'" in workspace
+    assert "localStorage.removeItem('floodmanWorkspaceMode')" in workspace
+    assert "location.replace" in workspace and "maxTouchPoints" in workspace
+    assert "data-use-desktop" not in workspace and "<button" not in workspace
+    assert "serviceWorker.register" not in workspace  # No first-load wait.
 
     workspace_css = (root / "pwa" / "workspace-mode.css").read_text(encoding="utf-8")
     assert 'html[data-workspace="desktop"] .shell' in workspace_css
@@ -39,12 +38,10 @@ def run() -> None:
     assert 'html[data-workspace="mobile"] .office-sidebar' in workspace_css
 
     hub = (root / "hub" / "hub.js").read_text(encoding="utf-8")
-    assert "Desktop Operations" in hub
-    assert "Mobile Operations" in hub
-    assert "pointer: coarse" not in hub
-    assert "isPhoneOrTablet" in hub
+    assert "Photo Portal" in hub and "deviceMode" in hub
+    assert "Desktop Operations" not in hub and "Mobile Operations" not in hub
     assert "${hubOrigin}/#/pages/" not in hub
-    assert "${hubOrigin}/index.html?desktop=1#/pages/" in hub
+    assert "${hubOrigin}/index.html?erp=1#/pages/" in hub
 
     nginx = (root / "aio" / "nginx.conf.template").read_text(encoding="utf-8")
     assert "location = / {" in nginx
@@ -106,7 +103,7 @@ def run() -> None:
     assert desktop.status_code == 200, desktop.text
     assert "Start work" in desktop.text
     assert "Customers" in desktop.text
-    assert "Mobile Workspace" in desktop.text
+    assert "Photo Portal" in desktop.text and "data-use-desktop" not in desktop.text
     assert "More tools" in desktop.text
     assert "floodman-workspace.css?release=4.7.3" in desktop.text
     assert "document.documentElement.dataset.workspace=mode" in desktop.text
@@ -114,7 +111,7 @@ def run() -> None:
     mobile = client.get("/office/mobile?mobile=1")
     assert mobile.status_code == 200, mobile.text
     assert "PHONE & TABLET WORKSPACE" in mobile.text
-    assert "Open desktop workspace" in mobile.text
+    assert "Open desktop workspace" not in mobile.text
 
     shortcut = client.get("/desktop", follow_redirects=False)
     assert shortcut.status_code == 307

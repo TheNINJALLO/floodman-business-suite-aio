@@ -16,6 +16,7 @@ AR_REMINDER_OFFSETS_HOURS,"""1,2,3,4,5,6""",server/office-console/app/config.py,
 AR_REPEAT_INTERVAL_HOURS,"""24""",server/office-console/app/config.py,1
 AR_TIMEZONE,"""America/Detroit""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 BOOTSTRAP_SUFFIX,,server/aio/start-suite.sh,1
+BUSINESS_SUITE_ORGANIZATION_ID,"""floodman""",server/office-console/app/config.py,1
 COMPETITOR_INTEL_URL,"""http://competitor-intel-api:8090""",server/local-lab/app/main.py,1
 COMPETITOR_URL,"""http://competitor-intel-api:8090""",server/office-console/app/config.py,1
 DOCUMENSO_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh,2
@@ -59,7 +60,7 @@ FLOODMAN_PUBLIC_HOST,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_SCHEME,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_URL,,server/aio/start-suite.sh,1
 FLOODMAN_RELEASE,"""windows-business-suite-v3.0.0""",server/local-lab/app/main.py | server/office-console/app/config.py,2
-FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/web_ui_smoke.py,1
+FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/adaptive_portal_browser_smoke.py | server/tests/web_ui_smoke.py,2
 FLOODMAN_VOICE_URL,,server/aio/start-suite.sh,1
 FM_CONFIG,,server/aio/common.sh | server/aio/finalize-gauzy.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,4
 FM_DATA,,server/aio/common.sh | server/aio/start-documenso.sh | server/aio/start-local-lab.sh | server/aio/start-mailpit.sh | server/aio/start-postgres.sh | server/aio/start-suite.sh,6
