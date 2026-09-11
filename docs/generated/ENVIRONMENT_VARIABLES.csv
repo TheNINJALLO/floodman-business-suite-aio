@@ -20,6 +20,7 @@ BUSINESS_SUITE_ORGANIZATION_ID,"""floodman""",server/office-console/app/config.p
 COMPETITOR_INTEL_URL,"""http://competitor-intel-api:8090""",server/local-lab/app/main.py,1
 COMPETITOR_URL,"""http://competitor-intel-api:8090""",server/office-console/app/config.py,1
 CUSTOMER_SMS_ORGANIZATION_ID,"""floodman""",server/orchestrator/app/config.py,1
+DATA_DIR,"""""",server/office-console/app/integration_setup.py,1
 DOCUMENSO_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh,2
 DOCUMENSO_DEFAULT_MESSAGE,"""Please review and complete the attached Floodman document.""",server/orchestrator/app/config.py,1
 DOCUMENSO_DEFAULT_SUBJECT,"""Floodman document ready for signature""",server/orchestrator/app/config.py,1
@@ -168,11 +169,14 @@ ROOMFLOW_WEB_URL,"""/roomflow/""",server/aio/start-suite.sh | server/office-cons
 SECRETS_FILE,,server/aio/start-suite.sh,1
 SERVER_IP,,server/aio/start-suite.sh,1
 SERVER_PORT,,server/aio/nginx.conf.template | server/aio/start-hub.sh | server/aio/start-suite.sh | server/aio/suite-monitor.sh | server/tests/dual_workspace_smoke.py | server/tests/full_erp_routing_smoke.py,6
+SMTP_FROM_EMAIL,"""""",server/office-console/app/config.py,1
+SMTP_FROM_NAME,"""Floodman""",server/office-console/app/config.py,1
 SMTP_HOST,"""127.0.0.1""",server/office-console/app/config.py,1
-SMTP_PASSWORD,"""""",server/orchestrator/app/config.py,1
+SMTP_PASSWORD,"""""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 SMTP_PORT,"""1025""",server/office-console/app/config.py,1
 SMTP_REPLY_TO,"os.getenv(""SMTP_FROM_EMAIL"", """"",server/orchestrator/app/config.py,1
-SMTP_USERNAME,"""""",server/orchestrator/app/config.py,1
+SMTP_SECURITY,"""tls"" if _bool(""SMTP_USE_SSL""",server/office-console/app/config.py,1
+SMTP_USERNAME,"""""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 SQUARE_ACCESS_TOKEN,"""local-square-token""",server/office-console/app/config.py,1
 SQUARE_APPLICATION_ID,"""""",server/office-console/app/config.py,1
 SQUARE_BASE_URL,"""http://127.0.0.1:9003/square"" | ""https://connect.squareup.com""",server/office-console/app/config.py | server/orchestrator/app/config.py,2

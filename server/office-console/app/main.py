@@ -43,6 +43,7 @@ from .importer import (
     validate,
 )
 from .providers import ProviderClient
+from .integration_setup_ui import build_setup_router
 from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_deposit
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
@@ -162,6 +163,14 @@ def _require(permission: str) -> dict[str, Any]:
     if not has_permission(user, permission):
         raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
     return user or {}
+
+
+@app.middleware("http")
+async def provider_configuration_snapshot(request: Request, call_next):
+    if isinstance(providers, ProviderClient):
+        with providers.configuration_scope():
+            return await call_next(request)
+    return await call_next(request)
 
 
 @app.get("/health/live")
@@ -698,6 +707,9 @@ def _page(title: str, body: str, active: str) -> HTMLResponse:
     )
 
 
+app.include_router(build_setup_router(providers.setup, settings, _user, _page))
+
+
 def _rows(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, list):
         return [dict(item) for item in value if isinstance(item, dict)]
@@ -996,7 +1008,7 @@ def settings_workspace() -> HTMLResponse:
     payment_summary = (
         "Safe local test mode is ready"
         if payment_config.get("local_mock")
-        else "Production processor is connected"
+        else f"Square {payment_config.get('environment')} checkout is configured"
         if payment_config.get("live")
         else "Processor setup is incomplete"
     )
@@ -1010,7 +1022,7 @@ def settings_workspace() -> HTMLResponse:
     )
     owner_cards = "".join(
         (
-            card("5", "Card payments", "Confirm whether payments are in safe test mode or connected to the production processor. Card details are never entered here.", payment_summary, "/office/payment-settings", "Check payment readiness", ready=payment_ready),
+            card("5", "Payments & email", "Connect Square and your email provider. Save, check the connection, then enable when you are ready.", payment_summary, "/office/service-setup", "Set up payments & email", ready=payment_ready),
             card("6", "Documents and signing", "Review customer PDFs, signing templates, and the local test workflow before sending production agreements.", "Signing review complete" if checklist.get("legal_reviewed") else "Production documents still need review", "/office/signing", "Review documents and signing", ready=bool(checklist.get("legal_reviewed"))),
             card("7", "Bring in existing customers", "Preview a customer CSV or business archive before Floodman writes any records. Skip this when starting fresh.", f"{import_count} import preview{'s' if import_count != 1 else ''}", "/office/imports", "Open safe import", ready=None),
             card("8", "Advanced connections", "For the server owner or installer: test provider health and download configuration values. Daily staff do not need this page.", connection_summary, "/office/linking", "Open advanced connections", ready=(bool(connections) and connection_failures == 0)),
@@ -1370,11 +1382,11 @@ async def linking_page() -> HTMLResponse:
         ("RoomFlow", "roomflow", settings.roomflow_sync_endpoint, "Saves field layouts and estimates into Floodman"),
         ("Floodman ERP workflow", "gauzy_workflow_bridge", settings.gauzy_base_url, "Keeps customer, project, estimate, invoice, and payment records together"),
         ("Floodman ERP screen", "gauzy_full_ui", settings.gauzy_web_url, "Opens the full employee and business-management system"),
-        ("Card payments", "square", settings.square_base_url, "Processes test or production card payments without storing card numbers"),
+        ("Card payments", "square", providers.settings.square_base_url if isinstance(providers, ProviderClient) else settings.square_base_url, "Processes test or production card payments without storing card numbers"),
         ("Document workflow", "documenso_workflow_bridge", settings.documenso_base_url, "Sends PDFs into the signing process"),
         ("Signing application", "documenso_full_ui", settings.documenso_web_url, "Manages reusable documents, signing fields, and history"),
         ("Customer texts", "twilio", settings.twilio_base_url, "Handles approved two-way text messages and delivery results"),
-        ("Outgoing email", "smtp", f"{settings.smtp_host}:{settings.smtp_port}", "Sends workflow email or captures it safely during testing"),
+        ("Outgoing email", "smtp", f"{providers.settings.smtp_host}:{providers.settings.smtp_port}" if isinstance(providers, ProviderClient) else f"{settings.smtp_host}:{settings.smtp_port}", "Sends workflow email or captures it safely during testing"),
         ("Test email inbox", "mailpit", settings.mailpit_url, "Shows locally captured messages without contacting customers"),
         ("Message assistant", "messaging_ai", settings.messaging_ai_url, f"Drafting policy: {settings.messaging_ai_provider}"),
         ("Market research", "competitor_intelligence", settings.competitor_url, "Checks approved public sites for useful business changes"),
@@ -1390,7 +1402,7 @@ async def linking_page() -> HTMLResponse:
         for value, label in (("FULL_LOCAL", "Full local application"), ("LOCAL_MOCK", "Local simulator"), ("SANDBOX", "Provider sandbox"), ("PRODUCTION", "Production later"))
     )
     body = f"""
-<div class='callout advanced-banner'><b>Installer area:</b> everyday staff do not need to change anything on this page. Use <a href='/office/settings'>Settings &amp; Setup</a> for normal business choices. This page never displays or accepts provider passwords, access tokens, or card credentials.</div>
+<div class='callout advanced-banner'><b>Installer area:</b> everyday staff do not need to change anything on this page. Owners can connect Square and SMTP in <a href='/office/service-setup'>Payments &amp; email</a>. Connection results below are historical; rerun the check after changing settings. This diagnostic page does not accept provider secrets.</div>
 <div class='card'><div class='actions spread'><div><h2>Are Floodman services answering?</h2><p class='muted'>The check is safe: it reads service health and does not send customer messages, charge a card, or change production data.</p></div><form method='post' action='/setup/test-connections'><button class='good'>Run connection check</button></form></div><div class='connection-simple-table'>{connection_table}</div><div class='actions' style='margin-top:14px'><a class='button' href='/office/apps'>Open applications</a><a class='button secondary' href='/office/linking/checklist.txt'>Download installer checklist</a></div></div>
 <details class='card plain-details'><summary>Advanced: server addresses and connection plan</summary><div style='margin-top:14px'>{endpoint_table}</div><p class='muted'>Change these planning values only when an installer gives you reviewed replacements. Saving this form records a plan; the server owner must still apply secrets outside the browser.</p><form method='post' action='/office/linking/plan'><div class='form-grid'>
 <div class='field full'><label>RoomFlow web address</label><input type='url' name='roomflow_url' value='{esc(config.get('roomflow_url'))}'></div>
@@ -4323,12 +4335,14 @@ async def _process_card_payment(kind: str, document: dict[str, Any], payload: di
 @app.get("/office/payment-settings")
 def payment_settings_page() -> HTMLResponse:
     _require("connections.manage")
+    if (_user() or {}).get("role") == "OWNER":
+        return RedirectResponse("/office/service-setup#square", status_code=303)
     config = providers.square_payment_configuration()
     status = "TEST MODE" if config.get("local_mock") else "READY" if config.get("live") else "SETUP REQUIRED"
     status_message = (
         "Safe test payments are available. No real card will be charged."
         if config.get("local_mock")
-        else "The production processor identifiers are present. Complete a small approved test before go-live."
+        else f"Square {config.get('environment')} checkout is configured. A connection check alone does not prove checkout works."
         if config.get("live")
         else "Ask the server owner to connect the Square Sandbox before accepting card payments."
     )
@@ -4336,7 +4350,7 @@ def payment_settings_page() -> HTMLResponse:
 <div class='callout {'success' if config.get('local_mock') or config.get('live') else 'warning'}'><b>{esc(status)}:</b> {esc(status_message)}</div>
 <div class='grid two'><div class='card'><div class='settings-eyebrow'>CURRENT READINESS</div><h2>Card payment connection</h2><p><b>Mode:</b> {badge(status)}</p><p><b>Environment:</b> {esc(str(config.get('environment') or 'Not configured').replace('_', ' ').title())}</p><p><b>Application:</b> {esc('Connected' if config.get('application_id') else 'Not connected')}</p><p><b>Business location:</b> {esc('Connected' if config.get('location_id') else 'Not connected')}</p><p><b>Customer payment page:</b><br><span class='mono'>{esc(settings.customer_public_url)}</span></p></div><div class='card'><div class='settings-eyebrow'>WHAT STAFF NEED TO KNOW</div><h2>Card information stays with Square</h2><p>Customers or authorized staff type card details only into Square's secure card field. Floodman keeps the payment result, amount, receipt, processor ID, card brand, and last four digits.</p><div class='callout success'><b>Never paste a card number, expiration date, or security code into notes, messages, or this settings area.</b></div></div></div>
 <div class='card'><h2>Simple setup path</h2><div class='role-guide'><div><b>1. Start in test mode</b><small>Use local test mode or Square Sandbox before any production payment.</small></div><div><b>2. Server owner connects Square</b><small>The owner installs the application ID, access token, location ID, and webhook secret outside the browser.</small></div><div><b>3. Run one approved test</b><small>Verify the receipt, invoice balance, and payment record agree.</small></div><div><b>4. Approve production</b><small>Switch only after the business owner reviews the payment and refund process.</small></div></div><div class='actions'><a class='button' href='/office/payments'>Open payment records</a><a class='button secondary' href='/office/settings'>Back to settings</a></div></div>
-<details class='card plain-details'><summary>Server owner instructions</summary><p>Copy <code>/home/container/config/floodman-payments.env.example</code> to <code>/home/container/config/floodman-payments.env</code>, insert reviewed Square Sandbox values, restart Floodman, and return here. Never place credentials in browser JavaScript, GitHub, chat, or screenshots.</p><p class='muted'>Required server values: application ID, server access token, location ID, and webhook signature key. This page intentionally shows only whether identifiers are present.</p></details>
+<div class='card'><h2>Owner setup</h2><p>The owner can save and check the Square connection under Settings &amp; Setup → Payments &amp; email. Staff accounts cannot view or edit credentials.</p></div>
 """
     return _page("Card Payment Setup", body, "payment-settings")
 

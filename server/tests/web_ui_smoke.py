@@ -365,6 +365,9 @@ def route_smoke(main: Any, records: dict[str, Any]) -> None:
     ]
     for path in pages:
         response = client.get(path)
+        if path == "/office/payment-settings":
+            assert response.status_code == 303 and response.headers["location"] == "/office/service-setup#square"
+            response = client.get("/office/service-setup")
         assert response.status_code == 200, f"{path} returned {response.status_code}: {response.text[:300]}"
         assert "Floodman" in response.text, f"{path} did not render a Floodman page"
 

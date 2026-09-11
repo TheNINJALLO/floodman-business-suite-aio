@@ -74,6 +74,13 @@ class Settings:
     external_portal_api_url: str = ""
     external_portal_api_token: str = ""
     external_portal_organization_id: str = "floodman"
+    smtp_security: str = "none"
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Floodman"
+    smtp_delivery_enabled: bool = True
+    smtp_managed: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -142,4 +149,9 @@ class Settings:
             external_portal_api_url=os.getenv("FLOODMAN_PORTAL_API_URL", "").strip(),
             external_portal_api_token=os.getenv("FLOODMAN_PORTAL_API_TOKEN", "").strip(),
             external_portal_organization_id=os.getenv("BUSINESS_SUITE_ORGANIZATION_ID", "floodman").strip(),
+            smtp_security=os.getenv("SMTP_SECURITY", "tls" if _bool("SMTP_USE_SSL") else "starttls" if _bool("SMTP_STARTTLS") else "none"),
+            smtp_username=os.getenv("SMTP_USERNAME", ""),
+            smtp_password=os.getenv("SMTP_PASSWORD", ""),
+            smtp_from_email=os.getenv("SMTP_FROM_EMAIL", ""),
+            smtp_from_name=os.getenv("SMTP_FROM_NAME", "Floodman"),
         )

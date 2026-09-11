@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-import smtplib
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 from email.message import EmailMessage
+from email.utils import formataddr
 from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
 
 from .config import Settings
+from .integration_setup import IntegrationSetup, SetupError, smtp_check, smtp_deliver
 from .security import SignedClient
 
 
@@ -23,9 +26,33 @@ class ProviderClient:
     """
 
     def __init__(self, settings: Settings) -> None:
-        self.settings = settings
+        self._base_settings = settings
+        self.setup = IntegrationSetup(settings)
+        self._request_settings = ContextVar("provider_request_settings", default=None)
+        self._in_scope = ContextVar("provider_configuration_scope", default=False)
         self.orchestrator = SignedClient.from_key_string(settings.orchestrator_url, settings.internal_hmac_keys)
         self.competitor = SignedClient.from_key_string(settings.competitor_url, settings.ai_hmac_keys)
+
+    @property
+    def settings(self) -> Settings:
+        snapshot = self._request_settings.get()
+        if snapshot is None:
+            snapshot = self.setup.effective()
+            if self._in_scope.get():
+                self._request_settings.set(snapshot)
+        return snapshot
+
+    @contextmanager
+    def configuration_scope(self):
+        # One immutable connection snapshot per business operation, even if an
+        # owner activates another environment while a payment is in flight.
+        token = self._request_settings.set(None)
+        scoped = self._in_scope.set(True)
+        try:
+            yield
+        finally:
+            self._request_settings.reset(token)
+            self._in_scope.reset(scoped)
 
     async def local_request(
         self,
@@ -84,9 +111,12 @@ class ProviderClient:
         html: str | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> dict[str, Any]:
+        config = self.settings
+        if not config.smtp_delivery_enabled:
+            raise SetupError("ERP email delivery is disabled in Payments & email setup.")
+        email_config = IntegrationSetup.email_config(config)
         message = EmailMessage()
-        sender = self.settings.gauzy_admin_email or "office@floodman.com"
-        message["From"] = f"Floodman Office <{sender}>"
+        message["From"] = formataddr((email_config["from_name"], email_config["from_email"]))
         message["To"] = to
         message["Subject"] = subject
         message.set_content(text)
@@ -96,11 +126,10 @@ class ProviderClient:
             main, _, subtype = str(content_type or "application/octet-stream").partition("/")
             message.add_attachment(content, maintype=main or "application", subtype=subtype or "octet-stream", filename=filename)
 
-        def deliver() -> None:
-            with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=15) as client:
-                client.send_message(message)
-
-        await asyncio.to_thread(deliver)
+        try:
+            await asyncio.to_thread(smtp_deliver, email_config, message)
+        except Exception:
+            raise SetupError("The email server did not confirm acceptance. Check Payments & email setup and the recipient; delivery may need confirmation before retrying.") from None
         return {"status": "SENT", "to": to, "subject": subject, "attachments": len(attachments or [])}
 
     async def connection_tests(self) -> dict[str, Any]:
@@ -119,14 +148,20 @@ class ProviderClient:
                     "status": "FAILED",
                     "checked_at": datetime.now(UTC).isoformat(),
                     "latency_ms": int((datetime.now(UTC) - started).total_seconds() * 1000),
-                    "detail": str(exc),
+                    "detail": "Connection failed. Review Payments & email setup." if name in {"square", "smtp"} else str(exc),
                 }
 
         async def gauzy_real() -> Any:
             return await self.gauzy_context()
 
         async def square() -> Any:
-            return await self.local_request("GET", f"/square/v2/locations/{self.settings.square_location_id}")
+            return await self.square_request("GET", f"/v2/locations/{self.settings.square_location_id}")
+
+        async def smtp() -> Any:
+            if not self.settings.smtp_delivery_enabled:
+                raise SetupError("ERP email delivery is disabled.")
+            await asyncio.to_thread(smtp_check, IntegrationSetup.email_config(self.settings))
+            return "SMTP connection checked; inbox delivery has not been tested."
 
         async def documenso_mock() -> Any:
             state = await self.lab_state()
@@ -142,6 +177,7 @@ class ProviderClient:
             run("gauzy_workflow_bridge", gauzy_real),
             run("gauzy_full_ui", lambda: self._simple_status(self.settings.gauzy_health_url)),
             run("square", square),
+            run("smtp", smtp),
             run("documenso_workflow_bridge", documenso_mock),
             run("documenso_full_ui", lambda: self._simple_status(self.settings.documenso_health_url, expect_json=True)),
             run("twilio", twilio),
@@ -150,12 +186,10 @@ class ProviderClient:
             run("mailpit", lambda: self._simple_status(self.settings.mailpit_health_url)),
         )
         values = dict(pairs)
-        values["smtp"] = {
-            "status": "CONNECTED",
-            "checked_at": datetime.now(UTC).isoformat(),
-            "latency_ms": 0,
-            "detail": f"Local capture at {self.settings.smtp_host}:{self.settings.smtp_port}",
-        }
+        if self.settings.smtp_host in {"127.0.0.1", "localhost"} and self.settings.smtp_port == 1025:
+            values["smtp"].update(status="LOCAL TEST ONLY", detail="Mailpit captures messages locally; external delivery is not configured.")
+        if self.square_payment_configuration()["local_mock"]:
+            values["square"].update(status="LOCAL TEST ONLY", detail="Simulator only; no real Square account was checked.")
         values["roomflow"] = {
             "status": "READY",
             "checked_at": datetime.now(UTC).isoformat(),
@@ -243,27 +277,29 @@ class ProviderClient:
         params: dict[str, Any] | None = None,
         timeout: float = 45.0,
     ) -> Any:
+        config = self.settings
+        if not config.payments_enabled and method.upper() != "GET":
+            raise SetupError("Payments are disabled in Payments & email setup.")
         headers = {
-            "Square-Version": self.settings.square_version,
+            "Square-Version": config.square_version,
             "Content-Type": "application/json",
         }
-        if self.settings.square_access_token:
-            headers["Authorization"] = f"Bearer {self.settings.square_access_token}"
+        if config.square_access_token:
+            headers["Authorization"] = f"Bearer {config.square_access_token}"
         async with httpx.AsyncClient(
             timeout=timeout,
-            verify=self.settings.square_verify_tls,
-            follow_redirects=True,
+            verify=config.square_verify_tls,
+            follow_redirects=False,
         ) as client:
             response = await client.request(
                 method,
-                f"{self.settings.square_base_url}{path}",
+                f"{config.square_base_url}{path}",
                 headers=headers,
                 json=payload,
                 params=params,
             )
-        if response.is_error:
-            detail = response.text[:1200]
-            raise RuntimeError(f"Payment processor {method} {path} returned {response.status_code}: {detail}")
+        if not response.is_success:
+            raise RuntimeError(f"Payment processor request failed (HTTP {response.status_code}). Check the payment connection; do not retry a charge until its status is confirmed.")
         return response.json() if response.content else {}
 
     async def ensure_square_customer(self, contact: dict[str, Any]) -> dict[str, Any]:
@@ -446,6 +482,8 @@ class ProviderClient:
     ) -> dict[str, Any]:
         if amount_cents <= 0:
             raise RuntimeError("Payment amount must be greater than zero.")
+        if not self.settings.payments_enabled:
+            raise SetupError("Payments are disabled in Payments & email setup.")
         config = self.square_payment_configuration()
         if config["local_mock"]:
             return {

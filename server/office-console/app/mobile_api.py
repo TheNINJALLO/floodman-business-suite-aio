@@ -522,10 +522,10 @@ def build_mobile_router(store: OfficeStore, providers: ProviderClient, settings:
             "company": store.profile().get("company_name") or "Floodman",
             "time_zone": store.profile().get("timezone") or settings.ar_timezone,
             "payments": {
-                "enabled": bool(settings.payments_enabled and square.get("application_id")),
+                "enabled": bool(square.get("live")),
                 "environment": square.get("environment"),
                 "application_id": square.get("application_id") or "",
-                "native_card_entry": bool(square.get("application_id")),
+                "native_card_entry": bool(square.get("live") and square.get("application_id")),
             },
             "customer_public_url": settings.customer_public_url,
             "minimum_android_version": MIN_ANDROID_VERSION,
