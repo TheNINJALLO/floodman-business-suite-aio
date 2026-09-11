@@ -14,7 +14,7 @@ COPY --chown=container:container server/orchestrator/app/ /opt/floodman/orchestr
 COPY --chown=container:container server/pwa/ /opt/floodman/pwa/
 COPY --chown=container:container server/hub/ /opt/floodman/hub/
 COPY containers/unified-portal/refresh_runtime.py /opt/floodman/unified/refresh-portal-runtime.py
-COPY --chown=container:container server/office-console/app/sms_policy.py /opt/floodman/app/sms_policy.py
+COPY --chown=container:container server/office-console/app/sms_policy.py /opt/voice/app/sms_policy.py
 COPY containers/unified-portal/patch_sms_policy.py /opt/floodman/unified/patch-sms-policy.py
 RUN python3 /opt/floodman/unified/patch-office-runtime.py --office-root /opt/floodman/office-console \
     && python3 /opt/floodman/unified/patch-sms-policy.py \

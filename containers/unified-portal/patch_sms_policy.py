@@ -40,7 +40,7 @@ def patch_nginx(current: str) -> str:
 
 
 if __name__ == '__main__':
-    path = Path('/opt/floodman/app/main.py')
+    path = Path('/opt/voice/app/main.py')
     nginx = Path('/opt/floodman/aio/nginx.conf.template')
     voice_source = patch(path.read_text())
     nginx_source = patch_nginx(nginx.read_text())
