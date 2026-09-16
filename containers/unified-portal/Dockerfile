@@ -1,7 +1,7 @@
 # Additive Office/portal update on the exact, tested shared Voice + Suite image.
 # The base carries the Tel-Agent voice runtime; this layer preserves the current
 # Business Suite sources and does not alter persistent customer/database data.
-FROM ghcr.io/theninjallo/floodman-operations-voice-aio:gpu-appliance-candidate-ba00c0b51ae228023b5ebf20bf362f8b64d4fc55@sha256:5e65885391015d744a2da93f958236f391a2ce908292148bd5c6aa579afd31a9
+FROM ghcr.io/theninjallo/floodman-operations-voice-aio:gpu-appliance-candidate-fa6cfe5162a2bb1278a5e120934036962a180f3d@sha256:057b98acf8d35fd1b69fd917a168b02f15e27a4d708512fcb747c69208047c7e
 ENV CUSTOMER_SMS_CONSENT_CHECK_ENABLED=true
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.title="Floodman Operations - Voice and Business Suite" \
