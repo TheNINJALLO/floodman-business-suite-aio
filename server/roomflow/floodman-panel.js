@@ -5,7 +5,7 @@
   if (!window.location.pathname.startsWith('/roomflow/') && params.get('floodmanPanel') !== '1') return;
   window.__FLOODMAN_ROOMFLOW_PANEL__ = true;
 
-  const RELEASE = '4.7.0';
+  const RELEASE = '4.7.3';
   const LINK_KEY = 'floodman_roomflow_links_v2';
   const ESTIMATE_KEY = 'floodman_roomflow_estimate_ids_v1';
   const GUIDE_KEY = 'floodman_roomflow_quick_start_dismissed_v1';
@@ -353,6 +353,9 @@
         quantity, unit_price_cents: cents(unitPrice), line_total_cents: Math.round(quantity * cents(unitPrice)),
         taxable: Boolean(line.taxable || line.applyTax), optional: Boolean(line.optional), selected: line.selected !== false,
         unit: asText(line.unit || 'each'), category: asText(line.category || sectionName || 'other'), pricing_method: asText(line.pricing_method || line.pricingMethod || 'fixed'), sort_order: Number(line.sort_order ?? line.sortOrder ?? index) || 0,
+        pricing_reference: asText(line.pricing_reference || ''), pricing_source: asText(line.pricing_source || ''),
+        pricing_price_list: asText(line.pricing_price_list || ''), pricing_effective_date: asText(line.pricing_effective_date || ''),
+        pricing_market: asText(line.pricing_market || ''),
       };
     }).filter(line => line.quantity > 0 && line.unit_price_cents >= 0 && line.line_total_cents >= 0);
   }
@@ -399,12 +402,16 @@
   function addCatalogItemToEstimate(item) {
     const api = roomFlowEstimateApi(); if (!api) return;
     const section = model.activeEstimateSection || estimateSectionNames()[0] || 'Waterproofing';
+    const pricing = item.formula?.xactimate || {};
     const line = {
       roomflow_line_id: uuid(), catalog_item_id: item.id || null,
       name: asText(item.name || 'Catalog item'), description: asText(item.description || ''),
       section_name: section, category: asText(item.category || section), pricing_method: asText(item.pricing_method || 'fixed'),
       quantity: 1, unit: asText(item.unit || 'each'), unit_price: Number(item.unit_price_cents || 0) / 100,
       taxable: Boolean(item.taxable), optional: false, selected: true, sort_order: api.currentLines.length,
+      pricing_reference: asText(pricing.code || ''), pricing_source: asText(item.source_provider || ''),
+      pricing_price_list: asText(pricing.price_list || ''), pricing_effective_date: asText(pricing.effective_date || ''),
+      pricing_market: asText(pricing.market || ''),
     };
     api.currentLines.push(line);
     persistEstimateScope();
@@ -425,7 +432,8 @@
       }
       for (const item of items) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'fm-rf-result';
-        button.innerHTML = `<b>${escapeHtml(item.name || '')}</b><small>${escapeHtml(item.default_section || item.category || 'General Services')} · ${escapeHtml(item.unit || 'each')} · ${escapeHtml(money(item.unit_price_cents || 0))}</small>`;
+        const pricing = item.formula?.xactimate || {};
+        button.innerHTML = `<b>${escapeHtml(pricing.code ? `${pricing.code} · ${item.name || ''}` : item.name || '')}</b><small>${escapeHtml(item.default_section || item.category || 'General Services')} · ${escapeHtml(item.unit || 'each')} · ${escapeHtml(money(item.unit_price_cents || 0))}</small>`;
         button.addEventListener('click', () => { host.classList.remove('is-open'); addCatalogItemToEstimate(item); });
         host.appendChild(button);
       }
@@ -693,7 +701,7 @@
     neutralizeLegacyCloudControls();
     $('#fm-rf-workspace-select')?.addEventListener('change', event => changeWorkspace(event.target.value));
     $('#fm-rf-create-workspace')?.addEventListener('click', () => createWorkspace($('#fm-rf-new-workspace-name')));
-    $('#fm-rf-help')?.addEventListener('click', () => { panelOpen(true); showGuide(true); $('#fm-rf-quick-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    $('#fm-rf-help')?.addEventListener('click', () => { panelOpen(true); showGuide(true); const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; $('#fm-rf-quick-start')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); });
     $('#fm-rf-guide-close')?.addEventListener('click', () => showGuide(false));
     $('#fm-rf-open-panel')?.addEventListener('click', () => { panelOpen(true); $('#fm-rf-close-panel')?.focus(); }); $('#fm-rf-close-panel')?.addEventListener('click', () => { panelOpen(false); $('#fm-rf-open-panel')?.focus(); }); backdrop.addEventListener('click', () => panelOpen(false));
     $('#fm-rf-customer-search')?.addEventListener('input', event => { clearTimeout(model.searchTimer); model.searchTimer = setTimeout(() => searchCustomers(event.target.value), 220); });
@@ -723,7 +731,9 @@
     for (let i = 0; i < 40 && !window.state; i += 1) await sleep(150);
     try { await refreshWorkspaceContext(); }
     catch (error) { setStatus(error.message, error.code === 'AUTH' ? 'warn' : 'bad'); }
-    await restoreLink(); await refreshJobs();
+    const requestedJobId = params.get('job_id') || '';
+    if (requestedJobId) await loadServerJob(requestedJobId); else await restoreLink();
+    await refreshJobs();
     if (params.get('catalog_sync') === '1') {
       panelOpen(true); const catalogDetails = $('#fm-rf-sync-catalog')?.closest('details'); if (catalogDetails) catalogDetails.open = true;
       await syncRoomFlowCatalog({ force: true }).finally(() => renderEstimateScope());

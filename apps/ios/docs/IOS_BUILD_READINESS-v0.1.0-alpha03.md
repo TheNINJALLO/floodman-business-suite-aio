@@ -17,4 +17,10 @@ Local Windows verification covers source, plist, assets, project configuration, 
 - The freshly prepared iOS bundle passed native local-dependency validation and carries Floodman 4.6.9 metadata plus bridge cache version 3.
 - All 10 source server smoke programs and all 9 portable runtime smoke programs passed after the workspace-boundary change.
 
-Outcome: Windows-available source/workflow readiness is `PASS`. Unsigned Xcode simulator compilation remains `BLOCKED` by BLK-004; no compiler, signing, archive, TestFlight, or device pass is claimed.
+Outcome at the time of this readiness record: Windows-available source/workflow readiness was `PASS`; the then-open BLK-004 was later resolved by the recorded macOS/Xcode workflow. That historical compiler result is not automatically evidence for later source edits.
+
+## WEB-007 close-target readiness — 2026-08-28
+
+The unchanged alpha03/build 3 source increases the always-available native RoomFlow close target from 32 to 44 points. `scripts/verify_ios_readiness.py` passes the current tree with 11 Swift files, all 18 icon slots, HTTPS/capability/PDF/Keychain contracts, loopback-only RoomFlow behavior, capture sources, project settings, and simulator/TestFlight workflow guards.
+
+This Windows host cannot compile the current Swift edit. Historical macOS/Xcode results remain evidence for their exact commits only; the final WEB-007 commit must pass `.github/workflows/build-ios-simulator.yml` before BLK-015 can close. No current Xcode compiler, signing, archive, TestFlight, or physical-device result is claimed.

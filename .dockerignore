@@ -7,6 +7,9 @@
 !containers/base-aio/Dockerfile
 !containers/derivative/
 !containers/derivative/Dockerfile
+!containers/unified-portal/
+!containers/unified-portal/Dockerfile
+!containers/unified-portal/refresh_runtime.py
 !server/
 !server/**
 

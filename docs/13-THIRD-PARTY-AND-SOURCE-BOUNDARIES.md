@@ -12,7 +12,7 @@ RoomFlow is maintained in a separate repository and pinned by commit. Fetch scri
 
 The AIO image composes Gauzy and Documenso runtime images. Their repositories are not copied into this handoff. Before distributing a source-built image, review their current licenses, notices, modification/source obligations, and network-use terms with counsel. Keep visible third-party notices where required, even while the customer-facing UI is fully Floodman branded.
 
-## Mailpit, Tailscale, Square, Twilio, Apple, and Google
+## Mailpit, Square, Twilio, Apple, and Google
 
 These are external runtimes or services. Their SDKs, APIs, account terms, and distribution rules remain separate from Floodman source ownership.
 

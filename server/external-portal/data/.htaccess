@@ -1,0 +1,5 @@
+# Portal databases and private integration records must never be downloadable.
+Options -Indexes
+<FilesMatch "(?i)\.(db|sqlite|sqlite3)(-(wal|shm|journal))?$|^\.env|\.(bak|backup|log)$">
+    Require all denied
+</FilesMatch>

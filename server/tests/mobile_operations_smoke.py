@@ -77,6 +77,21 @@ def run() -> None:
     assert calendar.status_code == 200 and calendar.json()["items"]
     task = client.post("/mobile-api/v1/tasks", headers=headers, json={"title":"Prepare equipment","assigned_user_id":tech["id"],"appointment_id":appt.json()["appointment"]["id"]})
     assert task.status_code == 200, task.text
+    notification = store.create_record("notifications", {
+        "user_id": owner["id"],
+        "title": "Payment received: $125.00",
+        "body": "A fictional customer payment is ready for review.",
+        "kind": "PAYMENT_RECEIVED",
+        "reference_id": "fictional-payment",
+        "action_url": "/office/payments",
+        "status": "UNREAD",
+    }, actor_id="mobile-smoke")
+    notifications = client.get("/mobile-api/v1/notifications?unread_only=true", headers=headers)
+    assert notifications.status_code == 200, notifications.text
+    assert notifications.json()["unread"] >= 1, notifications.text
+    assert any(item.get("id") == notification["id"] and item.get("kind") == "PAYMENT_RECEIVED" for item in notifications.json()["items"]), notifications.text
+    read = client.post(f"/mobile-api/v1/notifications/{notification['id']}/read", headers=headers)
+    assert read.status_code == 200 and read.json()["status"] == "READ"
     print("Floodman v4.6 mobile operations smoke test passed")
 
 if __name__ == "__main__":

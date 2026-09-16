@@ -4,7 +4,7 @@
 
 ```text
 Users and devices
-  |-- Private browser/PWA over Tailscale
+  |-- Staff browser/PWA over access-controlled external HTTPS
   |-- Android over public HTTPS Mobile API
   |-- iPhone/iPad over public HTTPS Mobile API
   |-- Customers over public tokenized links
@@ -33,30 +33,31 @@ Pterodactyl AIO container
 | 9001 | Documenso/signing |
 | 9002 | Mailpit test mail |
 | 9003 | Local Lab and engineering surface |
-| 9004 | Floodman API and orchestrator-facing routes |
-| 9010 | Loopback public gateway used by Funnel |
+| 9004 | External API gateway and native Mobile API routing |
+| 8701 | Internal workflow/orchestrator API |
 
-## Private Tailscale ports
+## External HTTPS hostnames
 
-| HTTPS port | Internal target |
-|---:|---|
-| 8443 | 9000 |
-| 8444 | 9001 |
-| 8445 | 9004 |
-| 8446 | 9002 |
-| 8447 | 9003 |
+| Hostname | Pterodactyl target | Policy |
+|---|---:|---|
+| `floodman.oninetwork.com` | 9000 | Staff-only except reviewed `/customer/` token routes |
+| `sign.oninetwork.com` | 9001 | Recipient routes public; administration protected |
+| `lab.oninetwork.com` | 9003 | Staff-only |
+| `api.oninetwork.com` | 9004 | Mobile API/webhooks public as required; administration/docs protected |
+
+Mailpit remains loopback-only on port 9002 and has no public hostname.
 
 ## Public gateway
 
-The test public gateway is intentionally narrow:
+The external proxy exposure policy is intentionally narrow:
 
 ```text
 /mobile-api/* -> Floodman native-app API
 /customer/*   -> tokenized customer pages, documents, and payments
-/              -> signing service
+signing routes  -> signing service
 ```
 
-The staff PWA, Full ERP, engineering tools, Mailpit, and databases are not intended to be public.
+The staff PWA, Full ERP, engineering tools, workflow administration, API documentation, Mailpit, and databases are not intended to be public.
 
 ## Server services
 

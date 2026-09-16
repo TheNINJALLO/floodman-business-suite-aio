@@ -2,7 +2,7 @@
 
 ## Exposure model
 
-- Staff PWA and Full ERP: private Tailscale access
+- Staff PWA and Full ERP: external HTTPS with a mandatory staff access policy
 - Native app API: public HTTPS, narrow route set
 - Customer estimates/invoices/payments: public tokenized links
 - Signing: public customer surface
@@ -61,7 +61,7 @@
 Never commit:
 
 ```text
-Tailscale auth keys
+external HTTPS proxy credentials or access-policy secrets
 Square access or webhook keys
 OpenAI keys
 Twilio credentials

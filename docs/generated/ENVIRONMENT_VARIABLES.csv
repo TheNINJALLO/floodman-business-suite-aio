@@ -1,5 +1,8 @@
 name,default_expressions,referenced_by,reference_count
 AI_CALLBACK_URL,"""http://127.0.0.1:9004/internal/v1/ai/reports""",server/competitor-intel/app/config.py | server/orchestrator/app/config.py,2
+AI_CALLING_HMAC_KEYS,"_required(""AI_HMAC_KEYS""",server/orchestrator/app/config.py,1
+AI_CALLING_PROVIDER,"""deterministic""",server/orchestrator/app/config.py,1
+AI_CALLING_WEBHOOK_URL,"f""{public_url}/webhooks/ai-calling/{ai_calling_provider}"",",server/orchestrator/app/config.py,1
 AI_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh | server/database/init/10-ai-role.sh,3
 AI_DB_USER,,server/database/init/10-ai-role.sh,1
 AI_HMAC_KEYS,"""""",server/office-console/app/config.py,1
@@ -13,8 +16,11 @@ AR_REMINDER_OFFSETS_HOURS,"""1,2,3,4,5,6""",server/office-console/app/config.py,
 AR_REPEAT_INTERVAL_HOURS,"""24""",server/office-console/app/config.py,1
 AR_TIMEZONE,"""America/Detroit""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 BOOTSTRAP_SUFFIX,,server/aio/start-suite.sh,1
+BUSINESS_SUITE_ORGANIZATION_ID,"""floodman""",server/office-console/app/config.py,1
 COMPETITOR_INTEL_URL,"""http://competitor-intel-api:8090""",server/local-lab/app/main.py,1
 COMPETITOR_URL,"""http://competitor-intel-api:8090""",server/office-console/app/config.py,1
+CUSTOMER_SMS_ORGANIZATION_ID,"""floodman""",server/orchestrator/app/config.py,1
+DATA_DIR,"""""",server/office-console/app/integration_setup.py,1
 DOCUMENSO_DB_PASSWORD,,server/aio/bootstrap-databases.sh | server/aio/start-suite.sh,2
 DOCUMENSO_DEFAULT_MESSAGE,"""Please review and complete the attached Floodman document.""",server/orchestrator/app/config.py,1
 DOCUMENSO_DEFAULT_SUBJECT,"""Floodman document ready for signature""",server/orchestrator/app/config.py,1
@@ -50,10 +56,14 @@ FLOODMAN_OWNER_EMAIL,"""""",server/aio/finalize-gauzy.sh | server/aio/link-offic
 FLOODMAN_OWNER_FIRST_NAME,,server/aio/finalize-gauzy.sh | server/aio/start-suite.sh,2
 FLOODMAN_OWNER_LAST_NAME,,server/aio/finalize-gauzy.sh | server/aio/start-suite.sh,2
 FLOODMAN_OWNER_PASSWORD,,server/aio/link-office-owner.sh | server/aio/start-suite.sh,2
+FLOODMAN_PORTAL_API_TOKEN,"""""",server/office-console/app/config.py,1
+FLOODMAN_PORTAL_API_URL,"""""",server/office-console/app/config.py,1
 FLOODMAN_PUBLIC_HOST,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_SCHEME,,server/aio/start-suite.sh,1
 FLOODMAN_PUBLIC_URL,,server/aio/start-suite.sh,1
 FLOODMAN_RELEASE,"""windows-business-suite-v3.0.0""",server/local-lab/app/main.py | server/office-console/app/config.py,2
+FLOODMAN_UI_EVIDENCE_DIR,"""""",server/tests/adaptive_portal_browser_smoke.py | server/tests/portal_tools_browser_smoke.py | server/tests/web_ui_smoke.py,3
+FLOODMAN_VOICE_URL,,server/aio/start-suite.sh,1
 FM_CONFIG,,server/aio/common.sh | server/aio/finalize-gauzy.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,4
 FM_DATA,,server/aio/common.sh | server/aio/start-documenso.sh | server/aio/start-local-lab.sh | server/aio/start-mailpit.sh | server/aio/start-postgres.sh | server/aio/start-suite.sh,6
 FM_HOME,,server/aio/common.sh | server/aio/start-hub.sh | server/aio/start-suite.sh,3
@@ -108,6 +118,9 @@ HUB_REMOTE_MAILPIT_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.templ
 HUB_ROOMFLOW_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
 HUB_SYNC_STATUS_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
 HUB_TITLE,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
+HUB_VOICE_URL,,server/aio/start-hub.sh | server/hub/hub-config.js.template,2
+ICON_CLOSE,,server/pwa/floodman-pwa.js,1
+ICON_DOWNLOAD,,server/pwa/floodman-pwa.js,1
 INTERNAL_HMAC_KEYS,"""""",server/local-lab/app/main.py | server/office-console/app/config.py,2
 INTERNAL_HMAC_MAX_AGE_SECONDS,"""300""",server/messaging-ai/app/config.py,1
 LAB_PUBLIC_URL,"""http://localhost:9003""",server/local-lab/app/main.py | server/office-console/app/config.py,2
@@ -155,12 +168,15 @@ ROOMFLOW_SYNC_ENDPOINT,"f""{os.getenv('PUBLIC_BASE_URL', 'http://localhost:9004'
 ROOMFLOW_WEB_URL,"""/roomflow/""",server/aio/start-suite.sh | server/office-console/app/config.py,2
 SECRETS_FILE,,server/aio/start-suite.sh,1
 SERVER_IP,,server/aio/start-suite.sh,1
-SERVER_PORT,,server/aio/nginx.conf.template | server/aio/start-hub.sh | server/aio/start-suite.sh | server/aio/suite-monitor.sh | server/tests/dual_workspace_smoke.py,5
+SERVER_PORT,,server/aio/nginx.conf.template | server/aio/start-hub.sh | server/aio/start-suite.sh | server/aio/suite-monitor.sh | server/tests/dual_workspace_smoke.py | server/tests/full_erp_routing_smoke.py,6
+SMTP_FROM_EMAIL,"""""",server/office-console/app/config.py,1
+SMTP_FROM_NAME,"""Floodman""",server/office-console/app/config.py,1
 SMTP_HOST,"""127.0.0.1""",server/office-console/app/config.py,1
-SMTP_PASSWORD,"""""",server/orchestrator/app/config.py,1
+SMTP_PASSWORD,"""""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 SMTP_PORT,"""1025""",server/office-console/app/config.py,1
 SMTP_REPLY_TO,"os.getenv(""SMTP_FROM_EMAIL"", """"",server/orchestrator/app/config.py,1
-SMTP_USERNAME,"""""",server/orchestrator/app/config.py,1
+SMTP_SECURITY,"""tls"" if _bool(""SMTP_USE_SSL""",server/office-console/app/config.py,1
+SMTP_USERNAME,"""""",server/office-console/app/config.py | server/orchestrator/app/config.py,2
 SQUARE_ACCESS_TOKEN,"""local-square-token""",server/office-console/app/config.py,1
 SQUARE_APPLICATION_ID,"""""",server/office-console/app/config.py,1
 SQUARE_BASE_URL,"""http://127.0.0.1:9003/square"" | ""https://connect.squareup.com""",server/office-console/app/config.py | server/orchestrator/app/config.py,2

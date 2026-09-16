@@ -76,8 +76,20 @@
 7. Void/delete only eligible records.
 8. Confirm $0 balance produces paid/receipt behavior.
 9. Verify no raw card data appears in Office state, logs or API payloads.
+10. Confirm each successful manual/card/reconciled payment creates one alert per eligible payment administrator and one email attempt, including after an idempotent retry.
 
-## H. Documents/signatures
+## H. Customer messaging
+
+1. Open a secure estimate or invoice and send a customer message.
+2. Confirm eligible message administrators receive one Office/mobile alert and one email attempt without message text in the email.
+3. Open the staff conversation, reply, and confirm the reply appears in the customer portal with customer unread state.
+4. Confirm the customer email contains only a secure portal-link notice and the staff view records delivery status.
+5. Retry the same customer request and prove no duplicate message or alert is created.
+6. Confirm a capability link for another property owned by the same contact cannot see the first property's conversation.
+7. Reject empty/oversized messages, exercise the send-rate limit, and verify escaped plain-text rendering.
+8. Verify the portal at 320 and 390 pixels without horizontal overflow and verify staff/customer mark-read controls.
+
+## I. Documents/signatures
 
 1. Send a Work Authorization.
 2. Sign through the public tokenized link.
@@ -86,7 +98,7 @@
 5. Create and sign a change order.
 6. Confirm original signed scope remains immutable.
 
-## I. Scheduling and staff
+## J. Scheduling and staff
 
 1. Create inspection, job, estimate appointment, follow-up, delivery, training and meeting events.
 2. Assign multiple employees and a lead.
@@ -95,10 +107,10 @@
 5. Verify tasks, announcements, notifications and time clock.
 6. Subscribe to the read-only ICS feed.
 
-## J. Android
+## K. Android
 
 1. Install clean debug/release build.
-2. Sign in with Tailscale off.
+2. Sign in through `https://api.oninetwork.com/mobile-api/` with the external HTTPS proxy active.
 3. Enroll, refresh, revoke and re-enroll device.
 4. Test all main modules and theme modes.
 5. Open PDFs only when they pass PDF validation.
@@ -106,7 +118,7 @@
 7. Test process death/reopen and token refresh.
 8. Test phone and tablet layouts.
 
-## K. Apple
+## L. Apple
 
 1. Build simulator and run on iPhone/iPad simulators.
 2. Test login, Keychain, refresh and device lock.

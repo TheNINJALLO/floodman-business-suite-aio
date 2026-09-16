@@ -11,6 +11,7 @@ from typing import Any
 
 from .auth import (
     ROLE_PERMISSIONS,
+    has_permission,
     hash_password,
     invite_expiry,
     new_token,
@@ -37,8 +38,10 @@ OPERATION_KINDS = {
     "contacts", "properties", "estimates", "invoices", "payments", "documents", "notes", "time_entries", "tasks",
     "roomflow_jobs", "catalog_items", "public_links", "payment_attempts", "mobile_devices", "mobile_refresh_tokens",
     "mobile_audit", "appointments", "announcements", "notifications", "push_tokens", "calendar_subscriptions",
+    "customer_threads", "customer_messages", "customer_sms_preferences", "customer_sms_events",
     "estimate_revisions", "invoice_revisions", "roomflow_imports", "roomflow_workspaces", "roomflow_workspace_selections",
-    "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit"
+    "roomflow_capture_rooms", "roomflow_capture_operations", "roomflow_capture_audit",
+    "call_intakes", "call_intake_audit", "portal_uploads", "portal_actions"
 }
 
 DEFAULT_STATE: dict[str, Any] = {
@@ -403,7 +406,14 @@ class OfficeStore:
             self._state.get("sessions", {}).pop(token_hash(token), None)
             self._save()
 
-    def create_invite(self, name: str, email: str, role: str, created_by: str) -> tuple[dict[str, Any], str]:
+    def create_invite(
+        self,
+        name: str,
+        email: str,
+        role: str,
+        created_by: str,
+        phone: str = "",
+    ) -> tuple[dict[str, Any], str]:
         email_key = email.strip().lower()
         name_value = name.strip()
         role_value = role.strip().upper()
@@ -415,12 +425,14 @@ class OfficeStore:
             raise ValueError("Choose one of the listed staff access levels.")
         if self.user_by_email(email_key):
             raise ValueError("A member with that email already exists.")
+        phone_value = self._staff_phone(phone)
         token = new_token("invite_")
         invite_id = str(uuid.uuid4())
         invite = {
             "id": invite_id,
             "name": name_value,
             "email": email_key,
+            "phone": phone_value,
             "role": role_value,
             "token_hash": token_hash(token),
             "created_by": created_by,
@@ -455,6 +467,7 @@ class OfficeStore:
             "id": user_id,
             "name": invite.get("name") or invite.get("email"),
             "email": invite.get("email"),
+            "phone": invite.get("phone") or "",
             "role": invite.get("role") or "VIEWER",
             "password_hash": hash_password(password),
             "permissions": [],
@@ -470,7 +483,15 @@ class OfficeStore:
             self._save()
         return deepcopy(user)
 
-    def update_user(self, user_id: str, *, role: str | None = None, status: str | None = None, password: str | None = None) -> dict[str, Any]:
+    def update_user(
+        self,
+        user_id: str,
+        *,
+        role: str | None = None,
+        status: str | None = None,
+        password: str | None = None,
+        phone: str | None = None,
+    ) -> dict[str, Any]:
         with self.lock:
             user = self._state["users"].get(user_id)
             if not user:
@@ -489,6 +510,8 @@ class OfficeStore:
                 user["status"] = status_value
             if password:
                 user["password_hash"] = hash_password(password)
+            if phone is not None:
+                user["phone"] = self._staff_phone(phone)
             user["updated_at"] = _now()
             self._save()
             return deepcopy(user)
@@ -529,6 +552,44 @@ class OfficeStore:
             self._state["operations"][kind][record_id] = record
             self._save()
         return deepcopy(record)
+
+    def create_record_if_absent(
+        self,
+        kind: str,
+        record_id: str,
+        values: dict[str, Any],
+        *,
+        actor_id: str | None = None,
+    ) -> tuple[dict[str, Any], bool]:
+        """Create one operational record once and return whether it was new.
+
+        Payment callbacks, mobile retries, and customer form resubmissions can
+        legitimately repeat.  Keeping the existence check and write under the
+        store lock prevents those retries from producing duplicate alerts or
+        conversation messages.
+        """
+        if kind not in OPERATION_KINDS:
+            raise KeyError(kind)
+        stable_id = str(record_id or "").strip()
+        if not stable_id:
+            raise ValueError("A stable record ID is required.")
+        with self.lock:
+            existing = self._state["operations"][kind].get(stable_id)
+            if existing is not None:
+                return deepcopy(existing), False
+            now = _now()
+            record = {
+                **values,
+                "id": stable_id,
+                "source": values.get("source") or "FLOODMAN_OFFICE",
+                "created_at": values.get("created_at") or now,
+                "updated_at": now,
+                "created_by": values.get("created_by") or actor_id,
+                "updated_by": actor_id,
+            }
+            self._state["operations"][kind][stable_id] = record
+            self._save()
+            return deepcopy(record), True
 
     def bulk_upsert_records(
         self,
@@ -611,6 +672,511 @@ class OfficeStore:
             raise KeyError(kind)
         values = list(self.snapshot()["operations"].get(kind, {}).values())
         return sorted(values, key=lambda item: item.get("updated_at", ""), reverse=True)
+
+    def _call_intake_notifications(self, operations, payload, intake_id, workspace_id, caller_name, actor_id, now):
+        notification_ids: list[str] = []
+        recipient_ids: list[str] = []
+        for user in self._state.get("users", {}).values():
+            if str(user.get("status") or "ACTIVE").upper() != "ACTIVE" or not has_permission(user, "call_intakes.view"):
+                continue
+            user_id = str(user.get("id") or "")
+            selection_id = str(uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"floodman:roomflow-supabase:workspace-selection:{user_id}",
+            ))
+            selection = operations["roomflow_workspace_selections"].get(selection_id)
+            selected_workspace_id = str((selection or {}).get("workspace_id") or "")
+            if not selected_workspace_id:
+                workspaces = list(operations["roomflow_workspaces"].values())
+                if workspaces:
+                    selected_workspace_id = str(min(
+                        workspaces,
+                        key=lambda value: (
+                            0 if value.get("roomflow_organization_id") or value.get("source_organization_id")
+                            else (1 if value.get("imported") else 2),
+                            str(value.get("name") or "").casefold(),
+                            str(value.get("id") or ""),
+                        ),
+                    ).get("id") or "")
+            if selected_workspace_id != workspace_id:
+                continue
+            notification_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-call-notification:{intake_id}:{user_id}"))
+            notification = operations["notifications"].get(notification_id) or {
+                "id": notification_id,
+                "user_id": user_id,
+                "workspace_id": workspace_id,
+                "kind": "AI_CALL_INTAKE",
+                "reference_id": intake_id,
+                "status": "UNREAD",
+                "email_status": "PENDING" if user.get("email") else "NO_EMAIL",
+                "sms_status": "PENDING" if user.get("phone") else "NO_PHONE",
+                "push_status": "READY" if any(
+                    str(token.get("user_id") or "") == user_id and str(token.get("status") or "ACTIVE") == "ACTIVE"
+                    for token in operations["push_tokens"].values()
+                ) else "MOBILE_FEED",
+                "source": "AI_CALLING",
+                "created_at": now,
+                "created_by": actor_id,
+            }
+            notification.update({
+                "title": f"Incoming call: {caller_name}",
+                "body": str(payload.get("summary") or payload.get("service_reason") or "Open the call intake for live details.")[:500],
+                "action_url": f"/office/calls/{intake_id}",
+                "updated_at": now,
+                "updated_by": actor_id,
+            })
+            operations["notifications"][notification_id] = notification
+            notification_ids.append(notification_id)
+            recipient_ids.append(user_id)
+
+        return notification_ids, recipient_ids
+
+    def project_call_intake(
+        self, payload: dict[str, Any], *, actor_id: str = "floodman-orchestrator",
+        require_approval: bool = False, approved_by: str = "",
+        selected_customer_id: str = "", selected_property_id: str = "",
+    ) -> dict[str, Any]:
+        """Atomically project one AI call into the local operational record graph.
+
+        Exact workspace-scoped phone/email matches are the only automatic identity
+        links. Conflicting matches are retained as a review item and never guessed.
+        RoomFlow and estimate drafts contain no measurements, quantities, or prices;
+        those facts must be added by staff after field capture.
+        """
+
+        intake_id = str(payload.get("intake_id") or "").strip()
+        workspace_id = str(payload.get("workspace_id") or "").strip()
+        sequence = int(payload.get("event_sequence") or 0)
+        if not intake_id or not workspace_id:
+            raise ValueError("Call intake ID and workspace ID are required.")
+        now = _now()
+        caller = dict(payload.get("caller") or {})
+        property_input = dict(payload.get("property") or {})
+        proposed = dict(payload.get("proposed_ids") or {})
+        required_ids = {
+            "customer_id",
+            "property_id",
+            "job_id",
+            "roomflow_job_id",
+            "estimate_id",
+            "note_id",
+            "task_id",
+            "appointment_id",
+        }
+        missing_ids = sorted(key for key in required_ids if not str(proposed.get(key) or "").strip())
+        if missing_ids:
+            raise ValueError(f"Stable proposed IDs are required: {', '.join(missing_ids)}.")
+
+        with self.lock:
+            previous_operations = self._state["operations"]
+            operations = deepcopy(previous_operations)
+            if workspace_id not in operations["roomflow_workspaces"]:
+                raise ValueError("Call intake workspace does not exist.")
+            existing_intake = operations["call_intakes"].get(intake_id)
+            if existing_intake and approved_by and existing_intake.get("approval_status") == "APPROVED":
+                return {**deepcopy(existing_intake), "replayed": True}
+            if existing_intake and not approved_by and int(existing_intake.get("event_sequence", -1)) >= sequence:
+                return {**deepcopy(existing_intake), "replayed": True}
+
+            if require_approval and not approved_by and (existing_intake or {}).get("approval_status") != "APPROVED":
+                record = {
+                    **deepcopy(existing_intake or {}), **deepcopy(payload), "id": intake_id,
+                    "approval_status": "PENDING", "review_status": "PENDING_APPROVAL",
+                    "projection_status": "PENDING", "source": "AI_CALLING",
+                    "created_at": (existing_intake or {}).get("created_at") or now,
+                    "updated_at": now, "updated_by": actor_id,
+                }
+                operations["call_intakes"][intake_id] = record
+                notification_ids, recipient_ids = self._call_intake_notifications(
+                    operations, payload, intake_id, workspace_id,
+                    str(caller.get("name") or "Incoming caller"), actor_id, now,
+                )
+                self._state["operations"] = operations
+                try:
+                    self._save()
+                except Exception:
+                    self._state["operations"] = previous_operations
+                    raise
+                return {**deepcopy(record), "notification_ids": notification_ids, "recipient_user_ids": recipient_ids, "replayed": False}
+
+            if (existing_intake or {}).get("approval_status") == "APPROVED":
+                caller = deepcopy(existing_intake.get("approved_caller") or caller)
+                property_input = deepcopy(existing_intake.get("approved_property") or property_input)
+                selected_customer_id = str(existing_intake.get("customer_id") or "")
+                selected_property_id = str(existing_intake.get("property_id") or "")
+
+            phone_key = self._normalized_phone(caller.get("phone_e164") or caller.get("phone"))
+            phone_verified = bool(caller.get("phone_verified"))
+            email_key = self._normalized_email(caller.get("email"))
+            contact_matches: dict[str, dict[str, Any]] = {}
+            for contact in operations["contacts"].values():
+                if str(contact.get("workspace_id") or "") != workspace_id:
+                    continue
+                same_phone = phone_verified and bool(phone_key) and self._normalized_phone(
+                    contact.get("phone") or contact.get("primaryPhone")
+                ) == phone_key
+                if same_phone:
+                    contact_matches[str(contact["id"])] = contact
+
+            review_reasons = [str(value)[:200] for value in (payload.get("review_reasons") or []) if str(value).strip()]
+            if selected_customer_id:
+                contact = operations["contacts"].get(selected_customer_id)
+                if not contact or str(contact.get("workspace_id") or "") != workspace_id:
+                    raise ValueError("Selected customer does not belong to this workspace.")
+            elif len(contact_matches) > 1:
+                review_reasons.append("AMBIGUOUS_CUSTOMER_MATCH")
+                contact: dict[str, Any] | None = None
+            elif contact_matches:
+                contact = next(iter(contact_matches.values()))
+            else:
+                contact_id = str(proposed.get("customer_id") or "").strip()
+                if not contact_id:
+                    raise ValueError("A stable proposed customer ID is required.")
+                first_name = str(caller.get("first_name") or "").strip()
+                last_name = str(caller.get("last_name") or "").strip()
+                display_name = str(caller.get("name") or "").strip() or " ".join(
+                    value for value in (first_name, last_name) if value
+                ).strip()
+                if not display_name:
+                    display_name = f"Caller ending {phone_key[-4:]}" if len(phone_key) >= 4 else "Unidentified caller"
+                    review_reasons.append("CALLER_NAME_REQUIRED")
+                contact = {
+                    "id": contact_id,
+                    "workspace_id": workspace_id,
+                    "name": display_name,
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "company": str(caller.get("company") or "").strip(),
+                    "email": email_key,
+                    "phone": str(caller.get("phone_e164") or caller.get("phone") or "").strip(),
+                    "status": "LEAD",
+                    "lead_source": "AI_CALLING",
+                    "notes": "Created from a verified AI calling webhook; review incomplete identity fields.",
+                    "source": "AI_CALLING",
+                    "created_at": now,
+                    "updated_at": now,
+                    "created_by": actor_id,
+                    "updated_by": actor_id,
+                }
+                operations["contacts"][contact_id] = contact
+
+            if contact is not None and str(contact.get("source") or "") == "AI_CALLING":
+                for key, value in {
+                    "first_name": caller.get("first_name"),
+                    "last_name": caller.get("last_name"),
+                    "company": caller.get("company"),
+                    "email": email_key,
+                    "phone": caller.get("phone_e164") or caller.get("phone"),
+                }.items():
+                    if value:
+                        contact[key] = str(value).strip()
+                supplied_name = str(caller.get("name") or "").strip() or " ".join(
+                    str(caller.get(key) or "").strip() for key in ("first_name", "last_name")
+                ).strip()
+                if supplied_name:
+                    contact["name"] = supplied_name
+                contact["updated_at"] = now
+                contact["updated_by"] = actor_id
+
+            property_record: dict[str, Any] | None = None
+            roomflow_job: dict[str, Any] | None = None
+            estimate: dict[str, Any] | None = None
+            contact_id = str((contact or {}).get("id") or "")
+            address = {
+                "street": str(property_input.get("street") or "").strip(),
+                "city": str(property_input.get("city") or "").strip(),
+                "state": str(property_input.get("state") or "").strip(),
+                "postal_code": str(property_input.get("postal_code") or "").strip(),
+            }
+            address_complete = all(address.values())
+            if selected_property_id:
+                selected_property = operations["properties"].get(selected_property_id)
+                if (
+                    not selected_property or str(selected_property.get("workspace_id") or "") != workspace_id
+                    or str(selected_property.get("contact_id") or "") != contact_id
+                ):
+                    raise ValueError("Selected property does not belong to the selected customer.")
+                address = {key: str(selected_property.get("service_" + key) or selected_property.get(key) or "").strip() for key in address}
+                address_complete = all(address.values())
+            if contact and address_complete:
+                address_key = "|".join(address.values()).casefold()
+                property_record = next(
+                    (
+                        value for value in operations["properties"].values()
+                        if str(value.get("workspace_id") or "") == workspace_id
+                        and str(value.get("contact_id") or "") == contact_id
+                        and "|".join(
+                            str(value.get(field) or "").strip()
+                            for field in ("service_street", "service_city", "service_state", "service_postal_code")
+                        ).casefold() == address_key
+                    ),
+                    None,
+                )
+                if selected_property_id:
+                    property_record = operations["properties"][selected_property_id]
+                if property_record is None:
+                    property_id = str(proposed.get("property_id") or "").strip()
+                    if not property_id:
+                        raise ValueError("A stable proposed property ID is required.")
+                    property_record = {
+                        "id": property_id,
+                        "workspace_id": workspace_id,
+                        "contact_id": contact_id,
+                        "name": str(property_input.get("name") or "Service property").strip(),
+                        "property_name": str(property_input.get("name") or "Service property").strip(),
+                        "property_type": str(property_input.get("property_type") or "").strip(),
+                        "service_street": address["street"],
+                        "service_city": address["city"],
+                        "service_state": address["state"],
+                        "service_postal_code": address["postal_code"],
+                        "insurance_company": str(property_input.get("insurer") or "").strip(),
+                        "claim_number": str(property_input.get("claim_number") or "").strip(),
+                        "status": "INTAKE_DRAFT",
+                        "source": "AI_CALLING",
+                        "created_at": now,
+                        "updated_at": now,
+                        "created_by": actor_id,
+                        "updated_by": actor_id,
+                    }
+                    operations["properties"][property_id] = property_record
+            elif contact:
+                review_reasons.append("SERVICE_PROPERTY_REQUIRED")
+
+            if contact and property_record:
+                job_id = str(proposed.get("job_id") or "").strip()
+                roomflow_job_id = str(proposed.get("roomflow_job_id") or "").strip()
+                estimate_id = str(proposed.get("estimate_id") or "").strip()
+                if not all((job_id, roomflow_job_id, estimate_id)):
+                    raise ValueError("Stable job, RoomFlow job, and estimate IDs are required.")
+                roomflow_job = operations["roomflow_jobs"].get(roomflow_job_id) or {
+                    "id": roomflow_job_id,
+                    "roomflow_job_id": job_id,
+                    "roomflow_source_id": job_id,
+                    "workspace_id": workspace_id,
+                    "contact_id": contact_id,
+                    "property_id": property_record["id"],
+                    "estimate_id": estimate_id,
+                    "job_name": str(payload.get("service_reason") or "Incoming call intake").strip(),
+                    "name": str(payload.get("service_reason") or "Incoming call intake").strip(),
+                    "status": "INTAKE_DRAFT",
+                    "measurement_status": "NOT_CAPTURED",
+                    "snapshot": {"rooms": [], "levels": [], "capturedMeasurements": [], "costing": {"customItems": []}},
+                    "source": "AI_CALLING",
+                    "created_at": now,
+                    "created_by": actor_id,
+                }
+                roomflow_job.update({"updated_at": now, "updated_by": actor_id})
+                operations["roomflow_jobs"][roomflow_job_id] = roomflow_job
+                estimate = operations["estimates"].get(estimate_id) or {
+                    "id": estimate_id,
+                    "estimate_number": f"CALL-{intake_id[:8].upper()}",
+                    "workspace_id": workspace_id,
+                    "contact_id": contact_id,
+                    "property_id": property_record["id"],
+                    "roomflow_job_id": roomflow_job_id,
+                    "title": str(payload.get("service_reason") or "Incoming call estimate draft").strip(),
+                    "project_summary": str(payload.get("summary") or "").strip(),
+                    "status": "DRAFT",
+                    "publication_status": "UNPUBLISHED",
+                    "pricing_status": "NOT_PRICED",
+                    "review_required": True,
+                    "currency": "USD",
+                    "sections": [],
+                    "line_items": [],
+                    "subtotal_cents": 0,
+                    "tax_total_cents": 0,
+                    "total_cents": 0,
+                    "deposit_type": "NONE",
+                    "deposit_cents": 0,
+                    "deposit_balance_cents": 0,
+                    "deposit_paid_cents": 0,
+                    "deposit_due_stage": "AFTER_AUTHORIZATION",
+                    "source": "AI_CALLING",
+                    "created_at": now,
+                    "created_by": actor_id,
+                }
+                estimate.update({"updated_at": now, "updated_by": actor_id})
+                operations["estimates"][estimate_id] = estimate
+
+            review_reasons = list(dict.fromkeys(review_reasons))
+            task_id = str(proposed.get("task_id") or "").strip()
+            if not task_id:
+                raise ValueError("A stable follow-up task ID is required.")
+            task = operations["tasks"].get(task_id) or {
+                "id": task_id,
+                "workspace_id": workspace_id,
+                "title": "Review incoming AI call",
+                "description": str(payload.get("summary") or payload.get("service_reason") or "Review the call intake and complete missing details.")[:1000],
+                "priority": "URGENT" if str(payload.get("urgency") or "").upper() in {"EMERGENCY", "URGENT"} else "HIGH",
+                "status": "OPEN",
+                "reference_type": "CALL_INTAKE",
+                "reference_id": intake_id,
+                "assigned_user_id": None,
+                "assigned_to_name": "Unassigned",
+                "source": "AI_CALLING",
+                "created_at": now,
+                "created_by": actor_id,
+            }
+            task.update({"updated_at": now, "updated_by": actor_id})
+            operations["tasks"][task_id] = task
+
+            appointment_id: str | None = None
+            appointment_input = dict(payload.get("appointment") or {})
+            if bool(appointment_input.get("requested")):
+                appointment_id = str(proposed.get("appointment_id") or "").strip()
+                if not appointment_id:
+                    raise ValueError("A stable appointment request ID is required.")
+                appointment = operations["appointments"].get(appointment_id) or {
+                    "id": appointment_id,
+                    "workspace_id": workspace_id,
+                    "contact_id": contact_id or None,
+                    "property_id": (property_record or {}).get("id"),
+                    "call_intake_id": intake_id,
+                    "title": "Call intake appointment request",
+                    "appointment_type": "FOLLOW_UP",
+                    "requested_window": str(appointment_input.get("requested_window") or "").strip(),
+                    "status": "REQUESTED_UNCONFIRMED",
+                    "assigned_user_ids": [],
+                    "source": "AI_CALLING",
+                    "created_at": now,
+                    "created_by": actor_id,
+                }
+                appointment.update({"updated_at": now, "updated_by": actor_id})
+                operations["appointments"][appointment_id] = appointment
+
+            note_id = str(proposed.get("note_id") or "").strip()
+            note_text = str(
+                payload.get("summary")
+                or payload.get("service_reason")
+                or "Incoming AI call; staff review is required to complete the intake."
+            )[:5000]
+            note = operations["notes"].get(note_id) or {
+                "id": note_id,
+                "workspace_id": workspace_id,
+                "intake_id": intake_id,
+                "pinned": False,
+                "source": "AI_CALLING",
+                "created_at": now,
+                "created_by": actor_id,
+            }
+            note.update({
+                "entity_type": "CONTACT" if contact_id else "CALL_INTAKE",
+                "entity_id": contact_id or intake_id,
+                "contact_id": contact_id or None,
+                "property_id": (property_record or {}).get("id"),
+                "note_type": "CALL",
+                "body": note_text,
+                "note": note_text,
+                "transcript_available": bool(payload.get("transcript_available")),
+                "updated_at": now,
+                "updated_by": actor_id,
+            })
+            operations["notes"][note_id] = note
+
+            projection_status = "REVIEW_REQUIRED" if review_reasons else "PROJECTED"
+            record = {
+                **(deepcopy(existing_intake) if existing_intake else {}),
+                **deepcopy(payload),
+                "id": intake_id,
+                "intake_id": intake_id,
+                "workspace_id": workspace_id,
+                "event_sequence": sequence,
+                "customer_id": contact_id or None,
+                "property_id": (property_record or {}).get("id"),
+                "job_id": str(proposed.get("job_id") or "") if roomflow_job else None,
+                "roomflow_job_id": (roomflow_job or {}).get("id"),
+                "estimate_id": (estimate or {}).get("id"),
+                "note_id": note_id,
+                "task_id": task_id,
+                "appointment_id": appointment_id,
+                "review_reasons": review_reasons,
+                "review_status": projection_status,
+                "projection_status": projection_status,
+                "created_at": (existing_intake or {}).get("created_at") or now,
+                "updated_at": now,
+                "created_by": (existing_intake or {}).get("created_by") or actor_id,
+                "updated_by": actor_id,
+                "source": "AI_CALLING",
+            }
+            if (existing_intake or {}).get("approval_status") == "APPROVED":
+                record.update({"caller": deepcopy(caller), "property": deepcopy(property_input), "review_status": "APPROVED"})
+            if approved_by:
+                if not contact_id or not property_record or not roomflow_job:
+                    raise ValueError("Confirm a customer and complete service address before approving this call.")
+                record.update({
+                    "approval_status": "APPROVED", "approved_by": approved_by, "approved_at": now,
+                    "approved_caller": deepcopy(caller), "approved_property": deepcopy(property_input),
+                    "review_status": "APPROVED", "portal_sync_status": "PENDING", "erp_sync_status": "PENDING",
+                })
+            operations["call_intakes"][intake_id] = record
+
+            notification_ids, recipient_ids = self._call_intake_notifications(
+                operations, payload, intake_id, workspace_id,
+                str((contact or {}).get("name") or "Incoming caller"), actor_id, now,
+            )
+
+            audit_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-call-audit:{intake_id}:{sequence}"))
+            operations["call_intake_audit"].setdefault(audit_id, {
+                "id": audit_id,
+                "intake_id": intake_id,
+                "workspace_id": workspace_id,
+                "event_type": str(payload.get("event_type") or ""),
+                "event_sequence": sequence,
+                "projection_status": projection_status,
+                "linked_record_ids": {
+                    "customer_id": contact_id or None,
+                    "property_id": (property_record or {}).get("id"),
+                    "roomflow_job_id": (roomflow_job or {}).get("id"),
+                    "estimate_id": (estimate or {}).get("id"),
+                    "note_id": note_id,
+                    "task_id": task_id,
+                    "appointment_id": appointment_id,
+                },
+                "created_at": now,
+                "source": "AI_CALLING",
+            })
+            self._state["operations"] = operations
+            try:
+                self._save()
+            except Exception:
+                self._state["operations"] = previous_operations
+                raise
+            return {
+                **deepcopy(record),
+                "notification_ids": notification_ids,
+                "recipient_user_ids": recipient_ids,
+                "replayed": False,
+            }
+
+    def update_call_intake_links(
+        self,
+        intake_id: str,
+        *,
+        gauzy_contact_id: str = "",
+        gauzy_project_id: str = "",
+        actor_id: str = "floodman-orchestrator",
+    ) -> dict[str, Any]:
+        """Idempotently attach ERP IDs after the local projection already exists."""
+
+        with self.lock:
+            record = self._state["operations"]["call_intakes"].get(intake_id)
+            if not record:
+                raise KeyError(intake_id)
+            if gauzy_contact_id:
+                record["gauzy_contact_id"] = gauzy_contact_id
+                if record.get("customer_id"):
+                    key = f"contact:{record['customer_id']}"
+                    self._state.setdefault("external_mappings", {}).setdefault("gauzy", {})[key] = gauzy_contact_id
+            if gauzy_project_id:
+                record["gauzy_project_id"] = gauzy_project_id
+                if record.get("property_id"):
+                    key = f"property:{record['property_id']}"
+                    self._state.setdefault("external_mappings", {}).setdefault("gauzy", {})[key] = gauzy_project_id
+            record["gauzy_sync_status"] = "SYNCED" if gauzy_contact_id else "REVIEW_REQUIRED"
+            record["updated_at"] = _now()
+            record["updated_by"] = actor_id
+            self._save()
+            return deepcopy(record)
 
     def commit_roomflow_capture_operation(
         self,
@@ -829,6 +1395,20 @@ class OfficeStore:
         if len(digits) == 11 and digits.startswith("1"):
             digits = digits[1:]
         return digits[-10:] if len(digits) >= 10 else digits
+
+    @classmethod
+    def _staff_phone(cls, value: str | None) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        digits = "".join(character for character in raw if character.isdigit())
+        if len(digits) == 10:
+            return f"+1{digits}"
+        if len(digits) == 11 and digits.startswith("1"):
+            return f"+{digits}"
+        if raw.startswith("+") and 8 <= len(digits) <= 15:
+            return f"+{digits}"
+        raise ValueError("Enter the staff mobile number with area code and country code.")
 
     def find_contact(
         self,

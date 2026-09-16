@@ -33,8 +33,8 @@ Historical jobs imported from Supabase are marked as needing an actual layout ca
 
 ## Included operations
 
-- Public encrypted Mobile API. The Android phone does not need the Tailscale app.
-- Existing Floodman PWA remains private through Tailscale Serve.
+- Public encrypted Mobile API at `api.oninetwork.com`.
+- The Floodman PWA remains protected by the external HTTPS proxy's staff access policy.
 - Device enrollment, rotating refresh tokens, encrypted session storage, biometric/device-PIN unlock, and remote device revocation.
 - Dashboard, customers, properties, notes, tags, documents, estimates, invoices, payments, tasks, announcements, notifications, scheduling, employee assignment, RoomFlow, and time clock.
 - Full estimate and invoice lifecycle, including editable grouped headers, PDFs, sending, authorization, acceptance, deposits, payments, conversion, voiding, and eligible deletion.
@@ -43,7 +43,7 @@ Historical jobs imported from Supabase are marked as needing an actual layout ca
 
 ## Bundled Floodman RoomFlow workspace
 
-The Android package carries a pinned local copy of the RoomFlow field-estimating engine. It opens under Android WebView's secure app-assets origin, so field work does not require the private PWA or the Tailscale app.
+The Android package carries a pinned local copy of the RoomFlow field-estimating engine. It opens under Android WebView's secure app-assets origin, so field capture does not depend on the browser PWA.
 
 RoomFlow supports guided estimating, 2D sketching, custom shapes, camera/AR tools where supported, 3D review, measurements, material quantities, internal costing, grouped scope, proposal tools, customer/property linking, complete snapshot restoration, actual layout capture, and synchronization into a Floodman estimate.
 
@@ -60,7 +60,7 @@ RoomFlow supports guided estimating, 2D sketching, custom shapes, camera/AR tool
 Copy `local.properties.example` to `local.properties` and set:
 
 ```properties
-FLOODMAN_API_BASE_URL=https://floodman-operations.tail274417.ts.net/mobile-api/
+FLOODMAN_API_BASE_URL=https://api.oninetwork.com/mobile-api/
 SQUARE_APPLICATION_ID=YOUR_SQUARE_SANDBOX_APPLICATION_ID
 ```
 

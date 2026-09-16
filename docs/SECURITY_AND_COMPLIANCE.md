@@ -4,11 +4,11 @@
 
 ### Private staff surface
 
-The PWA, desktop workspace and Full ERP are intended for approved Tailscale devices through private HTTPS port 8443.
+The PWA, desktop workspace and Full ERP are intended for approved staff through `https://floodman.oninetwork.com`. The external HTTPS proxy must enforce the staff access policy before forwarding to port 9000.
 
 ### Public narrow surface
 
-Public exposure is limited to the Mobile API path and tokenized customer signing/payment routes. The complete Office UI, Full ERP, engineering tools, Mailpit and databases must not be published through the public gateway.
+Public exposure is limited to the Mobile API path, reviewed provider webhooks, recipient signing routes, and tokenized customer signing/payment routes. The complete Office UI, Full ERP, signing administration, workflow administration, API documentation, engineering tools, Mailpit and databases must not be published without staff access control.
 
 ## Native authentication
 

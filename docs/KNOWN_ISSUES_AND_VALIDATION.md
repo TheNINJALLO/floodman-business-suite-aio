@@ -10,7 +10,7 @@ The latest reported live issue was that the Full ERP link from the desktop works
 - HTTP `200` plus JSON `false` treated as signed out;
 - ERP API startup retries;
 - an injected browser boot guard;
-- HTTPS-origin rewriting for Tailscale ports;
+- `X-Forwarded-Proto` HTTPS-origin preservation for the external proxy;
 - a separate status page.
 
 Local Nginx and application smoke tests passed, but a successful live v4.6.7 result was not posted in this chat. Treat this as the first staging acceptance test.
@@ -30,7 +30,7 @@ Apple alpha03 is a development shell and RoomFlow bridge with passing Windows so
 - Supervisor startup logs can be noisy and obscure the first real exception.
 - Upstream image tags in the complete AIO Dockerfile are not yet immutable digests.
 - PWA cache/version behavior has caused stale assets after upgrades.
-- Public gateway/Tailscale Funnel is a temporary production architecture.
+- Correct security depends on the external HTTPS proxy applying the documented per-host and per-path access policy.
 - Some provider integrations have local-mock modes that must never be mistaken for production success.
 - APNs/FCM production delivery is not configured in source alone.
 - RoomFlow's original public Supabase project defaults remain in source and should move to environment variables.
@@ -49,7 +49,7 @@ The included reports and scripts can prove:
 They do not prove:
 
 - live Pterodactyl permissions or resource limits;
-- real Tailscale Serve/Funnel state;
+- real DNS, certificates, proxy headers, WebSocket forwarding, or access-policy behavior;
 - upstream Gauzy/Documenso image compatibility at a later date;
 - production Square/Twilio/OpenAI behavior;
 - physical mobile-device behavior;

@@ -4,7 +4,6 @@
 
 - `deployment/env/floodman.env.example`
 - `deployment/env/floodman-payments.env.example`
-- `deployment/env/tailscale.env.example`
 - `deployment/env/apple-testflight-secrets.example`
 - Android `local.properties.example`
 
@@ -22,7 +21,7 @@ Examples are field catalogs only. Copy them to untracked local files and replace
 - Documenso URLs and webhook secret
 - SMTP and Twilio
 - AI provider and API key
-- Tailscale hostname and auth/bootstrap state
+- external HTTPS origins, certificates, forwarding headers, and access policy
 - Apple and Android signing
 
 ## Secret handling

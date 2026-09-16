@@ -46,6 +46,8 @@ def run() -> None:
     assert health.json()["minimum_ios_version"] == "0.1.0-alpha02"
     assert "roomflow.supabase-import.v1" in health.json()["capabilities"]
     assert "roomflow.workspaces.v1" in health.json()["capabilities"]
+    assert "call-intakes.v1" in health.json()["capabilities"]
+    assert "call-notifications.v1" in health.json()["capabilities"]
     config = client.get("/mobile-api/v1/config")
     assert config.status_code == 200, config.text
     assert config.json()["minimum_ios_version"] == "0.1.0-alpha02"

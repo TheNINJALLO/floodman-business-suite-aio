@@ -6,9 +6,9 @@ The server currently runs as a single Pterodactyl allocation. This is a controll
 
 ### Startup sequence
 
-`mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, Tailscale, Nginx/Supervisor configuration, upstream services, health checks and final readiness marker.
+`mobile-start.sh` prepares the selected cumulative runtime, persistent directories, permissions, externally proxied Nginx/Supervisor configuration, upstream services, health checks and final readiness marker. It does not download or launch Tailscale.
 
-The current files in `deployment/releases/` provide the distinct v4.7.0 RoomFlow Capture runtime and launcher for an authorized test update. Upload `floodman-operations-runtime-v4.7.0.zip` and `mobile-start-v4.7.0.sh` (renamed to `mobile-start.sh` on the panel) and use the matched v4.7.0 egg when importing a new Pterodactyl definition. Verify `SHA256SUMS` before upload. This local package result is not a claim that staging install/upgrade/restart, backup/restore, live routes, or production deployment passed.
+The current files in `deployment/releases/` provide the distinct v4.7.3 runtime and launcher. The matched v4.7.3 egg installs `mobile-start.sh` and downloads the missing runtime from an immutable GitHub commit with SHA-256 verification. Existing servers can use the backed-up procedure in `deployment/pterodactyl/UPDATE-v4.7.3.md`. All v4.7.2 files remain rollback evidence. A package result alone is not live installation or acceptance evidence.
 
 Expected terminal marker:
 
@@ -18,24 +18,24 @@ FLOODMAN_SUITE_READY
 
 ### Required verification URLs
 
-Private, while connected to Tailscale:
+Through the external HTTPS proxy with staff access granted:
 
 ```text
-https://<node>.ts.net:8443/workspace?workspace=auto
-https://<node>.ts.net:8443/office/desktop?desktop=1
-https://<node>.ts.net:8443/office/mobile?mobile=1
-https://<node>.ts.net:8443/full-erp?target=login
-https://<node>.ts.net:8443/roomflow/
-https://<node>.ts.net:8443/office-health/live
-https://<node>.ts.net:8443/floodman-status.html
+https://floodman.oninetwork.com/workspace?workspace=auto
+https://floodman.oninetwork.com/office/desktop?desktop=1
+https://floodman.oninetwork.com/office/mobile?mobile=1
+https://floodman.oninetwork.com/full-erp?target=login
+https://floodman.oninetwork.com/roomflow/
+https://floodman.oninetwork.com/office-health/live
+https://floodman.oninetwork.com/floodman-status.html
 ```
 
 `/roomflow/` and `/office/*` use the main ERP login. On first access while signed out, Floodman records the local return target, opens the genuine ERP login, establishes the narrower Office/RoomFlow cookie after Gauzy accepts the credentials, and returns to the requested module. `/login/local` is reserved for installation-owner recovery.
 
-Public test, with Tailscale off on the client:
+Public native API test:
 
 ```text
-https://<node>.ts.net/mobile-api/v1/health
+https://api.oninetwork.com/mobile-api/v1/health
 ```
 
 Signing/payment links should be tested only with generated tokenized test records.
@@ -68,7 +68,7 @@ Do not move by copying only the container image. Migrate:
 - Documenso data;
 - external mapping records;
 - encryption/signing secrets;
-- Tailscale or new DNS/TLS configuration;
+- DNS, TLS, reverse-proxy routing, and access-policy configuration;
 - payment/webhook callback URLs;
 - mobile API origin.
 
@@ -77,9 +77,10 @@ Do not move by copying only the container image. Migrate:
 The main marketing website can remain on PebbleHost/cPanel. The operations system should use dedicated application subdomains once proper reverse-proxy/TLS control exists, for example:
 
 ```text
-office.floodman.com
-api.floodman.com
-sign.floodman.com
+floodman.oninetwork.com
+api.oninetwork.com
+sign.oninetwork.com
+lab.oninetwork.com
 ```
 
 An `.htaccess` redirect can send users to another origin, but it cannot replace a reverse proxy or terminate HTTPS for a different backend port.

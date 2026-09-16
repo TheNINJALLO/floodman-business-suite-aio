@@ -229,6 +229,11 @@ def normalize_document_payload(value: Any, *, title: str = "", legacy_text: str 
             "pricing_method": clean_text(raw.get("pricing_method") or "fixed", 50).lower(),
             "sort_order": int(raw.get("sort_order") if str(raw.get("sort_order", "")).lstrip("-").isdigit() else index),
             "category": clean_text(raw.get("category") or section_name, 120),
+            "pricing_reference": clean_text(raw.get("pricing_reference"), 160),
+            "pricing_source": clean_text(raw.get("pricing_source"), 120),
+            "pricing_price_list": clean_text(raw.get("pricing_price_list"), 160),
+            "pricing_effective_date": clean_text(raw.get("pricing_effective_date"), 80),
+            "pricing_market": clean_text(raw.get("pricing_market"), 200),
             "custom": bool(raw.get("custom") or not catalog_item_id),
             "save_to_catalog": bool(raw.get("save_to_catalog") or raw.get("custom") or not catalog_item_id),
         }

@@ -107,7 +107,7 @@ struct RoomFlowJobsView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.headline)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.borderedProminent)
                 .clipShape(Circle())

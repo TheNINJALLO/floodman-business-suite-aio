@@ -201,3 +201,89 @@
 - Safety: The target repository was already public. Before publication, verify 638 tracked files, enforce the existing live-data exclusions, confirm no tracked file exceeds 50 MB, regenerate the inventory, and require `verify_repo.py` to pass with 0 warnings. No live exports, Office state, payment data, signed documents, provider secrets, or production logs were added.
 - Evidence: Linux checksum normalization and lowercase GHCR tags repaired the first CI attempt. Android run `32197176293`, server-image run `32197176318`, source verification runs `32197176330`/`32197870225`, and Apple simulator run `32197870130` pass. The Apple run exposed and then verified the `CFBundleExecutable` repair with 6/6 XCTest methods.
 - Boundary: Remote unsigned builds and a GHCR image do not authorize signing, store/TestFlight upload, physical-device acceptance, live staging/deployment, database changes/imports, provider access, or production rollout.
+
+## DEC-029 — Treat PLX as a supported-tool boundary and import licensed pricing through reviewed stable rows
+
+- Date: 2026-08-19
+- Evidence: Read-only inspection of the supplied 2,109,334-byte PLX proves a valid ZIP containing only a 2,109,208-byte high-entropy/opaque `XACTDOC.ZIPXML` payload. Official Verisk help describes price-list Data Transfer between compatible profiles and Price List Editor access, but the reviewed official material provides no public PLX payload contract or third-party decoder.
+- Decision: Do not guess at, mislabel, or circumvent the protected payload. Recognize PLX safely, reject unsafe archive paths/expansion, show an actionable supported-tool message, and never retain a rejected PLX. Accept authorized pricing through a downloadable CSV worksheet with a no-write preview and explicit confirmation.
+- Identity: Use `market_id + category + selector + activity` as the stable source identity, excluding the monthly price-list edition. Preserve code/list/market/effective-date and optional material/labor/equipment components as source metadata; never invent component splits. Normalize the entire confirmed dataset before one locked durable write so invalid rows cannot cause a partial import and large lists do not rewrite Office state once per item.
+- Estimate behavior: Make the insurance code searchable in Office and integrated RoomFlow, retain it on selected estimate lines, and show the code plus unit price in the estimate PDF. Mark items without an effective date for visible review.
+- Safety and release: Exclude `*.plx`/`*.PLX` and runtime imports from Git. Do not commit the licensed file or extracted prices, write live data, call production Xactimate, bump versions, rebuild same-version release packages, push, or deploy. Direct extraction remains BLK-013 pending an authorized populated CSV or documented/licensed Verisk route.
+- Verification consequence: Keep the frozen v4.7.0 ZIP and its checksums unchanged. The source manifests and 13 source smokes pass, while `verify_repo.py` must remain FAILED at the stale-package comparison until the owner explicitly authorizes a distinct release identity under BLK-014; do not weaken that guard to make an unreleased source tree appear packaged.
+
+## DEC-030 — Use durable Office alerts and property-scoped capability-link conversations
+
+- Date: 2026-08-21
+- Decision: A completed Floodman payment creates one stable notification per active user with `payments.manage`; a new customer portal message creates one stable notification per active user with `messages.manage`. Both channels also attempt one email delivery and retain the in-app/mobile alert when email is unavailable.
+- Idempotency: Derive notification IDs from event kind, event ID, and recipient ID. Derive processor-payment IDs from the processor event and customer-message IDs from the portal request ID. Perform the existence check and create under the Office-store lock so processor retries, concurrent callbacks, and browser resubmissions do not duplicate records or reset a read alert.
+- Portal scope: Reuse the existing cryptographically random estimate/invoice capability link, but scope each conversation to contact plus service property (or the individual document when no property exists). This lets an estimate and invoice for one job share a thread without allowing a forwarded link to expose messages for another property.
+- Privacy: Store and render message text as escaped plain text; limit messages to 3,000 characters; add a bounded customer send rate; do not include message content, payment tokens, card data, or authorization data in notification emails. Staff replies email only a secure portal-link notice. The portal remains `noindex`, no-store, CSP-constrained, and separate from private staff routes.
+- Delivery: The implemented channels are durable Office/mobile notification records plus email. FCM/APNs background delivery is not claimed; native clients obtain these alerts through the existing authenticated `/mobile-api/v1/notifications` contract.
+- Release boundary: Keep v4.7.0 and its ZIP/checksums immutable. Source tests and manifests may advance, but a distributable package requires a distinct explicitly approved release under BLK-014. No push, live provider call, deployment, or production record mutation is authorized by this source change.
+
+## DEC-031 — Release post-v4.7.0 server milestones as v4.7.1
+
+- Date: 2026-08-21
+- Authorization: The user explicitly requested “commit and release,” resolving BLK-014 and authorizing a distinct server/web/Pterodactyl identity, local upload artifacts, release commit, authenticated feature-branch publication, and draft pull request.
+- Identity: Advance only server/web/Pterodactyl to `4.7.1`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged because the API changes remain additive.
+- Contents: Package EST-001 and COMMS-001 together: licensed pricing preview/confirm import, insurance code/source retention, property-scoped customer conversations, durable staff replies/read controls, and retry-safe payment/message administrator notifications.
+- Immutability: Keep the tracked v4.7.0 runtime and launcher byte-identical and preserve their checksums. Produce new v4.7.1 filenames; never relabel prior bytes or overwrite v4.7.0 with different content.
+- Verification: Require all current source smokes, deterministic packaging, every internal hash, 12 portable extracted smokes, launcher/preflight validation, manifests, inventory, release checksums, and repository verification before the release commit. Native identities remain unchanged and any native compiler evidence must be reported with its actual commit/run scope.
+- Boundary: This approval does not authorize production deployment, live data/provider access, database changes, container-image publication, signing/store upload, or claims for staging, devices, advisory scanning, backup/restore, or production acceptance.
+- Publication result: Normal authenticated HTTPS published release commit `ca9cd35` to `feature/roomflow-capture`; draft PR #1 targets `main`. The PR source check and manually dispatched unsigned Android/iOS simulator workflows passed at that exact release commit. `main` was not changed and the server-image workflow was not dispatched.
+
+## DEC-032 — Extend WEB-002 through a separately evidenced WEB-007 interface contract
+
+- Date: 2026-08-28
+- Authorization: The user supplied the comprehensive existing-worktree responsive/PWA/native-shell hardening specification and separately requested a full fresh-server Pterodactyl build with setup files and an egg.
+- Decision: Preserve WEB-002 as truthful historical evidence and create WEB-007 for the materially broader viewport, route, browser, installed-PWA, zoom, accessibility, visual-regression, Android, and Apple acceptance matrix. Use the existing Python rendering, CSS/JavaScript, Compose, SwiftUI, and browser-smoke architecture; do not create a replacement frontend.
+- Skills: Install the five requested project-local skill packages at exact upstream commits under `.agents/skills`, retain licenses and source metadata, repair only broken local reference paths, and keep them out of production dependency/runtime packaging.
+- Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit. This work does not invent a successor release identity.
+- Package boundary: A deterministic same-identity v4.7.1 fresh-install runtime/launcher/egg may be rebuilt from the reviewed source because the destination is a new server and the current request explicitly asks for the complete setup package. Preserve the previously released v4.7.1 artifacts as checksum-addressed historical evidence before producing any refreshed installation bundle; never silently relabel different bytes as the prior published artifact.
+- External boundary: Do not deploy, touch live data, expose staff surfaces publicly, publish a Git branch or image, sign/upload native apps, or claim macOS, physical-device, live-node, backup/restore, or production acceptance without their actual gates.
+
+## DEC-033 — Replace Tailscale with operator-managed external HTTPS
+
+- Date: 2026-08-28
+- Authorization: After selecting `oninetwork.com` and four HTTPS subdomains, the user explicitly directed removal of Tailscale from the system.
+- Topology: The launcher no longer downloads, authenticates, starts, monitors, or configures Tailscale Serve/Funnel. The Pterodactyl egg requires canonical HTTPS URLs for `floodman.oninetwork.com`, `sign.oninetwork.com`, `api.oninetwork.com`, and `lab.oninetwork.com`; Mailpit stays loopback-only.
+- API routing: Allocation 9004 becomes an Nginx gateway so `/mobile-api/` reaches Floodman Office while existing workflow API traffic reaches the orchestrator on loopback port 8701. This avoids sending native clients to the wrong application.
+- Security boundary: The operator's HTTPS proxy owns certificates, HTTP-to-HTTPS redirects, forwarding headers, WebSockets, and access rules. Staff ERP/PWA, signing administration, workflow administration/docs, and Engineering must be protected. Only reviewed customer-token, recipient-signing, provider-webhook, and device-authenticated Mobile API routes may be public.
+- Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`/build 13, iOS `0.1.0-alpha03`/build 3, minimum clients, RoomFlow pin, and America/Detroit. The new-server bundle receives a distinct HTTPS001 evidence suffix instead of inventing a release version.
+- Preservation: Record the prior WEB-007 runtime, launcher, egg, and outer-bundle hashes before rebuilding current v4.7.1 filenames. Do not delete existing live data or retired network state during an upgrade.
+- External boundary: Local validation cannot prove DNS, certificates, proxy access policy, clean install/restart, backup/restore, physical devices, signing/store upload, or production deployment. No live service is modified and no remote push is authorized by this decision.
+
+## DEC-034 — Pin the egg runtime download to an immutable public commit
+
+- Date: 2026-08-31
+- Decision: The current Pterodactyl egg downloads `floodman-operations-runtime-v4.7.1.zip` only when it is absent, using immutable Git commit `65d097f911ced8aec0edec129d535492ab4663f2` and required SHA-256 `de11745397f5a6eaa72cd320c1be0c756f64a1b62ebc5372e6b6457a9c6b1e9b`.
+- Safety: The installer verifies the complete download before an atomic move. An existing matching ZIP is retained; an existing mismatch stops installation and is not overwritten.
+- Credentials: The pinned source was verified anonymously accessible, so the egg stores no GitHub token or other repository credential. Manual upload remains the fallback when a node cannot reach `raw.githubusercontent.com`.
+- Boundary: A successful remote GET and installer syntax check do not claim that the target Pterodactyl node completed installation or startup; BLK-005 remains open.
+
+## DEC-035 — Add signed AI call intake without changing release identities
+
+- Date: 2026-09-08
+- Authorization: The user requested an incoming-call vertical slice through Floodman Office, Floodman ERP/Gauzy, RoomFlow, estimates, native clients, tasks, notifications and live screen-pop, while explicitly prohibiting push, deployment, live credentials, release rebuilds and production changes.
+- Identity: Preserve server `4.7.1`, Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, the minimum native-client pins and RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8` because the Mobile API additions are capability-compatible.
+- Ownership: PostgreSQL/Orchestrator owns signed provider events, replay/order state, canonical IDs and outbox. Office atomically owns the staff-visible call/customer/property/RoomFlow/estimate/task/notification projection. Exact workspace-scoped identity matches are automatic; ambiguity and provider failures require human review.
+- Financial safety: Call-created estimates are zero-dollar, unpriced and unpublished. No measurement, line item, price, send, acceptance, conversion or charge is inferred from a call.
+- External boundary: Native OS push credentials, provider account setup, public HTTPS exposure, production migration and enablement remain operator-owned gates. Local source and browser evidence cannot claim those gates passed.
+
+## DEC-036 — Release and deploy AI call intake as v4.7.2
+
+- Date: 2026-09-08
+- Authorization: The user explicitly requested that the completed update be pushed to the Pterodactyl panel for testing, authorizing a distinct release, Git publication, backup, upload, restart, and live health checks for the intended Floodman server.
+- Identity: Advance only server/web/Pterodactyl to `4.7.2`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged because the native API changes are additive.
+- Immutability: Preserve every v4.7.1 artifact and checksum. Publish new v4.7.2 runtime, launcher, egg, and checksums; pin the egg download to the immutable commit that contains the v4.7.2 runtime.
+- Deployment safety: Back up persistent state before switching the launcher, retain the v4.7.1 launcher and runtime for rollback, never delete or reset live data, and require readiness plus authenticated functional checks after restart.
+- Provider boundary: This release deploys Floodman's provider-neutral intake receiver and deterministic test adapter. It does not claim that the separate Twilio/Asterisk voice stack's recognition, pacing, barge-in, voice selection, or call hang-up defects are fixed.
+
+## DEC-037 — Release the simplified Business Suite as v4.7.3
+
+- Date: 2026-09-10
+- Authorization: The user explicitly requested a new live Pterodactyl release after simplifying the complete Business Suite and making Properties customer-first.
+- Identity: Advance only server/web/Pterodactyl to `4.7.3`. Keep Mobile API `0.3.0-alpha11`, Android `0.4.0-alpha01`, iOS `0.1.0-alpha03`, minimum native clients, RoomFlow commit `1f97817a52b916875e50cc6380c0d284072b8ce8`, and America/Detroit unchanged.
+- Immutability: Preserve every v4.7.2 artifact and checksum. Publish a distinct v4.7.3 runtime, launcher, egg, and checksum row, with the egg pinned to the immutable source commit containing the runtime.
+- Deployment safety: Create and lock a complete Pterodactyl backup before the image switch, retain the previous unified image digest, never reset live data, and require Voice AIO plus Business Suite readiness after startup and a second restart.

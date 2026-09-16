@@ -24,9 +24,9 @@ RoomFlow is maintained in `TheNINJALLO/roomflow` and pinned to commit:
 
 Its source is fetched during builds. Confirm and preserve the repository's license before redistribution or incorporation into an app-store binary.
 
-## Square, Twilio, OpenAI and Tailscale
+## Square, Twilio and OpenAI
 
-These are service/API relationships governed by their provider terms. Credentials remain server-side. Payment, messaging, AI/privacy and network-exposure rules must be reviewed separately from open-source licensing.
+These are service/API relationships governed by their provider terms. Credentials remain server-side. Payment, messaging, AI/privacy and network-exposure rules must be reviewed separately from open-source licensing. TLS termination and access control are supplied by the operator's external HTTPS proxy rather than a bundled overlay-network service.
 
 ## Other components
 

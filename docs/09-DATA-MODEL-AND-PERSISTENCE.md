@@ -28,6 +28,8 @@ mobile_audit
 appointments
 announcements
 notifications
+customer_threads
+customer_messages
 push_tokens
 calendar_subscriptions
 estimate_revisions
@@ -65,7 +67,7 @@ A complete backup needs:
 - Office data directory
 - documents/uploads
 - RoomFlow layout assets
-- Tailscale state
+- retired network-overlay state, when retained for rollback evidence
 - configuration without exposing it in source control
 - versioned launcher/runtime or image digest
 

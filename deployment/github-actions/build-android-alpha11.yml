@@ -145,7 +145,7 @@ jobs:
               'tasks and documents': 'TasksScreen' in ui and 'DocumentsScreen' in ui,
               'announcements and notifications': 'AnnouncementsScreen' in ui and 'NotificationsScreen' in ui,
               'dark mode': 'darkColorScheme' in theme and 'isSystemInDarkTheme' in theme,
-              'no Tailscale dependency': 'tailscale' not in build.lower(),
+              'no bundled overlay-network dependency': 'tailscale' not in build.lower(),
           }
           failed = [name for name, value in checks.items() if not value]
           for name, value in checks.items():
@@ -312,7 +312,7 @@ jobs:
           SQUARE_APPLICATION_ID: ${{ vars.SQUARE_APPLICATION_ID }}
         run: |
           set -o pipefail
-          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://api.oninetwork.com/mobile-api/}"
           export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
           gradle --no-daemon --stacktrace --console=plain :app:compileDebugKotlin 2>&1 | tee ../../gradle-compile.log
 
@@ -324,7 +324,7 @@ jobs:
           SQUARE_APPLICATION_ID: ${{ vars.SQUARE_APPLICATION_ID }}
         run: |
           set -o pipefail
-          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://api.oninetwork.com/mobile-api/}"
           export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
           gradle --no-daemon --stacktrace --console=plain \
             :app:testDebugUnitTest \
@@ -342,7 +342,7 @@ jobs:
           FLOODMAN_KEY_PASSWORD: ${{ secrets.FLOODMAN_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          export FLOODMAN_API_BASE_URL="${FLOODMAN_API_BASE_URL:-https://api.oninetwork.com/mobile-api/}"
           export SQUARE_APPLICATION_ID="${SQUARE_APPLICATION_ID:-REPLACE_WITH_SQUARE_SANDBOX_APPLICATION_ID}"
           gradle --no-daemon --stacktrace --console=plain \
             :app:assembleDebug \

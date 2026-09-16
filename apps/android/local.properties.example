@@ -1,5 +1,5 @@
 sdk.dir=/path/to/Android/Sdk
-FLOODMAN_API_BASE_URL=https://floodman-operations.tail274417.ts.net/mobile-api/
+FLOODMAN_API_BASE_URL=https://api.oninetwork.com/mobile-api/
 SQUARE_APPLICATION_ID=YOUR_SQUARE_SANDBOX_APPLICATION_ID
 # Release signing is optional for local debug builds.
 # FLOODMAN_KEYSTORE_PATH=/absolute/path/to/floodman-release.jks

@@ -10,6 +10,7 @@ import os
 import zipfile
 import re
 import secrets
+import tempfile
 import uuid
 from collections import defaultdict
 from contextvars import ContextVar
@@ -18,11 +19,17 @@ from datetime import UTC, date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
+from pydantic import ValidationError
 
 from .auth import ROLE_PERMISSIONS, has_permission
+from .call_intake import CallIntakeLinksRequest, CallIntakeProjectionRequest
+from .call_approval import approval_form, approve_call
+from .portal_connection import PortalConnection
+from .photo_portal import PhotoPortal
 from .config import Settings
 from .customer_csv import CustomerCsvError, customer_template, parse_customer_csv
 from .estimate_catalog import default_document, document_payload, group_document_lines, normalize_catalog_item, normalize_document_payload
@@ -36,6 +43,7 @@ from .importer import (
     validate,
 )
 from .providers import ProviderClient
+from .integration_setup_ui import build_setup_router, is_setup_owner
 from .pdf_documents import build_estimate_pdf, build_invoice_pdf, calculate_deposit
 from .project_plans import merge_project_plan, project_plan, project_plan_options
 from .roomflow_assets import enrich_estimate_with_roomflow, store_layout_image
@@ -53,19 +61,50 @@ from .roomflow_supabase import (
     workspace_public,
 )
 from .customer_portal import page as customer_page, grouped_lines as customer_grouped_lines, payment_page as customer_payment_page
+from .customer_sms import CustomerSms, phone_number as sms_phone_number
+from .sms_policy import render_policy
 from .security import SignedRequestError, verify_signed_body
 from .store import CaptureOperationConflict, CaptureOperationNotFound, OfficeStore
 from .mobile_api import build_mobile_router
 from .ui import badge, esc, json_pre, layout, money_cents, money_units, progress, simple_page, table
+from .xactimate_catalog import (
+    IMPORT_KIND as XACTIMATE_IMPORT_KIND,
+    MAX_ROWS as XACTIMATE_MAX_ROWS,
+    MAX_UPLOAD_BYTES as XACTIMATE_MAX_UPLOAD_BYTES,
+    ProtectedXactimatePlxError,
+    SOURCE_PROVIDER as XACTIMATE_SOURCE_PROVIDER,
+    XactimateCatalogError,
+    parse_xactimate_catalog_upload,
+    xactimate_catalog_template,
+)
 
 
 settings = Settings.from_env()
 store = OfficeStore(settings.data_dir)
+# Multipart parsers spill large photos to disk before the durable upload is
+# committed. Keep those temporary files inside this service's configured data.
+upload_temp_dir = Path(settings.data_dir).resolve() / "tmp"
+upload_temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+tempfile.tempdir = str(upload_temp_dir)
 roomflow_capture_service = RoomFlowCaptureService(store)
 providers = ProviderClient(settings)
-app = FastAPI(title="Floodman Operations", version="4.7.0", docs_url=None, redoc_url=None)
+portal_connection = PortalConnection(store, providers, settings)
+customer_sms = CustomerSms(store, providers, settings)
+app = FastAPI(title="Floodman Operations", version="4.7.3", docs_url=None, redoc_url=None)
 _current_user: ContextVar[dict[str, Any] | None] = ContextVar("office_current_user", default=None)
 app.include_router(build_mobile_router(store, providers, settings))
+
+
+@app.on_event("startup")
+async def start_portal_connection() -> None:
+    await portal_connection.start()
+    await customer_sms.start()
+
+
+@app.on_event("shutdown")
+async def stop_portal_connection() -> None:
+    await customer_sms.stop()
+    await portal_connection.stop()
 
 PUBLIC_PATHS = {
     "/health/live",
@@ -126,9 +165,17 @@ def _require(permission: str) -> dict[str, Any]:
     return user or {}
 
 
+@app.middleware("http")
+async def provider_configuration_snapshot(request: Request, call_next):
+    if isinstance(providers, ProviderClient):
+        with providers.configuration_scope():
+            return await call_next(request)
+    return await call_next(request)
+
+
 @app.get("/health/live")
 def live() -> dict[str, str]:
-    return {"status": "ok", "service": "floodman-office-console", "version": "4.7.0"}
+    return {"status": "ok", "service": "floodman-office-console", "version": "4.7.3"}
 
 
 @app.get("/health/ready")
@@ -284,6 +331,96 @@ async def attach_signed_document_to_client_file(request: Request) -> dict[str, A
         "contact_id": contact["id"],
         "property_id": (property_record or {}).get("id"),
     }
+
+
+async def _deliver_call_intake_notifications(result: dict[str, Any]) -> None:
+    """Deliver staff email/SMS after the durable Office projection has committed."""
+
+    intake_id = str(result.get("intake_id") or result.get("id") or "")
+    caller = dict(result.get("caller") or {})
+    caller_name = str(caller.get("name") or "").strip() or "Incoming caller"
+    summary = str(result.get("summary") or result.get("service_reason") or "Open Floodman for call details.")
+    action_url = f"{settings.public_url.rstrip('/')}/office/calls/{quote(intake_id)}"
+    for notification_id in result.get("notification_ids") or []:
+        notification = store.record("notifications", str(notification_id))
+        if not notification:
+            continue
+        user = store.get_user(str(notification.get("user_id") or "")) or {}
+        email = str(user.get("email") or "").strip()
+        if str(notification.get("email_status") or "") == "PENDING":
+            try:
+                await providers.send_email(
+                    to=email,
+                    subject=f"Floodman incoming call: {caller_name}",
+                    text=f"{summary}\n\nOpen the live call intake: {action_url}",
+                )
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"email_status": "SENT", "email_sent_at": datetime.now(UTC).isoformat()},
+                    actor_id="floodman-system",
+                )
+            except Exception:
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"email_status": "FAILED"},
+                    actor_id="floodman-system",
+                )
+        phone = str(user.get("phone") or "").strip()
+        if str(notification.get("sms_status") or "") == "PENDING":
+            try:
+                await providers.send_sms(phone, f"Floodman incoming call from {caller_name}. Open: {action_url}")
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"sms_status": "SENT", "sms_sent_at": datetime.now(UTC).isoformat()},
+                    actor_id="floodman-system",
+                )
+            except Exception:
+                store.update_record(
+                    "notifications",
+                    str(notification_id),
+                    {"sms_status": "FAILED"},
+                    actor_id="floodman-system",
+                )
+
+
+@app.post("/internal/v1/call-intakes/project")
+async def project_ai_call_intake(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    if len(body) > 256 * 1024:
+        raise HTTPException(413, "Call intake projection is too large")
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys, max_age_seconds=300)
+    except SignedRequestError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    try:
+        payload = CallIntakeProjectionRequest.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    try:
+        result = store.project_call_intake(payload.model_dump(mode="json"), require_approval=settings.call_intake_approval_required)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await _deliver_call_intake_notifications(result)
+    return result
+
+
+@app.post("/internal/v1/call-intakes/{intake_id}/links")
+async def update_ai_call_intake_links(intake_id: str, request: Request) -> dict[str, Any]:
+    body = await request.body()
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys, max_age_seconds=300)
+    except SignedRequestError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    try:
+        payload = CallIntakeLinksRequest.model_validate_json(body)
+        return store.update_call_intake_links(intake_id, **payload.model_dump())
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Call intake not found") from exc
 
 
 @app.get("/office/client-files/{document_id}/download")
@@ -549,6 +686,13 @@ def root() -> RedirectResponse:
 
 def _page(title: str, body: str, active: str) -> HTMLResponse:
     snapshot = store.snapshot()
+    user = _user()
+    unread_notifications = sum(
+        1
+        for item in store.records("notifications")
+        if str(item.get("user_id") or "") == str((user or {}).get("id") or "")
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    )
     return HTMLResponse(
         layout(
             title,
@@ -557,9 +701,13 @@ def _page(title: str, body: str, active: str) -> HTMLResponse:
             notice=snapshot.get("last_notice", ""),
             setup_complete=bool(snapshot["checklist"].get("setup_complete")),
             release=settings.release,
-            user=_user(),
+            user=user,
+            unread_notifications=unread_notifications,
         )
     )
+
+
+app.include_router(build_setup_router(providers.setup, settings, _user, _page))
 
 
 def _rows(value: Any) -> list[dict[str, Any]]:
@@ -860,7 +1008,7 @@ def settings_workspace() -> HTMLResponse:
     payment_summary = (
         "Safe local test mode is ready"
         if payment_config.get("local_mock")
-        else "Production processor is connected"
+        else f"Square {payment_config.get('environment')} checkout is configured"
         if payment_config.get("live")
         else "Processor setup is incomplete"
     )
@@ -874,7 +1022,7 @@ def settings_workspace() -> HTMLResponse:
     )
     owner_cards = "".join(
         (
-            card("5", "Card payments", "Confirm whether payments are in safe test mode or connected to the production processor. Card details are never entered here.", payment_summary, "/office/payment-settings", "Check payment readiness", ready=payment_ready),
+            card("5", "Payments & email", "Connect Square and your email provider. Save, check the connection, then enable when you are ready.", payment_summary, "/office/service-setup", "Set up payments & email", ready=payment_ready),
             card("6", "Documents and signing", "Review customer PDFs, signing templates, and the local test workflow before sending production agreements.", "Signing review complete" if checklist.get("legal_reviewed") else "Production documents still need review", "/office/signing", "Review documents and signing", ready=bool(checklist.get("legal_reviewed"))),
             card("7", "Bring in existing customers", "Preview a customer CSV or business archive before Floodman writes any records. Skip this when starting fresh.", f"{import_count} import preview{'s' if import_count != 1 else ''}", "/office/imports", "Open safe import", ready=None),
             card("8", "Advanced connections", "For the server owner or installer: test provider health and download configuration values. Daily staff do not need this page.", connection_summary, "/office/linking", "Open advanced connections", ready=(bool(connections) and connection_failures == 0)),
@@ -1062,7 +1210,7 @@ async def _dashboard_state(timeout_seconds: float = 3.5) -> dict[str, Any]:
     """Return the durable dashboard immediately even if a provider is warming up.
 
     Desktop navigation is controlled by a service worker. A long provider timeout
-    can look like a lost network connection even though the private Tailscale
+    can look like a lost network connection even though the private proxied
     route is healthy. Bound only the optional provider snapshot; the durable
     Floodman Office records remain available through ``_merge_archive_state``.
     """
@@ -1104,9 +1252,15 @@ async def mobile_operations() -> HTMLResponse:
     payments = store.records("payments")
     documents = store.records("documents")
     tasks = store.records("tasks")
-    messages = _rows(state.get("messages")) + _rows(state.get("message_threads"))
+    messages = _rows(state.get("messages")) + _rows(state.get("message_threads")) + store.records("customer_threads")
     ar_cases = _rows(state.get("ar_cases"))
-    alerts = _rows(state.get("staff_alerts"))
+    current_user_id = str((_user() or {}).get("id") or "")
+    local_alerts = [
+        item for item in store.records("notifications")
+        if str(item.get("user_id") or "") == current_user_id
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    ]
+    alerts = _rows(state.get("staff_alerts")) + local_alerts
 
     open_invoices = [item for item in invoices if str(item.get("status") or "").upper() not in {"PAID", "VOID", "CANCELED", "CANCELLED"}]
     completed_documents = [item for item in documents if str(item.get("status") or "").upper() in {"COMPLETED", "SIGNED", "EXECUTED"}]
@@ -1137,7 +1291,7 @@ async def mobile_operations() -> HTMLResponse:
     body = f"""
 <section class='mobile-hero'>
   <div><span class='mobile-hero-kicker'>PHONE & TABLET WORKSPACE</span><h2>Run Floodman from the field</h2><p>Large touch controls, card-based lists, direct CSV/ZIP importing, customer files, job tools, billing, documents, time, messages, and intelligence without the desktop ERP shell.</p></div>
-  <div class='actions mobile-hero-actions'><a class='button good' href='/install-app'>Install Floodman app</a><a class='button secondary mobile-desktop-link' href='/office/desktop?desktop=1' data-use-desktop>Open desktop workspace</a><a class='button secondary mobile-desktop-link' href='/full-erp' data-use-desktop>Open full ERP</a></div>
+  <div class='actions mobile-hero-actions'><a class='button good' href='/install-app'>Install Floodman app</a><a class='button secondary' href='/office/photo-portal'>Photo Portal</a><a class='button secondary' href='/full-erp'>Open full ERP</a></div>
 </section>
 <div class='mobile-kpi-grid'>
   <a href='/office/contacts'><small>Customers</small><strong>{len(contacts)}</strong></a>
@@ -1182,7 +1336,13 @@ async def office_dashboard() -> HTMLResponse:
     square = _rows(state.get("square_invoices"))
     documents = combine(store.records("documents"), _rows(state.get("envelopes")) + _rows(state.get("imported_documents")))
     notes = combine(store.records("notes"), _rows(state.get("notes")))
-    alerts = _rows(state.get("staff_alerts"))
+    current_user_id = str((_user() or {}).get("id") or "")
+    local_alerts = [
+        item for item in store.records("notifications")
+        if str(item.get("user_id") or "") == current_user_id
+        and str(item.get("status") or "UNREAD").upper() == "UNREAD"
+    ]
+    alerts = _rows(state.get("staff_alerts")) + local_alerts
     ar_cases = _rows(state.get("ar_cases"))
     outstanding = sum(_square_remaining(item) for item in square)
     imported_due = sum(
@@ -1195,31 +1355,17 @@ async def office_dashboard() -> HTMLResponse:
         for item in payments
     )
     job = state.get("job") or {}
-    job_card = json_pre(job) if job else "<p class='muted'>No active staging job. Use the Engineering Sandbox to create one.</p>"
+    job_card = f"<details class='card'><summary>Current workflow job</summary><div style='margin-top:12px'>{json_pre(job)}</div></details>" if job else ""
     body = f"""
-<section class='desktop-workspace-hero'><div><span class='desktop-workspace-kicker'>DESKTOP OPERATIONS WORKSPACE</span><h2>Floodman desktop command center</h2><p>Use the full sidebar, multi-column forms, searchable tables, estimates, invoices, schedules, customer files, RoomFlow, and administration from a computer. The phone and tablet workspace remains separate.</p></div><div class='actions desktop-workspace-actions'><a class='button good' href='/full-erp' data-use-desktop>Open full ERP</a><a class='button secondary' href='/office/mobile?mobile=1' data-use-mobile>Open mobile workspace</a></div></section>
-<div class='grid'>
-<div class='card metric'><small>Contacts</small><strong>{len(contacts)}</strong></div>
+<div class='card'><h2>Start work</h2><div class='actions'><a class='button good' href='/office/contacts'>Customers</a><a class='button' href='/office/estimates/new'>New estimate</a><a class='button' href='/office/calls'>Calls</a><a class='button secondary' href='/office/roomflow'>RoomFlow</a><a class='button secondary' href='/office/invoices'>Billing</a></div></div>
+<div class='grid metrics-grid'>
+<div class='card metric'><small>Customers</small><strong>{len(contacts)}</strong></div>
 <div class='card metric'><small>Properties</small><strong>{len(properties)}</strong></div>
 <div class='card metric'><small>Estimates</small><strong>{len(estimates)}</strong></div>
-<div class='card metric'><small>Invoices</small><strong>{len(invoices) + len(square)}</strong></div>
-<div class='card metric'><small>Verified live balance</small><strong>{money_cents(outstanding)}</strong></div>
-<div class='card metric'><small>Imported archive balance</small><strong>{money_cents(imported_due)}</strong><small>Not enrolled in reminders</small></div>
-<div class='card metric'><small>Payments recorded</small><strong>{money_cents(paid_cents)}</strong></div>
-<div class='card metric'><small>Documents</small><strong>{len(documents)}</strong></div>
-<div class='card metric'><small>Notes</small><strong>{len(notes)}</strong></div>
-<div class='card metric'><small>Open A/R cases</small><strong>{len(ar_cases)}</strong></div>
+<div class='card metric'><small>Live balance</small><strong>{money_cents(outstanding)}</strong></div>
 <div class='card metric'><small>Open alerts</small><strong>{len(alerts)}</strong></div>
 </div>
-<div class='card'><h2>Quick start</h2><div class='actions'><a class='button' href='/office/apps'>All applications</a><a class='button' href='/office/contacts'>Add contact</a><a class='button' href='/office/estimates/new'>Create estimate</a><a class='button' href='/office/documents'>Send document</a><a class='button' href='/office/members'>Add members</a><a class='button secondary' href='/office/time'>Time clock</a><a class='button secondary' href='/office/intelligence'>AI competition</a></div></div>
-<div class='card'><h2>Current workflow job</h2>{job_card}</div>
-<div class='card'><h2>How the front ends fit together</h2><div class='grid'>
-<div><h3>Floodman Office</h3><p class='muted'>This is the owner command center for Floodman-specific customer, property, billing, signing, A/R, messaging, member, import, and intelligence workflows.</p></div>
-<div><h3>RoomFlow</h3><p class='muted'>Build the property scope and estimate, then send it to the orchestrator.</p></div>
-<div><h3>Floodman ERP</h3><p class='muted'>The genuine full ERP is included in the full launch profile for CRM, staff, time, projects, tasks, estimates, invoices, accounting, HR, inventory, reports, roles, and integrations.</p></div>
-<div><h3>Documenso</h3><p class='muted'>The genuine signing front end is included for templates, PDF field placement, recipients, signatures, audit records, and document management.</p></div>
-<div><h3>Floodman Payments</h3><p class='muted'>Secure online payments, card-by-phone payments, saved payment methods, and transaction records.</p></div>
-</div></div>
+<details class='card'><summary>More totals</summary><div class='grid metrics-grid' style='margin-top:15px'><div class='metric'><small>Invoices</small><strong>{len(invoices) + len(square)}</strong></div><div class='metric'><small>Imported balance</small><strong>{money_cents(imported_due)}</strong></div><div class='metric'><small>Payments recorded</small><strong>{money_cents(paid_cents)}</strong></div><div class='metric'><small>Documents</small><strong>{len(documents)}</strong></div><div class='metric'><small>Notes</small><strong>{len(notes)}</strong></div><div class='metric'><small>Open A/R cases</small><strong>{len(ar_cases)}</strong></div></div></details>{job_card}
 """
     return _page("Operations Dashboard", body, "dashboard")
 
@@ -1236,11 +1382,11 @@ async def linking_page() -> HTMLResponse:
         ("RoomFlow", "roomflow", settings.roomflow_sync_endpoint, "Saves field layouts and estimates into Floodman"),
         ("Floodman ERP workflow", "gauzy_workflow_bridge", settings.gauzy_base_url, "Keeps customer, project, estimate, invoice, and payment records together"),
         ("Floodman ERP screen", "gauzy_full_ui", settings.gauzy_web_url, "Opens the full employee and business-management system"),
-        ("Card payments", "square", settings.square_base_url, "Processes test or production card payments without storing card numbers"),
+        ("Card payments", "square", providers.settings.square_base_url if isinstance(providers, ProviderClient) else settings.square_base_url, "Processes test or production card payments without storing card numbers"),
         ("Document workflow", "documenso_workflow_bridge", settings.documenso_base_url, "Sends PDFs into the signing process"),
         ("Signing application", "documenso_full_ui", settings.documenso_web_url, "Manages reusable documents, signing fields, and history"),
         ("Customer texts", "twilio", settings.twilio_base_url, "Handles approved two-way text messages and delivery results"),
-        ("Outgoing email", "smtp", f"{settings.smtp_host}:{settings.smtp_port}", "Sends workflow email or captures it safely during testing"),
+        ("Outgoing email", "smtp", f"{providers.settings.smtp_host}:{providers.settings.smtp_port}" if isinstance(providers, ProviderClient) else f"{settings.smtp_host}:{settings.smtp_port}", "Sends workflow email or captures it safely during testing"),
         ("Test email inbox", "mailpit", settings.mailpit_url, "Shows locally captured messages without contacting customers"),
         ("Message assistant", "messaging_ai", settings.messaging_ai_url, f"Drafting policy: {settings.messaging_ai_provider}"),
         ("Market research", "competitor_intelligence", settings.competitor_url, "Checks approved public sites for useful business changes"),
@@ -1256,7 +1402,7 @@ async def linking_page() -> HTMLResponse:
         for value, label in (("FULL_LOCAL", "Full local application"), ("LOCAL_MOCK", "Local simulator"), ("SANDBOX", "Provider sandbox"), ("PRODUCTION", "Production later"))
     )
     body = f"""
-<div class='callout advanced-banner'><b>Installer area:</b> everyday staff do not need to change anything on this page. Use <a href='/office/settings'>Settings &amp; Setup</a> for normal business choices. This page never displays or accepts provider passwords, access tokens, or card credentials.</div>
+<div class='callout advanced-banner'><b>Installer area:</b> everyday staff do not need to change anything on this page. Owners can connect Square and SMTP in <a href='/office/service-setup'>Payments &amp; email</a>. Connection results below are historical; rerun the check after changing settings. This diagnostic page does not accept provider secrets.</div>
 <div class='card'><div class='actions spread'><div><h2>Are Floodman services answering?</h2><p class='muted'>The check is safe: it reads service health and does not send customer messages, charge a card, or change production data.</p></div><form method='post' action='/setup/test-connections'><button class='good'>Run connection check</button></form></div><div class='connection-simple-table'>{connection_table}</div><div class='actions' style='margin-top:14px'><a class='button' href='/office/apps'>Open applications</a><a class='button secondary' href='/office/linking/checklist.txt'>Download installer checklist</a></div></div>
 <details class='card plain-details'><summary>Advanced: server addresses and connection plan</summary><div style='margin-top:14px'>{endpoint_table}</div><p class='muted'>Change these planning values only when an installer gives you reviewed replacements. Saving this form records a plan; the server owner must still apply secrets outside the browser.</p><form method='post' action='/office/linking/plan'><div class='form-grid'>
 <div class='field full'><label>RoomFlow web address</label><input type='url' name='roomflow_url' value='{esc(config.get('roomflow_url'))}'></div>
@@ -1402,6 +1548,10 @@ def imports_page() -> HTMLResponse:
         if run.get("import_kind") == "CUSTOMERS_CSV":
             total_records = int(counts.get("customers_ready") or 0)
             import_type = "Customer CSV"
+            attachments = 0
+        elif run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+            total_records = int(counts.get("items_ready") or 0)
+            import_type = "Xactimate pricing CSV"
             attachments = 0
         else:
             total_records = sum(int(counts.get(key) or 0) for key in (
@@ -1905,13 +2055,71 @@ async def _commit_customer_csv(run_id: str, run: dict[str, Any], actor: dict[str
     }
 
 
+def _xactimate_import_detail(run: dict[str, Any]) -> HTMLResponse:
+    _require("estimates.manage")
+    run_id = str(run["id"])
+    counts = run.get("counts") or {}
+    try:
+        normalized = store.read_normalized(run_id)
+        items = list(normalized.get("catalog_items") or [])
+    except Exception:
+        items = []
+    preview_rows = []
+    for item in items[:100]:
+        metadata = ((item.get("formula") or {}).get("xactimate") or {})
+        preview_rows.append([
+            esc(metadata.get("code") or item.get("source_id") or ""),
+            esc(item.get("name") or ""),
+            esc(item.get("category") or ""),
+            esc(item.get("unit") or ""),
+            money_cents(item.get("unit_price_cents")),
+            esc(metadata.get("effective_date") or "Needs review"),
+        ])
+    warning_values = list(run.get("warnings") or [])
+    warnings = "".join(f"<li>{esc(value)}</li>" for value in warning_values[:100]) or "<li>None</li>"
+    if len(warning_values) > 100:
+        warnings += f"<li>…and {esc(len(warning_values) - 100)} additional warnings retained with this preview.</li>"
+    action = ""
+    if run.get("status") == "PREVIEWED" and not run.get("errors"):
+        action = (
+            f"<form method='post' action='/office/imports/{esc(run_id)}/commit'>"
+            f"<button class='good'>Import {esc(counts.get('items_ready', 0))} reviewed prices</button></form>"
+        )
+    elif run.get("status") == "COMMITTED":
+        result = run.get("commit_result") or {}
+        action = (
+            "<div class='callout success'><b>Pricing import completed.</b><br>"
+            f"Added: {esc(result.get('added', 0))} · Updated: {esc(result.get('updated', 0))} · "
+            f"Skipped: {esc(result.get('skipped', 0))}</div>"
+        )
+    elif run.get("status") == "FAILED":
+        action = f"<div class='callout danger'>{esc(run.get('commit_error') or 'Pricing import failed.')}</div>"
+    body = f"""
+<div class='callout success'><b>Nothing has been added yet.</b> Review the detected codes, descriptions, units, prices, and effective dates below. Floodman will use the market + category + selector + activity as the stable identity, so a later pricing worksheet updates matching items instead of duplicating them.</div>
+<div class='grid metrics-grid'>
+  <div class='card metric'><small>Line items ready</small><strong>{esc(counts.get('items_ready', 0))}</strong></div>
+  <div class='card metric'><small>Categories</small><strong>{esc(counts.get('categories', 0))}</strong></div>
+  <div class='card metric'><small>Markets</small><strong>{esc(counts.get('markets', 0))}</strong></div>
+  <div class='card metric'><small>Need date review</small><strong>{esc(counts.get('needs_review', 0))}</strong></div>
+</div>
+<div class='card'><h2>Source pricing</h2><p><b>Price list:</b> {esc(', '.join(run.get('price_lists') or []))}</p><p><b>Market:</b> {esc(', '.join(run.get('markets') or []) or 'Not supplied')}</p><p><b>Effective date:</b> {esc(', '.join(run.get('effective_dates') or []) or 'Not supplied')}</p><p><b>Unit price range:</b> {money_cents(run.get('minimum_unit_price_cents'))} to {money_cents(run.get('maximum_unit_price_cents'))}</p></div>
+<div class='card'><h2>Line-item preview</h2>{table(('Code','Description','Section','Unit','Unit price','Effective'), preview_rows, 'No valid line items were found.')}{'<p class="muted">Showing the first 100 line items. All validated items will be imported after confirmation.</p>' if len(items) > 100 else ''}</div>
+<div class='card'><h2>Review warnings</h2><ul>{warnings}</ul></div>
+<div class='card'><h2>Import action</h2><p>Only the normalized line-item values are written to the reusable Floodman catalog. This does not contact Xactimate, modify the original file, create an estimate, or send anything to a customer or insurer.</p><div class='actions'>{action}<a class='button secondary' href='/office/catalog'>Back to Services &amp; Prices</a></div></div>
+"""
+    return _page("Xactimate Pricing Review", body, "catalog")
+
+
 @app.get("/office/imports/{run_id}")
 def import_detail(run_id: str) -> HTMLResponse:
     run = store.get_import(run_id)
     if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     if run.get("import_kind") == "CUSTOMERS_CSV":
         return _customer_import_detail(run)
+    if run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+        return _xactimate_import_detail(run)
     errors = "".join(f"<li>{esc(value)}</li>" for value in run.get("errors") or []) or "<li>None</li>"
     warnings = "".join(f"<li>{esc(value)}</li>" for value in run.get("warnings") or []) or "<li>None</li>"
     files = "".join(
@@ -1945,6 +2153,7 @@ async def commit_import(run_id: str) -> RedirectResponse:
     run = store.get_import(run_id)
     if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     if run.get("errors"):
         store.set_notice("This import cannot be committed until its validation errors are fixed.")
         return RedirectResponse(f"/office/imports/{run_id}", status_code=303)
@@ -1966,6 +2175,18 @@ async def commit_import(run_id: str) -> RedirectResponse:
             store.set_notice(
                 f"Customer import completed. {result['created']} created and {result['matched']} matched. "
                 f"No messages or invoices were sent."
+            )
+        elif run.get("import_kind") == XACTIMATE_IMPORT_KIND:
+            actor = _require("estimates.manage")
+            normalized = store.read_normalized(run_id)
+            raw_items = normalized.get("catalog_items")
+            if not isinstance(raw_items, list):
+                raise ValueError("The validated pricing preview no longer contains catalog items.")
+            result = _import_xactimate_catalog_rows(raw_items, actor_id=str(actor.get("id") or ""))
+            store.update_import(run_id, status="COMMITTED", commit_result=result)
+            store.set_notice(
+                f"Pricing import completed: {result['added']} added and {result['updated']} updated. "
+                "No estimates or messages were created."
             )
         else:
             normalized = store.read_normalized(run_id)
@@ -2031,8 +2252,10 @@ async def sync_customer_import(run_id: str) -> RedirectResponse:
 
 @app.get("/office/imports/{run_id}/files/{filename:path}")
 def import_file(run_id: str, filename: str) -> Response:
-    if not store.get_import(run_id):
+    run = store.get_import(run_id)
+    if not run:
         raise HTTPException(404, "Import run not found")
+    _require("estimates.manage" if run.get("import_kind") == XACTIMATE_IMPORT_KIND else "imports.manage")
     try:
         path = store.file_path(run_id, filename)
     except ValueError as exc:
@@ -2331,6 +2554,32 @@ def _import_catalog_rows(
     }
 
 
+def _import_xactimate_catalog_rows(raw_items: list[Any], *, actor_id: str) -> dict[str, Any]:
+    if len(raw_items) > XACTIMATE_MAX_ROWS:
+        raise ValueError(f"The validated pricing import exceeds the {XACTIMATE_MAX_ROWS:,}-item limit.")
+    normalized: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for index, raw in enumerate(raw_items, start=1):
+        if not isinstance(raw, dict):
+            errors.append(f"Item {index}: expected a catalog object.")
+            continue
+        try:
+            normalized.append(normalize_catalog_item(raw, source=XACTIMATE_SOURCE_PROVIDER))
+        except Exception as exc:
+            if len(errors) < 10:
+                errors.append(f"Item {index}: {exc}")
+    if errors:
+        raise ValueError(" ".join(errors))
+    result = store.bulk_upsert_records({"catalog_items": normalized}, actor_id=actor_id)["catalog_items"]
+    return {
+        "added": result["created"],
+        "updated": result["updated"],
+        "skipped": 0,
+        "errors": [],
+        "total_catalog_items": len(store.records("catalog_items")),
+    }
+
+
 def _import_bundled_roomflow_catalog(*, actor_id: str, force: bool = False) -> dict[str, Any]:
     seed_path = _roomflow_catalog_seed_path()
     existing_roomflow = [
@@ -2444,9 +2693,11 @@ def _render_grouped_document_lines(document: dict[str, Any]) -> str:
                 labels.append("Taxable")
             description = esc(item.get("description") or "")
             detail = f"<small class='muted'>{description}</small>" if description else ""
+            pricing_reference = esc(item.get("pricing_reference") or "")
+            pricing_detail = f"<small class='muted'><b>Pricing code:</b> {pricing_reference}</small>" if pricing_reference else ""
             flags = f"<div>{' · '.join(labels)}</div>" if labels else ""
             rows.append([
-                f"<b>{esc(item.get('name') or item.get('description'))}</b>{detail}{flags}",
+                f"<b>{esc(item.get('name') or item.get('description'))}</b>{pricing_detail}{detail}{flags}",
                 esc(item.get("quantity")),
                 esc(item.get("unit") or "each"),
                 money_cents(unit),
@@ -2695,6 +2946,7 @@ async def _publish_invoice_to_square(
     )
     square_invoice = dict(result.get("invoice") or {})
     total, paid, balance = _square_amounts(square_invoice)
+    previous_paid = int(invoice.get("paid_cents") or 0)
     status = str(square_invoice.get("status") or "UNPAID").upper()
     local_status = "PAID" if status == "PAID" else "PARTIALLY_PAID" if paid > 0 else "SENT"
     updates = {
@@ -2714,14 +2966,12 @@ async def _publish_invoice_to_square(
         "balance_cents": balance if total else int(invoice.get("balance_cents") or 0),
     }
     updated = store.update_record("invoices", str(invoice["id"]), updates, actor_id=actor_id)
-    if local_status == "PAID" and not any(
-        str(item.get("invoice_id") or "") == str(invoice["id"]) and str(item.get("reference") or "") == updates["square_invoice_id"]
-        for item in store.records("payments")
-    ):
-        store.create_record("payments", {
+    if paid > previous_paid:
+        payment_key = f"floodman-square-invoice-payment:{updates['square_invoice_id']}:{paid}"
+        payment, _ = store.create_record_if_absent("payments", str(uuid.uuid5(uuid.NAMESPACE_URL, payment_key)), {
             "invoice_id": str(invoice["id"]),
             "contact_id": contact_id,
-            "amount_cents": paid or int(invoice.get("total_cents") or 0),
+            "amount_cents": paid - previous_paid,
             "currency": str(invoice.get("currency") or "USD"),
             "method": "SQUARE_CARD_ON_FILE" if card_id else "SQUARE",
             "reference": updates["square_invoice_id"],
@@ -2729,6 +2979,7 @@ async def _publish_invoice_to_square(
             "payment_date": datetime.now(UTC).isoformat(),
             "status": "COMPLETED",
         }, actor_id="square-reconciliation")
+        await _notify_payment_admins("invoice", updated, payment)
     message = "Floodman automatically charged the authorized card on file." if card_id else "Floodman published the secure invoice payment page and offered the customer an optional save-payment-method checkbox."
     return updated, message
 
@@ -2742,6 +2993,7 @@ async def _reconcile_square_invoices_once() -> int:
         try:
             square_invoice = await providers.get_square_invoice(square_invoice_id)
             total, paid, balance = _square_amounts(square_invoice)
+            previous_paid = int(invoice.get("paid_cents") or 0)
             square_status = str(square_invoice.get("status") or "").upper()
             local_status = "PAID" if square_status == "PAID" else "PARTIALLY_PAID" if paid else str(invoice.get("status") or "SENT")
             if paid != int(invoice.get("paid_cents") or 0) or balance != int(invoice.get("balance_cents") or 0) or local_status != str(invoice.get("status") or ""):
@@ -2753,22 +3005,30 @@ async def _reconcile_square_invoices_once() -> int:
                     "square_public_url": str(square_invoice.get("public_url") or invoice.get("square_public_url") or ""),
                 }, actor_id="square-reconciliation")
                 changed += 1
-                if local_status == "PAID":
-                    if not any(
-                        str(item.get("invoice_id") or "") == str(invoice["id"]) and str(item.get("reference") or "") == square_invoice_id
-                        for item in store.records("payments")
-                    ):
-                        store.create_record("payments", {
+                if paid > previous_paid:
+                    payment_key = f"floodman-square-invoice-payment:{square_invoice_id}:{paid}"
+                    payment, _ = store.create_record_if_absent(
+                        "payments",
+                        str(uuid.uuid5(uuid.NAMESPACE_URL, payment_key)),
+                        {
                             "invoice_id": str(invoice["id"]),
                             "contact_id": invoice.get("contact_id"),
-                            "amount_cents": paid,
+                            "amount_cents": paid - previous_paid,
                             "currency": str(invoice.get("currency") or "USD"),
                             "method": "SQUARE",
                             "reference": square_invoice_id,
                             "note": "Reconciled from the payment processor.",
                             "payment_date": datetime.now(UTC).isoformat(),
                             "status": "COMPLETED",
-                        }, actor_id="square-reconciliation")
+                        },
+                        actor_id="square-reconciliation",
+                    )
+                    await _notify_payment_admins(
+                        "invoice",
+                        store.record("invoices", str(invoice["id"])) or invoice,
+                        payment,
+                    )
+                if local_status == "PAID":
                     # If the buyer chose Square's "Save my card on file" option,
                     # discover the new tokenized card and make it the customer's
                     # default only when no default has been chosen yet. Floodman
@@ -2853,14 +3113,11 @@ async def contacts_page(q: str = "", status: str = "", page: int = 1) -> HTMLRes
     rows = []
     for item in visible:
         contact_id = str(item.get("id") or "")
-        tags = list(item.get("tags") or [])
         rows.append([
             f"<div class='customer-name'><a href='/office/contacts/{esc(contact_id)}'><b>{esc(_contact_label(item))}</b></a><small>{esc(item.get('company') or '')}</small></div>",
             f"{esc(item.get('primaryEmail') or item.get('email') or '')}<br><span class='muted'>{esc(item.get('primaryPhone') or item.get('phone') or '')}</span>",
-            esc(_contact_address(item)),
             str(property_counts.get(contact_id, 0)),
-            f"<div class='tag-list'>{''.join(f'<span class=\'tag-chip\'>{esc(tag)}</span>' for tag in tags[:5])}</div>" if tags else badge(item.get("status") or "ACTIVE"),
-            esc(item.get("last_activity_action") or item.get("lead_source") or item.get("source") or ""),
+            f"<a class='button secondary small' href='/office/contacts/{esc(contact_id)}'>Open</a>",
         ])
     query_value = quote(q)
     status_value = quote(status)
@@ -2874,7 +3131,7 @@ async def contacts_page(q: str = "", status: str = "", page: int = 1) -> HTMLRes
         <div class='field'><label>Company</label><input name='company'></div><div class='field'><label>Email</label><input type='email' name='email'></div>
         <div class='field'><label>Phone</label><input name='phone'></div><div class='field'><label>Lead source</label><input name='lead_source' placeholder='Website, referral, repeat customer'></div>
         <div class='field full'><label>Initial note</label><textarea name='notes'></textarea></div></div><button style='margin-top:12px'>Create customer file</button></form></details>"""
-    body = f"{search_form}{create}<div class='card'><h2>Customer files</h2>{table(('Customer','Contact','Mailing address','Properties','Tags / status','Recent activity'), rows, 'No customers match this search.') }<div class='pagination'>{previous}<span>Page {current} of {pages}</span>{following}</div></div>"
+    body = f"{search_form}{create}<div class='card'><h2>Customers</h2>{table(('Customer','Contact','Properties','Open'), rows, 'No customers match this search.') }<div class='pagination'>{previous}<span>Page {current} of {pages}</span>{following}</div></div>"
     return _page("Customer Files", body, "contacts")
 
 
@@ -2988,6 +3245,7 @@ async def contact_detail(contact_id: str) -> HTMLResponse:
     tag_editor = ""
     if has_permission(_user(), "contacts.manage"):
         tag_editor = f"""<form method='post' action='/office/contacts/{esc(contact_id)}/tags'><div class='field'><label>Customer tags</label><input name='tags' value='{esc(', '.join(tags))}' placeholder='VIP, insurance, repeat customer, commercial'></div><button class='secondary' style='margin-top:10px'>Save tags</button></form>"""
+    tag_controls = f"<details class='plain-details'><summary>Edit customer tags</summary><div style='margin-top:12px'>{tag_editor}</div></details>" if tag_editor else ""
 
     note_items = ""
     for note in notes:
@@ -3030,22 +3288,22 @@ async def contact_detail(contact_id: str) -> HTMLResponse:
             )
             auto_form = f"""<div class='callout {'success' if latest_authorization else 'warning'}'>{esc(authorization_hint)}</div><form method='post' action='/office/contacts/{esc(contact_id)}/auto-charge'><input type='hidden' name='enabled' value='yes'><div class='form-grid'><div class='field full'><label>Authorization reference</label><input name='authorization_reference' value='{esc(suggested_authorization_reference)}' placeholder='Signed Payment Authorization envelope ID or written authorization record' required></div><div class='field full checks'><label><input type='checkbox' name='authorization_confirm' value='yes' required> I confirm this customer explicitly authorized Floodman to charge the selected saved card for future invoices when sent.</label></div></div><div class='actions' style='margin-top:10px'><button class='good'>Enable automatic invoice charging</button><a class='button secondary' href='/office/documents?contact_id={quote(contact_id)}'>Send Payment Authorization</a></div></form>"""
 
-    payment_section = f"""<div class='card'><h2>Floodman payment methods</h2><div class='pci-box'><b>Secure payment storage:</b> Floodman never stores a full card number or security code. The certified payment processor stores the credential; Floodman keeps only a token, card brand, last four digits, and expiration for display and authorized charging.</div><div class='actions' style='margin-top:12px'>{payment_controls}</div>{f"<div class='callout warning'>{esc(square_error)}</div>" if square_error else ''}<div style='margin-top:12px'>{table(('Card','Expires','Use','Actions'), card_rows, 'No saved card is on file. Send a Floodman invoice with “Let the customer save the payment method” enabled, or take an authorized card payment by phone.')}</div><hr><h3>Automatic invoice charging</h3>{auto_form}</div>"""
+    payment_section = f"""<details class='card'><summary>Billing and payment methods</summary><div style='margin-top:15px'><div class='pci-box'><b>Secure payment storage:</b> Floodman never stores a full card number or security code. The certified payment processor stores the credential; Floodman keeps only a token, card brand, last four digits, and expiration for display and authorized charging.</div><div class='actions' style='margin-top:12px'>{payment_controls}</div>{f"<div class='callout warning'>{esc(square_error)}</div>" if square_error else ''}<div style='margin-top:12px'>{table(('Card','Expires','Use','Actions'), card_rows, 'No saved card is on file. Send a Floodman invoice with “Let the customer save the payment method” enabled, or take an authorized card payment by phone.')}</div><hr><h3>Automatic invoice charging</h3>{auto_form}</div></details>"""
 
     imported_detail = ""
     if str(contact.get("source") or "").upper() == "CUSTOMER_CSV":
         quality = ", ".join(contact.get("quality_flags") or []) or "No review flags"
         imported_detail = f"""<details class='card'><summary>Imported source details</summary><div class='grid'><div><small class='muted'>Assigned staff</small><p>{esc(contact.get('assigned_staff') or '')}</p></div><div><small class='muted'>Source</small><p>{esc(contact.get('lead_source') or '')}</p></div><div><small class='muted'>Review flags</small><p>{esc(quality)}</p></div><div><small class='muted'>Communication suppression</small><p>{badge('Blocked / unsubscribed', 'bad') if contact.get('email_blocked') or contact.get('unsubscribed') else badge('Allowed', 'good')}</p></div></div><details><summary>Original import rows</summary>{json_pre(contact.get('source_records') or [])}</details></details>"""
 
-    body = f"""<div class='actions'><a class='button secondary' href='/office/contacts'>Back to customers</a><a class='button' href='/office/properties?contact_id={quote(contact_id)}'>Add property</a><a class='button' href='/office/estimates/new?contact_id={quote(contact_id)}'>Create estimate</a><a class='button' href='/office/invoices?contact_id={quote(contact_id)}'>Create invoice</a>{manage}</div>
-    <div class='customer-profile-grid' style='margin-top:15px'><div><div class='card'><h2>{esc(_contact_label(contact))}</h2><div class='grid'><div><small class='muted'>Primary email</small><p>{esc(contact.get('primaryEmail') or contact.get('email') or contact.get('email_raw') or '')}</p></div><div><small class='muted'>Phone</small><p>{esc(contact.get('primaryPhone') or contact.get('phone') or '')}</p></div><div><small class='muted'>Company</small><p>{esc(contact.get('company') or '')}</p></div><div><small class='muted'>Mailing address</small><p>{esc(mailing_address)}</p></div></div><hr><div class='tag-list'>{tags_html}</div><div style='margin-top:12px'>{tag_editor}</div></div>
-    <div class='card'><h2>Notes and activity</h2>{note_form}<div class='timeline' style='margin-top:14px'>{note_items}</div></div></div>
-    <div><div class='card'><h2>Customer summary</h2><div class='grid'><div class='metric'><small>Properties</small><strong>{len(properties)}</strong></div><div class='metric'><small>Estimates</small><strong>{len(estimates)}</strong></div><div class='metric'><small>Invoices</small><strong>{len(invoices)}</strong></div><div class='metric'><small>Client files</small><strong>{len(client_files)}</strong></div></div></div>{payment_section}</div></div>{imported_detail}
-    <div class='card'><h2>Properties and jobs</h2>{table(('Property','Address','Type'), [[f"<a href='/office/properties/{esc(i.get('id'))}'>{esc(i.get('name') or i.get('property_name'))}</a>", esc(i.get('service_street')), esc(i.get('property_type'))] for i in properties])}</div>
-    <div class='card'><h2>Estimates</h2>{table(('Estimate','Status','Total'), [[f"<a href='/office/estimates/{esc(i.get('id'))}'>{esc(i.get('estimate_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('total_cents') if i.get('total_cents') is not None else int(round(float(i.get('totalValue') or 0)*100)))] for i in estimates])}</div>
-    <div class='card'><h2>Invoices</h2>{table(('Invoice','Status','Balance'), [[f"<a href='/office/invoices/{esc(i.get('id'))}'>{esc(i.get('invoice_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('balance_cents') if i.get('balance_cents') is not None else int(round(float(i.get('amountDue') or 0)*100)))] for i in invoices])}</div>
-    <div class='card'><h2>Client file documents</h2>{table(('Document','Status','Completed','Property','File'), [[esc(i.get('title') or i.get('document_type') or i.get('id')), badge(i.get('status') or 'FILED'), esc(i.get('completed_at') or i.get('created_at') or ''), esc(i.get('property_id') or ''), f"<a href='{esc(i.get('signed_download_url') or i.get('download_url') or '#')}' target='_blank'>Open signed PDF</a>" if (i.get('signed_download_url') or i.get('download_url')) else 'File pending'] for i in client_files], 'No signed documents are attached to this customer yet.')}</div>
-    <div class='card'><div class='crm-section-head'><h2>Customer RoomFlow jobs</h2><a class='button small' href='/office/roomflow'>Open RoomFlow</a></div>{table(('Job','Property','Status','Estimate'), [[esc(i.get('job_name') or i.get('roomflow_job_id') or 'RoomFlow job'), esc(i.get('property_id') or ''), badge(i.get('status') or 'SYNCED'), f"<a href='/office/estimates/{esc(i.get('estimate_id'))}'>{esc(i.get('estimate_number') or 'Open')}</a>" if i.get('estimate_id') else 'Not created'] for i in store.records('roomflow_jobs') if str(i.get('contact_id') or '') == contact_id], 'No RoomFlow jobs are attached to this customer yet.')}</div>"""
+    body = f"""<div class='actions'><a class='button secondary' href='/office/contacts'>Back to customers</a><a class='button' href='/office/properties?contact_id={quote(contact_id)}'>Properties</a><a class='button' href='/office/estimates/new?contact_id={quote(contact_id)}'>New estimate</a><a class='button' href='/office/invoices?contact_id={quote(contact_id)}'>New invoice</a>{manage}</div>
+    <div class='card' style='margin-top:15px'><h2>{esc(_contact_label(contact))}</h2><div class='grid'><div><small class='muted'>Email</small><p>{esc(contact.get('primaryEmail') or contact.get('email') or contact.get('email_raw') or '')}</p></div><div><small class='muted'>Phone</small><p>{esc(contact.get('primaryPhone') or contact.get('phone') or '')}</p></div><div><small class='muted'>Company</small><p>{esc(contact.get('company') or '')}</p></div><div><small class='muted'>Mailing address</small><p>{esc(mailing_address)}</p></div></div><div class='tag-list'>{tags_html}</div>{tag_controls}</div>
+    <div class='card'><div class='crm-section-head'><h2>Properties ({len(properties)})</h2><a class='button small' href='/office/properties?contact_id={quote(contact_id)}'>Manage properties</a></div>{table(('Property','Address','Type'), [[f"<a href='/office/properties/{esc(i.get('id'))}'>{esc(i.get('name') or i.get('property_name'))}</a>", esc(i.get('service_street')), esc(i.get('property_type'))] for i in properties], 'No properties are attached to this customer yet.')}</div>
+    <details class='card'><summary>Notes and activity ({len(notes)})</summary><div style='margin-top:15px'>{note_form}<div class='timeline' style='margin-top:14px'>{note_items}</div></div></details>
+    {payment_section}{imported_detail}
+    <details class='card'><summary>Estimates ({len(estimates)})</summary><div style='margin-top:15px'>{table(('Estimate','Status','Total'), [[f"<a href='/office/estimates/{esc(i.get('id'))}'>{esc(i.get('estimate_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('total_cents') if i.get('total_cents') is not None else int(round(float(i.get('totalValue') or 0)*100)))] for i in estimates])}</div></details>
+    <details class='card'><summary>Invoices ({len(invoices)})</summary><div style='margin-top:15px'>{table(('Invoice','Status','Balance'), [[f"<a href='/office/invoices/{esc(i.get('id'))}'>{esc(i.get('invoice_number') or _invoice_number(i))}</a>", badge(i.get('status')), money_cents(i.get('balance_cents') if i.get('balance_cents') is not None else int(round(float(i.get('amountDue') or 0)*100)))] for i in invoices])}</div></details>
+    <details class='card'><summary>Documents ({len(client_files)})</summary><div style='margin-top:15px'>{table(('Document','Status','Completed','Property','File'), [[esc(i.get('title') or i.get('document_type') or i.get('id')), badge(i.get('status') or 'FILED'), esc(i.get('completed_at') or i.get('created_at') or ''), esc(i.get('property_id') or ''), f"<a href='{esc(i.get('signed_download_url') or i.get('download_url') or '#')}' target='_blank'>Open signed PDF</a>" if (i.get('signed_download_url') or i.get('download_url')) else 'File pending'] for i in client_files], 'No signed documents are attached to this customer yet.')}</div></details>
+    <details class='card'><summary>RoomFlow jobs</summary><div class='crm-section-head' style='margin-top:15px'><span></span><a class='button small' href='/office/roomflow'>Open RoomFlow</a></div>{table(('Job','Property','Status','Estimate'), [[esc(i.get('job_name') or i.get('roomflow_job_id') or 'RoomFlow job'), esc(i.get('property_id') or ''), badge(i.get('status') or 'SYNCED'), f"<a href='/office/estimates/{esc(i.get('estimate_id'))}'>{esc(i.get('estimate_number') or 'Open')}</a>" if i.get('estimate_id') else 'Not created'] for i in store.records('roomflow_jobs') if str(i.get('contact_id') or '') == contact_id], 'No RoomFlow jobs are attached to this customer yet.')}</details>"""
     return _page(_contact_label(contact), body, "contacts")
 
 
@@ -3224,15 +3482,17 @@ async def set_contact_auto_charge(
 async def properties_page(contact_id: str = "") -> HTMLResponse:
     _require("properties.view")
     state = await _state_page_data()
-    properties: list[dict[str, Any]] = []
-    seen_properties: set[str] = set()
-    for item in store.records("properties") + _rows(state.get("properties")):
-        identity = str(item.get("id") or item.get("legacyPropertyId") or item.get("legacy_property_id") or "")
-        if identity and identity in seen_properties:
-            continue
-        if identity:
-            seen_properties.add(identity)
-        properties.append(item)
+    contacts = _all_contact_rows(state)
+    selected_contact = next(
+        (item for item in contacts if str(item.get("id") or "") == contact_id),
+        None,
+    ) if contact_id else None
+    if contact_id and not selected_contact:
+        raise HTTPException(404, "Customer not found")
+    properties = [
+        item for item in _all_property_rows(state)
+        if selected_contact and str(item.get("contact_id") or "") == contact_id
+    ]
     rows = []
     for item in properties:
         address = item.get("service_address") or {}
@@ -3243,21 +3503,35 @@ async def properties_page(contact_id: str = "") -> HTMLResponse:
         formatted = ", ".join(value for value in (street, city, " ".join(value for value in (state_code, postal_code) if value)) if value)
         rows.append([
             f"<a href='/office/properties/{esc(item.get('id'))}'>{esc(item.get('property_name') or item.get('name') or item.get('id'))}</a>",
-            esc(_contact_name(str(item.get("contact_id") or ""), state)),
             esc(formatted),
             esc(item.get("property_type") or ""),
-            esc(item.get("claim_number") or ""),
         ])
+
+    selected_label = _contact_label(selected_contact) if selected_contact else ""
+    selector = f"""<div class='card'><h2>Select a customer</h2><form method='get' action='/office/properties'><div class='form-grid'>
+    {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=selected_label, required=True)}
+    <div class='field' style='align-self:end'><button>Show properties</button></div></div></form></div>"""
+
+    customer_summary = ""
+    if selected_contact:
+        customer_summary = f"""<div class='card'><div class='crm-section-head'><div><small class='muted'>Selected customer</small><h2>{esc(selected_label)}</h2><div class='muted'>{esc(selected_contact.get('primaryEmail') or selected_contact.get('email') or '')} · {esc(selected_contact.get('primaryPhone') or selected_contact.get('phone') or '')}</div></div><a class='button secondary' href='/office/contacts/{esc(contact_id)}'>Open customer</a></div></div>"""
+
     create = ""
-    if has_permission(_user(), "properties.manage"):
-        create = f"""<div class='card'><h2>Add service property</h2><form method='post' action='/office/properties/add'><div class='form-grid three'>
-        {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id, state) if contact_id else '', required=True)}
-        <div class='field'><label>Property name</label><input name='name' placeholder='Home, rental, business' required></div><div class='field'><label>Property type</label><select name='property_type'><option>Residential</option><option>Commercial</option><option>Rental</option><option>Other</option></select></div>
+    if selected_contact and has_permission(_user(), "properties.manage"):
+        create = f"""<details class='card'><summary>Add a property for {esc(selected_label)}</summary><form method='post' action='/office/properties/add' style='margin-top:15px'><input type='hidden' name='contact_id' value='{esc(contact_id)}'><div class='form-grid three'>
+        <div class='field'><label>Property name</label><input name='name' placeholder='Home, rental, business' required></div><div class='field'><label>Property type</label><select name='property_type'><option>Residential</option><option>Commercial</option><option>Rental</option><option>Other</option></select></div><div></div>
         <div class='field full'><label>Service street</label><input name='service_street' required></div><div class='field'><label>City</label><input name='service_city' required></div>
         <div class='field'><label>State</label><input name='service_state' value='MI' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' required></div>
-        <div class='field'><label>Insurance company</label><input name='insurance_company'></div><div class='field'><label>Claim number</label><input name='claim_number'></div>
-        <div class='field full'><label>Property notes</label><textarea name='notes'></textarea></div></div><button style='margin-top:12px'>Create property</button></form></div>"""
-    body = f"{create}<div class='card'><h2>Service properties</h2>{table(('Property','Customer','Service address','Type','Claim'), rows)}</div>"
+        </div><details class='plain-details'><summary>Insurance, claim, and notes</summary><div class='form-grid' style='margin-top:12px'><div class='field'><label>Insurance company</label><input name='insurance_company'></div><div class='field'><label>Claim number</label><input name='claim_number'></div><div class='field full'><label>Property notes</label><textarea name='notes'></textarea></div></div></details><button style='margin-top:12px'>Create property</button></form></details>"""
+
+    property_list = (
+        f"<div class='card'><h2>Properties for {esc(selected_label)}</h2>"
+        + table(('Property', 'Service address', 'Type'), rows, 'No properties are attached to this customer yet.')
+        + "</div>"
+        if selected_contact
+        else "<div class='card empty'><h2>Choose a customer to begin</h2><p>Only that customer’s properties will appear here.</p></div>"
+    )
+    body = f"{selector}{customer_summary}{create}{property_list}"
     return _page("Properties", body, "properties")
 
 
@@ -3346,7 +3620,11 @@ def catalog_items_api(q: str = "", category: str = "", limit: int = 30) -> dict[
     for item in store.records("catalog_items"):
         if item.get("active") is False:
             continue
-        searchable = " ".join(str(item.get(key) or "") for key in ("name", "description", "category", "default_section", "unit", "external_key")).casefold()
+        pricing = ((item.get("formula") or {}).get("xactimate") or {})
+        searchable = " ".join([
+            *(str(item.get(key) or "") for key in ("name", "description", "category", "default_section", "unit", "external_key", "source_id")),
+            *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+        ]).casefold()
         if query and query not in searchable:
             continue
         if category_key and str(item.get("category") or "").casefold() != category_key:
@@ -3433,6 +3711,8 @@ def _payment_security_headers(*, allow_sdk: bool = False) -> dict[str, str]:
     connect_sources = "'self'"
     style_sources = "'self' 'unsafe-inline'"
     font_sources = "'self' data:"
+    if portal_connection.enabled:
+        frame_sources += " " + portal_connection.origin
     if allow_sdk:
         script_sources += " https://web.squarecdn.com https://sandbox.web.squarecdn.com"
         frame_sources += " https://web.squarecdn.com https://sandbox.web.squarecdn.com"
@@ -3461,6 +3741,205 @@ def _document_contact_property(document: dict[str, Any]) -> tuple[dict[str, Any]
     contact = store.record("contacts", str(document.get("contact_id") or "")) or {}
     property_record = store.record("properties", str(document.get("property_id") or "")) or {}
     return contact, property_record
+
+
+def _contact_display_name(contact: dict[str, Any]) -> str:
+    return str(
+        contact.get("name")
+        or " ".join(part for part in (contact.get("first_name"), contact.get("last_name")) if part)
+        or contact.get("email")
+        or "Customer"
+    ).strip()
+
+
+def _notification_id(event_kind: str, event_id: str, user_id: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-notification:{event_kind}:{event_id}:{user_id}"))
+
+
+async def _notify_staff(
+    *,
+    permission: str,
+    event_kind: str,
+    event_id: str,
+    reference_id: str,
+    title: str,
+    body: str,
+    action_url: str,
+    email_subject: str,
+) -> int:
+    """Create one durable alert per eligible staff member and email it once.
+
+    The stable event/user identifier makes payment callbacks and browser retries
+    safe.  Email failure never rolls back the business event; the in-app/mobile
+    notification remains available and records delivery status for staff review.
+    """
+    recipients = [
+        user
+        for user in store.list_users()
+        if str(user.get("status") or "ACTIVE").upper() == "ACTIVE" and has_permission(user, permission)
+    ]
+    pending: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for user in recipients:
+        user_id = str(user.get("id") or "")
+        if not user_id:
+            continue
+        notification, created = store.create_record_if_absent(
+            "notifications",
+            _notification_id(event_kind, event_id, user_id),
+            {
+                "user_id": user_id,
+                "title": title,
+                "body": body,
+                "kind": event_kind,
+                "reference_id": reference_id,
+                "action_url": action_url if action_url.startswith("/office/") else "/office/alerts",
+                "status": "UNREAD",
+                "email_status": "PENDING" if user.get("email") else "NO_EMAIL",
+                "source": "FLOODMAN_NOTIFICATION",
+            },
+            actor_id="floodman-system",
+        )
+        if created and user.get("email"):
+            pending.append((user, notification))
+
+    async def deliver(user: dict[str, Any], notification: dict[str, Any]) -> None:
+        try:
+            office_url = f"{settings.public_url.rstrip('/')}/office/alerts/{quote(str(notification.get('id') or ''))}/open"
+            await providers.send_email(
+                to=str(user.get("email") or ""),
+                subject=email_subject,
+                text=f"{body}\n\nOpen Floodman: {office_url}",
+            )
+            store.update_record(
+                "notifications",
+                str(notification["id"]),
+                {"email_status": "SENT", "email_sent_at": datetime.now(UTC).isoformat()},
+                actor_id="floodman-system",
+            )
+        except Exception:
+            store.update_record(
+                "notifications",
+                str(notification["id"]),
+                {"email_status": "FAILED"},
+                actor_id="floodman-system",
+            )
+
+    if pending:
+        await asyncio.gather(*(deliver(user, notification) for user, notification in pending))
+    return len(recipients)
+
+
+async def _notify_payment_admins(kind: str, document: dict[str, Any], payment: dict[str, Any]) -> int:
+    contact, _ = _document_contact_property(document)
+    number = str(
+        document.get("estimate_number")
+        if kind == "estimate"
+        else document.get("invoice_number") or document.get("id") or ""
+    )
+    label = "deposit" if kind == "estimate" else "invoice payment"
+    amount = money_cents(payment.get("amount_cents"), str(payment.get("currency") or "USD"))
+    customer = _contact_display_name(contact)
+    action_url = f"/office/{kind}s/{quote(str(document.get('id') or ''))}"
+    return await _notify_staff(
+        permission="payments.manage",
+        event_kind="PAYMENT_RECEIVED",
+        event_id=str(payment.get("id") or ""),
+        reference_id=str(payment.get("id") or ""),
+        title=f"Payment received: {amount}",
+        body=f"{customer} paid {amount} toward {label} {number}. Open Floodman to review the balance and receipt.",
+        action_url=action_url,
+        email_subject=f"Floodman payment received - {number}",
+    )
+
+
+def _customer_thread_id(contact_id: str, property_id: str = "", document_id: str = "") -> str:
+    # A document capability may be forwarded to an insurer or other project
+    # participant.  Scope conversations to the service property (or, when no
+    # property exists, the individual document) so one link cannot expose an
+    # unrelated project belonging to the same customer.
+    scope = str(property_id or "").strip() or f"document:{str(document_id or '').strip()}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-customer-thread:{contact_id}:{scope}"))
+
+
+def _customer_thread(document: dict[str, Any], kind: str, *, create: bool = False) -> dict[str, Any] | None:
+    contact_id = str(document.get("contact_id") or "")
+    if not contact_id:
+        return None
+    thread_id = _customer_thread_id(contact_id, str(document.get("property_id") or ""), str(document.get("id") or ""))
+    thread = store.record("customer_threads", thread_id)
+    if thread or not create:
+        return thread
+    thread, _ = store.create_record_if_absent(
+        "customer_threads",
+        thread_id,
+        {
+            "contact_id": contact_id,
+            "property_id": document.get("property_id"),
+            "last_document_kind": kind,
+            "last_document_id": document.get("id"),
+            "status": "OPEN",
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id="customer-portal",
+    )
+    return thread
+
+
+def _customer_thread_messages(thread_id: str) -> list[dict[str, Any]]:
+    return sorted(
+        [item for item in store.records("customer_messages") if str(item.get("thread_id") or "") == thread_id],
+        key=lambda item: (str(item.get("created_at") or ""), str(item.get("id") or "")),
+    )
+
+
+def _clean_portal_message(value: str) -> str:
+    message = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not message:
+        raise ValueError("Write a message before sending.")
+    if len(message) > 3000:
+        raise ValueError("Messages can contain up to 3,000 characters.")
+    return message
+
+
+async def _notify_customer_message_staff(document: dict[str, Any], message: dict[str, Any], thread_id: str) -> int:
+    contact, _ = _document_contact_property(document)
+    customer = _contact_display_name(contact)
+    return await _notify_staff(
+        permission="messages.manage",
+        event_kind="CUSTOMER_MESSAGE",
+        event_id=str(message.get("id") or ""),
+        reference_id=thread_id,
+        title="New customer portal message",
+        body=f"{customer} sent a secure portal message. Open Floodman Messages to read and respond.",
+        action_url=f"/office/messages?thread={quote(thread_id)}",
+        email_subject=f"Floodman customer message - {customer}",
+    )
+
+
+def _customer_conversation_body(kind: str, document: dict[str, Any]) -> str:
+    thread_id = _customer_thread_id(
+        str(document.get("contact_id") or ""),
+        str(document.get("property_id") or ""),
+        str(document.get("id") or ""),
+    )
+    messages = _customer_thread_messages(thread_id)
+    unread = sum(1 for item in messages if str(item.get("sender_kind") or "").upper() == "STAFF" and not item.get("customer_read_at"))
+    rendered = "".join(
+        f"<article class='portal-message {'staff' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'customer'}'><div class='portal-message-head'><b>{esc('Floodman team' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'You')}</b><span>{esc(str(item.get('created_at') or '')[:16].replace('T', ' '))} UTC</span></div><p>{esc(item.get('body') or '').replace(chr(10), '<br>')}</p></article>"
+        for item in messages
+    ) or "<div class='notice'>No messages yet. Send a question below and the Floodman team will be notified.</div>"
+    request_id = secrets.token_urlsafe(24)
+    read_form = (
+        f"<form method='post' action='/customer/{esc(kind)}/{esc(document.get('public_token') or '')}/messages/read'><button class='secondary'>Mark replies read</button></form>"
+        if unread
+        else ""
+    )
+    return f"""
+<section class='card portal-conversation' id='messages'><div class='portal-message-title'><div><span class='eyebrow'>SECURE CUSTOMER MESSAGES</span><h2>Message the Floodman team</h2><p>Ask a project, scheduling, estimate, or billing question here. Staff replies stay with your customer file.</p></div>{f"<span class='status'>{unread} new repl{'y' if unread == 1 else 'ies'}</span>" if unread else ""}</div>
+<div class='portal-message-list' aria-live='polite'>{rendered}</div>
+{read_form}
+<form method='post' action='/customer/{esc(kind)}/{esc(document.get('public_token') or '')}/messages' class='portal-message-form'><input type='hidden' name='request_id' value='{esc(request_id)}'><div class='portal-honeypot' aria-hidden='true'><label>Website<input name='website' tabindex='-1' autocomplete='off'></label></div><div class='field'><label for='portal-message-body'>Your message</label><textarea id='portal-message-body' name='body' maxlength='3000' rows='5' required placeholder='How can we help?'></textarea><small>Do not send card numbers, security codes, passwords, or other sensitive account information.</small></div><button>Send message</button></form></section>
+"""
 
 
 def _ensure_public_document(kind: str, document: dict[str, Any], *, actor_id: str = "floodman-system") -> dict[str, Any]:
@@ -3567,6 +4046,8 @@ async def _record_document_payment(
     if processor_id:
         existing = next((p for p in store.records("payments") if str(p.get("processor_payment_id") or "") == processor_id), None)
         if existing:
+            current_document = store.record(kind + "s", record_id) or document
+            await _notify_payment_admins(kind, current_document, existing)
             return existing
     values: dict[str, Any] = {
         "invoice_id": record_id if kind == "invoice" else None,
@@ -3584,7 +4065,17 @@ async def _record_document_payment(
     }
     values.update(_payment_card_summary(processor_payment or {}))
     values.update(payment_metadata or {})
-    payment = store.create_record("payments", values, actor_id=actor_id)
+    if processor_id:
+        stable_payment_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-processor-payment:{processor_id}"))
+        payment, payment_created = store.create_record_if_absent(
+            "payments", stable_payment_id, values, actor_id=actor_id
+        )
+        if not payment_created:
+            current_document = store.record(kind + "s", record_id) or document
+            await _notify_payment_admins(kind, current_document, payment)
+            return payment
+    else:
+        payment = store.create_record("payments", values, actor_id=actor_id)
     if kind == "invoice":
         new_paid = int(document.get("paid_cents") or 0) + amount_cents
         total = int(document.get("total_cents") or 0)
@@ -3616,6 +4107,8 @@ async def _record_document_payment(
         })
     except Exception:
         pass
+    current_document = store.record(kind + "s", record_id) or document
+    await _notify_payment_admins(kind, current_document, payment)
     return payment
 
 
@@ -3842,12 +4335,14 @@ async def _process_card_payment(kind: str, document: dict[str, Any], payload: di
 @app.get("/office/payment-settings")
 def payment_settings_page() -> HTMLResponse:
     _require("connections.manage")
+    if is_setup_owner(_user(), settings):
+        return RedirectResponse("/office/service-setup#square", status_code=303)
     config = providers.square_payment_configuration()
     status = "TEST MODE" if config.get("local_mock") else "READY" if config.get("live") else "SETUP REQUIRED"
     status_message = (
         "Safe test payments are available. No real card will be charged."
         if config.get("local_mock")
-        else "The production processor identifiers are present. Complete a small approved test before go-live."
+        else f"Square {config.get('environment')} checkout is configured. A connection check alone does not prove checkout works."
         if config.get("live")
         else "Ask the server owner to connect the Square Sandbox before accepting card payments."
     )
@@ -3855,7 +4350,7 @@ def payment_settings_page() -> HTMLResponse:
 <div class='callout {'success' if config.get('local_mock') or config.get('live') else 'warning'}'><b>{esc(status)}:</b> {esc(status_message)}</div>
 <div class='grid two'><div class='card'><div class='settings-eyebrow'>CURRENT READINESS</div><h2>Card payment connection</h2><p><b>Mode:</b> {badge(status)}</p><p><b>Environment:</b> {esc(str(config.get('environment') or 'Not configured').replace('_', ' ').title())}</p><p><b>Application:</b> {esc('Connected' if config.get('application_id') else 'Not connected')}</p><p><b>Business location:</b> {esc('Connected' if config.get('location_id') else 'Not connected')}</p><p><b>Customer payment page:</b><br><span class='mono'>{esc(settings.customer_public_url)}</span></p></div><div class='card'><div class='settings-eyebrow'>WHAT STAFF NEED TO KNOW</div><h2>Card information stays with Square</h2><p>Customers or authorized staff type card details only into Square's secure card field. Floodman keeps the payment result, amount, receipt, processor ID, card brand, and last four digits.</p><div class='callout success'><b>Never paste a card number, expiration date, or security code into notes, messages, or this settings area.</b></div></div></div>
 <div class='card'><h2>Simple setup path</h2><div class='role-guide'><div><b>1. Start in test mode</b><small>Use local test mode or Square Sandbox before any production payment.</small></div><div><b>2. Server owner connects Square</b><small>The owner installs the application ID, access token, location ID, and webhook secret outside the browser.</small></div><div><b>3. Run one approved test</b><small>Verify the receipt, invoice balance, and payment record agree.</small></div><div><b>4. Approve production</b><small>Switch only after the business owner reviews the payment and refund process.</small></div></div><div class='actions'><a class='button' href='/office/payments'>Open payment records</a><a class='button secondary' href='/office/settings'>Back to settings</a></div></div>
-<details class='card plain-details'><summary>Server owner instructions</summary><p>Copy <code>/home/container/config/floodman-payments.env.example</code> to <code>/home/container/config/floodman-payments.env</code>, insert reviewed Square Sandbox values, restart Floodman, and return here. Never place credentials in browser JavaScript, GitHub, chat, or screenshots.</p><p class='muted'>Required server values: application ID, server access token, location ID, and webhook signature key. This page intentionally shows only whether identifiers are present.</p></details>
+<div class='card'><h2>Owner setup</h2><p>The owner can save and check the Square connection under Settings &amp; Setup → Payments &amp; email. Staff accounts cannot view or edit credentials.</p></div>
 """
     return _page("Card Payment Setup", body, "payment-settings")
 
@@ -3962,7 +4457,8 @@ def _customer_document_response(expected_kind: str, token: str) -> HTMLResponse:
     kind, document = _public_document(token)
     if kind != expected_kind:
         raise HTTPException(404, "Document link not found")
-    return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), _customer_document_body(kind, document)), headers=_payment_security_headers())
+    body = _customer_document_body(kind, document) + portal_connection.gallery_html(document) + customer_sms.form(kind, document) + _customer_conversation_body(kind, document)
+    return HTMLResponse(customer_page(str(document.get("title") or "Floodman document"), body), headers=_payment_security_headers())
 
 
 def _customer_document_pdf_response(expected_kind: str, token: str) -> Response:
@@ -3981,6 +4477,172 @@ def customer_estimate(token: str) -> HTMLResponse:
 @app.get("/customer/invoice/{token}")
 def customer_invoice(token: str) -> HTMLResponse:
     return _customer_document_response("invoice", token)
+
+
+@app.get("/customer/sms/{page}")
+def customer_sms_policy(page: str) -> HTMLResponse:
+    if page not in {"privacy", "terms", "program"}:
+        raise HTTPException(404, "Page not found")
+    return HTMLResponse(render_policy(page), headers=_payment_security_headers())
+
+
+@app.post("/customer/{kind}/{token}/sms-consent")
+async def customer_sms_preference(kind: str, token: str, request: Request) -> Response:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    try:
+        declared_length = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "Invalid form length") from None
+    if declared_length < 0:
+        raise HTTPException(400, "Invalid form length")
+    if declared_length > 8192:
+        raise HTTPException(413, "Form is too large")
+    raw = await request.body()
+    if len(raw) > 8192:
+        raise HTTPException(413, "Form is too large")
+    form = await request.form()
+    if any(len(form.getlist(key)) != 1 for key in ("ticket", "choice")) or len(form.getlist("consent")) > 1:
+        raise HTTPException(422, "Invalid consent form")
+    error = notice = ""
+    try:
+        event = customer_sms.save(kind, document, ticket=str(form.get("ticket") or ""),
+            phone=str(form.get("phone") or ""), choice=str(form.get("choice") or ""),
+            consent=str(form.get("consent") or ""), origin=request.headers.get("origin", ""),
+            website=str(form.get("website") or ""))
+        notice = "Your text preference was saved. " + ("Texts are turned off." if event["status"] == "OPTED_OUT" else "Service texts can begin after carrier approval; this does not remove a previous STOP block.")
+    except ValueError as exc:
+        error = str(exc)
+    # The preference is already durable. A background retry synchronizes it;
+    # there is no provider call or SMS send on this public request.
+    body = customer_sms.form(kind, document, error=error, notice=notice)
+    body += f"<a class='button secondary' href='/customer/{esc(kind)}/{esc(token)}'>Return to your document</a>"
+    return HTMLResponse(customer_page("Text preferences", body), status_code=422 if error else 200, headers=_payment_security_headers())
+
+
+@app.post("/internal/v1/customer-sms/check")
+async def customer_sms_check(request: Request) -> dict[str, Any]:
+    body = await request.body()
+    if len(body) > 2048:
+        raise HTTPException(413, "Request too large")
+    try:
+        verify_signed_body(request.headers, body, settings.internal_hmac_keys)
+    except SignedRequestError as exc:
+        raise HTTPException(401, "Internal authentication required") from exc
+    try:
+        payload = json.loads(body)
+        phone = sms_phone_number(payload.get("phone_e164", ""))
+    except (ValueError, AttributeError):
+        raise HTTPException(422, "Invalid consent query")
+    if payload.get("organization_id") != customer_sms.organization:
+        return {"managed":False}
+    events = [r for r in store.records("customer_sms_events")
+              if r.get("organization_id") == payload["organization_id"] and r.get("phone_e164") == phone]
+    if not events:
+        return {"managed":False}
+    latest = max(events, key=lambda r: (r["captured_at"], r["status"] == "OPTED_OUT"))
+    return {"managed":True, "status":latest["status"], "captured_at":latest["captured_at"], "sync_status":latest["sync_status"]}
+
+
+@app.post("/customer/{kind}/{token}/messages")
+async def customer_message(
+    kind: str,
+    token: str,
+    body: str = Form(...),
+    request_id: str = Form(...),
+    website: str = Form(default=""),
+) -> Response:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    return_url = str(document.get("public_url") or f"{settings.customer_public_url}/{kind}/{token}") + "#messages"
+    if website.strip():
+        return RedirectResponse(return_url, status_code=303)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", str(request_id or "")):
+        raise HTTPException(422, "Refresh the page and send your message again.")
+    try:
+        message_body = _clean_portal_message(body)
+    except ValueError as exc:
+        page_body = f"<div class='notice error'>{esc(exc)}</div>" + _customer_document_body(kind, document) + _customer_conversation_body(kind, document)
+        return HTMLResponse(customer_page("Message not sent", page_body), status_code=422, headers=_payment_security_headers())
+
+    thread = _customer_thread(document, kind, create=True)
+    if not thread:
+        raise HTTPException(409, "This customer file is not available for messaging.")
+    thread_id = str(thread["id"])
+    message_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-customer-message:{thread_id}:{request_id}"))
+    existing_message = store.record("customer_messages", message_id)
+    if existing_message:
+        await _notify_customer_message_staff(document, existing_message, thread_id)
+        return RedirectResponse(return_url, status_code=303)
+
+    now = datetime.now(UTC)
+    recent_customer_messages = 0
+    for item in _customer_thread_messages(thread_id):
+        if str(item.get("sender_kind") or "").upper() != "CUSTOMER":
+            continue
+        try:
+            created = datetime.fromisoformat(str(item.get("created_at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if (now - created).total_seconds() <= 60:
+            recent_customer_messages += 1
+    if recent_customer_messages >= 5:
+        raise HTTPException(429, "Please wait a moment before sending another message.")
+
+    contact, _ = _document_contact_property(document)
+    message, created = store.create_record_if_absent(
+        "customer_messages",
+        message_id,
+        {
+            "thread_id": thread_id,
+            "contact_id": document.get("contact_id"),
+            "property_id": document.get("property_id"),
+            "document_kind": kind,
+            "document_id": document.get("id"),
+            "sender_kind": "CUSTOMER",
+            "sender_name": _contact_display_name(contact),
+            "body": message_body,
+            "customer_read_at": now.isoformat(),
+            "staff_read_at": None,
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id="customer-portal",
+    )
+    if created:
+        store.update_record(
+            "customer_threads",
+            thread_id,
+            {
+                "status": "OPEN",
+                "property_id": document.get("property_id") or thread.get("property_id"),
+                "last_document_kind": kind,
+                "last_document_id": document.get("id"),
+                "last_message_at": message.get("created_at"),
+                "last_sender_kind": "CUSTOMER",
+            },
+            actor_id="customer-portal",
+        )
+    await _notify_customer_message_staff(document, message, thread_id)
+    return RedirectResponse(return_url, status_code=303)
+
+
+@app.post("/customer/{kind}/{token}/messages/read")
+def customer_messages_read(kind: str, token: str) -> RedirectResponse:
+    actual_kind, document = _public_document(token)
+    if actual_kind != kind or kind not in {"estimate", "invoice"}:
+        raise HTTPException(404, "Document link not found")
+    thread_id = _customer_thread_id(
+        str(document.get("contact_id") or ""),
+        str(document.get("property_id") or ""),
+        str(document.get("id") or ""),
+    )
+    now = datetime.now(UTC).isoformat()
+    for item in _customer_thread_messages(thread_id):
+        if str(item.get("sender_kind") or "").upper() == "STAFF" and not item.get("customer_read_at"):
+            store.update_record("customer_messages", str(item["id"]), {"customer_read_at": now}, actor_id="customer-portal")
+    return RedirectResponse(str(document.get("public_url") or f"{settings.customer_public_url}/{kind}/{token}") + "#messages", status_code=303)
 
 
 @app.get("/customer/estimate/{token}/pdf")
@@ -4045,7 +4707,11 @@ def catalog_page(q: str = "", category: str = "") -> HTMLResponse:
     categories = sorted({str(item.get("category") or "General Services") for item in all_items}, key=str.casefold)
     items = []
     for item in all_items:
-        searchable = " ".join(str(item.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider")).casefold()
+        pricing = ((item.get("formula") or {}).get("xactimate") or {})
+        searchable = " ".join([
+            *(str(item.get(key) or "") for key in ("name", "description", "category", "unit", "source_provider", "source_id", "external_key")),
+            *(str(pricing.get(key) or "") for key in ("code", "price_list", "market", "effective_date")),
+        ]).casefold()
         if query and query not in searchable:
             continue
         if category_key and str(item.get("category") or "").casefold() != category_key:
@@ -4054,19 +4720,64 @@ def catalog_page(q: str = "", category: str = "") -> HTMLResponse:
     items.sort(key=lambda item: (item.get("active") is False, str(item.get("category") or "").casefold(), str(item.get("name") or "").casefold()))
     category_options = "".join(f"<option value='{esc(value)}' {'selected' if value.casefold() == category_key else ''}>{esc(value)}</option>" for value in categories)
     create = ""
+    xactimate_import = ""
     if has_permission(_user(), "estimates.manage"):
         create = """<details class='card plain-details'><summary>Add a new service or price</summary><p class='muted'>Add something your team sells often. It will appear in office estimates and the RoomFlow scope builder.</p><form method='post' action='/office/catalog/add'><div class='form-grid three'><div class='field'><label>Service name <span class='required-mark'>Required</span></label><input name='name' maxlength='200' placeholder='Interior perimeter drainage' required><small class='field-help'>Use the name a customer will understand.</small></div><div class='field'><label>Estimate section</label><input name='category' value='General Services' maxlength='120' required><small class='field-help'>Services with the same section stay grouped together.</small></div><div class='field'><label>How it is measured</label><select name='unit'><option value='each'>Each</option><option value='LF'>Linear foot</option><option value='SF'>Square foot</option><option value='hour'>Hour</option><option value='day'>Day</option><option value='allowance'>Allowance</option></select></div><div class='field'><label>Standard unit price</label><input name='unit_price' type='number' min='0' max='9999999.99' step='0.01' value='0.00' inputmode='decimal'><small class='field-help'>Enter dollars, not cents. It can still be changed on an estimate.</small></div><div class='field checks'><label><input type='checkbox' name='taxable' value='yes'> Apply sales tax when the estimate uses tax</label></div><div class='field full'><label>Customer-facing description <span class='muted'>Optional</span></label><textarea name='description' maxlength='2000' placeholder='What is included in this service?'></textarea></div></div><button class='good' style='margin-top:12px'>Save service</button></form></details>"""
+        xactimate_import = """<details class='card plain-details'><summary>Bring in licensed Xactimate pricing</summary><div class='callout'><b>Preview first, import second.</b> Floodman never changes the original file. A direct PLX upload is inspected locally, but protected XACTDOC.ZIPXML data requires a supported Xactimate conversion. A completed Floodman pricing CSV can be fully previewed and confirmed here.</div><form method='post' action='/office/catalog/import-xactimate' enctype='multipart/form-data' class='import-upload-form'><label class='file-drop-field'><span class='file-drop-icon'>⇩</span><b>Select a PLX or pricing CSV</b><small>Accepted: .plx and .csv · Maximum 25 MB · Files stay in private server storage only when a CSV preview succeeds</small><input type='file' name='pricing_file' accept='.plx,.csv,text/csv' required></label><button class='good'>Inspect and preview</button></form><div class='role-guide'><div><b>1. Try the PLX</b><small>Floodman identifies the transfer container and tells you if Xactimate conversion is required.</small></div><div><b>2. Fill the template</b><small>Use only pricing data your Xactimate license allows you to use.</small></div><div><b>3. Confirm the preview</b><small>Stable market/category/selector/activity codes update existing items without duplicates.</small></div></div><div class='actions'><a class='button secondary' href='/office/catalog/import-xactimate/template.csv'>Download pricing CSV template</a></div></details>"""
     source_labels = {
         "FLOODMAN_CUSTOM": "Added by your team",
         "ROOMFLOW_SUPABASE": "Current RoomFlow/Supabase",
         "ROOMFLOW_BUNDLED_CATALOG": "Floodman starter list",
+        XACTIMATE_SOURCE_PROVIDER: "Licensed Xactimate import",
     }
-    cards = "".join(
-        f"<article class='catalog-card'><div class='catalog-source'>{esc(source_labels.get(str(item.get('source_provider') or ''), 'Floodman service'))}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div><small>Estimate section: {esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or 'No customer description yet.')}</small><div style='margin-top:9px'>{badge('AVAILABLE' if item.get('active') is not False else 'HIDDEN', 'good' if item.get('active') is not False else 'neutral')}</div></article>"
-        for item in items[:1000]
-    ) or "<div class='callout'>No services match this search. Clear the filters, refresh the starter list, or add a service.</div>"
-    body = f"""<div class='callout success'><b>One price list for office and field staff.</b> Choose these services while building an estimate in Floodman Office or RoomFlow. A price is a reusable starting point and can be adjusted on an individual estimate.</div><div class='card'><div class='actions spread'><div><h2>Services &amp; Prices</h2><p class='muted'>{len(all_items)} reusable services are available. RoomFlow/Supabase items update by their original source ID, so refreshing does not create duplicates.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Refresh starter services</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Pull current RoomFlow prices</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Find a service</label><input type='search' name='q' value='{esc(q)}' placeholder='Try waterproofing, mold, or demolition' autocomplete='off'></div><div class='field'><label>Show section</label><select name='category'><option value=''>All sections</option>{category_options}</select></div><button>Apply filters</button></form><div class='catalog-grid'>{cards}</div></div>{create} """
+
+    def catalog_card(item: dict[str, Any]) -> str:
+        xactimate = ((item.get("formula") or {}).get("xactimate") or {})
+        code = xactimate.get("code")
+        effective = xactimate.get("effective_date")
+        pricing_details = ""
+        if code:
+            pricing_details = f"<small><b>Insurance code:</b> {esc(code)}</small><small><b>Price list:</b> {esc(xactimate.get('price_list') or 'Not recorded')} · <b>Effective:</b> {esc(effective or 'Review required')}</small>"
+        return f"<article class='catalog-card'><div class='catalog-source'>{esc(source_labels.get(str(item.get('source_provider') or ''), 'Floodman service'))}</div><h3>{esc(item.get('name'))}</h3><div class='catalog-price'>{money_cents(item.get('unit_price_cents'))} / {esc(item.get('unit') or 'each')}</div>{pricing_details}<small>Estimate section: {esc(item.get('default_section') or item.get('category') or 'General Services')}</small><small>{esc(item.get('description') or 'No customer description yet.')}</small><div style='margin-top:9px'>{badge('REVIEW PRICE' if item.get('review_required') else ('AVAILABLE' if item.get('active') is not False else 'HIDDEN'), 'warn' if item.get('review_required') else ('good' if item.get('active') is not False else 'neutral'))}</div></article>"
+
+    display_limit = 200
+    cards = "".join(catalog_card(item) for item in items[:display_limit]) or "<div class='callout'>No services match this search. Clear the filters, refresh the starter list, or add a service.</div>"
+    result_note = f"<p class='muted'>Showing the first {display_limit} of {len(items)} matches. Search by description or insurance code to narrow the list.</p>" if len(items) > display_limit else ""
+    body = f"""<div class='callout success'><b>One price list for office and field staff.</b> Choose these services while building an estimate in Floodman Office or RoomFlow. A price is a reusable starting point and can be adjusted on an individual estimate.</div>{xactimate_import}<div class='card'><div class='actions spread'><div><h2>Services &amp; Prices</h2><p class='muted'>{len(all_items)} reusable services are available. RoomFlow/Supabase and licensed pricing imports use stable source IDs, so refreshing does not create duplicates.</p></div><div class='actions'><form method='post' action='/office/catalog/import-roomflow'><button type='submit'>Refresh starter services</button></form><a class='button secondary' href='/office/roomflow?catalog_sync=1'>Pull current RoomFlow prices</a></div></div><form method='get' class='customer-searchbar'><div class='field'><label>Find a service or insurance code</label><input type='search' name='q' value='{esc(q)}' placeholder='Try WTR, drywall, waterproofing, or demolition' autocomplete='off'></div><div class='field'><label>Show section</label><select name='category'><option value=''>All sections</option>{category_options}</select></div><button>Apply filters</button></form>{result_note}<div class='catalog-grid'>{cards}</div></div>{create} """
     return _page("Services & Prices", body, "catalog")
+
+
+@app.get("/office/catalog/import-xactimate/template.csv")
+def download_xactimate_catalog_template() -> Response:
+    _require("estimates.manage")
+    return Response(
+        xactimate_catalog_template(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="floodman-xactimate-pricing-template.csv"'},
+    )
+
+
+@app.post("/office/catalog/import-xactimate")
+async def upload_xactimate_catalog(pricing_file: UploadFile = File(...)) -> RedirectResponse:
+    _require("estimates.manage")
+    filename = Path((pricing_file.filename or "pricing-import").replace("\\", "/")).name
+    data = await pricing_file.read(XACTIMATE_MAX_UPLOAD_BYTES + 1)
+    try:
+        result = parse_xactimate_catalog_upload(data, filename)
+    except ProtectedXactimatePlxError as exc:
+        inspection = exc.inspection
+        store.set_notice(
+            f"PLX recognized ({inspection.member_name}, {inspection.member_size:,} bytes; file SHA-256 starts {inspection.sha256[:12]}). "
+            f"{exc} The PLX was not stored or imported."
+        )
+        return RedirectResponse("/office/catalog", status_code=303)
+    except (XactimateCatalogError, zipfile.BadZipFile) as exc:
+        store.set_notice(f"Pricing file was not imported: {exc}")
+        return RedirectResponse("/office/catalog", status_code=303)
+    safe_filename = str(result.summary.get("source_filename") or "xactimate-pricing.csv")
+    run_id = store.create_import(result.summary, result.normalized, {safe_filename: data})
+    store.set_notice("Pricing worksheet validated. Review the detected line items before importing them.")
+    return RedirectResponse(f"/office/imports/{run_id}", status_code=303)
 
 
 @app.post("/office/catalog/add")
@@ -4128,7 +4839,7 @@ async def estimates_page(q: str = "", status: str = "") -> HTMLResponse:
         rows.append([
             f"<b>{esc(item.get('estimate_number') or _invoice_number(item))}</b><br><small class='muted'>{esc(item.get('title') or '')}</small>",
             esc(customer), esc(property_label), badge(item_status), money_cents(total, item.get("currency") or "USD"),
-            esc(len(item.get("sections") or []) or 1), esc(len(item.get("line_items") or item.get("invoiceItems") or [])), action,
+            action,
         ])
 
     status_options = "".join(
@@ -4139,13 +4850,8 @@ async def estimates_page(q: str = "", status: str = "") -> HTMLResponse:
     if has_permission(_user(), "estimates.manage"):
         create_action = "<a class='button good' href='/office/estimates/new'>Create new estimate</a>"
     body = f"""
-    <div class='estimate-index-hero card'>
-      <div><span class='eyebrow'>ESTIMATE WORKSPACE</span><h2>Open an existing estimate or start a new one</h2><p class='muted'>Searching never saves an estimate. A draft is created only after you explicitly press Save draft estimate.</p></div>
-      <div class='actions'>{create_action}<a class='button secondary' href='/office/roomflow'>Open RoomFlow</a><a class='button secondary' href='/office/catalog'>Line item catalog</a></div>
-    </div>
-    <div class='grid estimate-index-metrics'><div class='metric'><small>Matching estimates</small><strong>{totals['all']}</strong></div><div class='metric'><small>Draft</small><strong>{totals['draft']}</strong></div><div class='metric'><small>Sent / viewed</small><strong>{totals['sent']}</strong></div><div class='metric'><small>Accepted / converted</small><strong>{totals['accepted']}</strong></div></div>
-    <div class='card'><form method='get' action='/office/estimates' class='customer-searchbar estimate-index-search' data-estimate-index-search><div class='field'><label>Find an estimate</label><input type='search' name='q' value='{esc(q)}' placeholder='Estimate number, customer, property, title…' autocomplete='off'></div><div class='field'><label>Status</label><select name='status'>{status_options}</select></div><button type='submit'>Search estimates</button></form>{table(('Estimate','Customer','Property','Status','Total','Headers','Lines','Action'), rows, empty='No estimates match this search.')}</div>
-    <div class='callout'>Create workflow: choose or create the customer, choose or create the service property, enter the project details and deposit terms, then build the grouped scope.</div>
+    <div class='card'><div class='actions'>{create_action}<a class='button secondary' href='/office/roomflow'>RoomFlow</a><a class='button secondary' href='/office/catalog'>Services and prices</a></div></div>
+    <div class='card'><form method='get' action='/office/estimates' class='customer-searchbar estimate-index-search' data-estimate-index-search><div class='field'><label>Find an estimate</label><input type='search' name='q' value='{esc(q)}' placeholder='Number, customer, property, or title' autocomplete='off'></div><div class='field'><label>Status</label><select name='status'>{status_options}</select></div><button type='submit'>Search</button></form><p class='muted'>{totals['all']} matching estimates</p>{table(('Estimate','Customer','Property','Status','Total','Open'), rows, empty='No estimates match this search.')}</div>
     """
     return _page("Estimates", body, "estimates")
 
@@ -4439,6 +5145,13 @@ async def convert_estimate(estimate_id: str) -> RedirectResponse:
     estimate = store.record("estimates", estimate_id)
     if not estimate:
         raise HTTPException(404, "Estimate not found")
+    if (
+        str(estimate.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(estimate.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(estimate.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft needs verified measurements, line items, and pricing before conversion.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     existing = estimate.get("converted_invoice_id")
     if existing:
         return RedirectResponse(f"/office/invoices/{existing}", status_code=303)
@@ -4502,12 +5215,11 @@ async def invoices_page(contact_id: str = "", property_id: str = "") -> HTMLResp
         rows.append([
             f"<a href='/office/invoices/{esc(identity)}'>{esc(item.get('invoice_number') or _invoice_number(item))}</a>",
             esc(_contact_name(str(item.get("contact_id") or item.get("organizationContactId") or ""), state) or item.get("organizationContactName") or ""),
-            badge(item.get("status")), money_cents(total_cents, item.get("currency") or "USD"), money_cents(paid_cents, item.get("currency") or "USD"), money_cents(balance_cents, item.get("currency") or "USD"), esc(item.get("due_at") or item.get("dueDate") or ""),
-            f"<a href='{esc(item.get('pdfUrl'))}' target='_blank'>Open PDF</a>" if item.get("pdfUrl") else "",
+            badge(item.get("status")), money_cents(balance_cents, item.get("currency") or "USD"), esc(item.get("due_at") or item.get("dueDate") or ""),
         ])
     create = ""
     if has_permission(_user(), "invoices.manage"):
-        create = f"""<div class='card'><h2>Create and send due-now invoice</h2><form method='post' action='/office/invoices/add'><div class='form-grid three'>
+        create = f"""<details class='card'><summary>Create invoice</summary><form method='post' action='/office/invoices/add' style='margin-top:15px'><div class='form-grid three'>
         {_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id, state) if contact_id else '', required=True)}{_entity_picker(kind='properties', name='property_id', label='Property / job', selected_id=property_id, selected_label=_property_label(next((i for i in _all_property_rows(state) if str(i.get('id')) == property_id), {})) if property_id else '', contact_source='contact_id')}
         <div class='field'><label>Invoice number</label><input name='invoice_number' value='{esc(_next_number('INV','invoices'))}' required></div>
         <div class='field full'><label>Invoice title</label><input name='title' placeholder='Final service invoice' required></div>
@@ -4516,11 +5228,11 @@ async def invoices_page(contact_id: str = "", property_id: str = "") -> HTMLResp
         <div class='field'><label>Delivery</label><select name='send_channel'><option value='FLOODMAN_EMAIL'>Floodman email with PDF and online payment</option><option value='CREATE_ONLY'>Create only</option></select></div>
         <div class='field'><label>Online payment</label><select name='collection_mode'><option value='PAYMENT_PAGE' selected>Allow full or partial online payment</option><option value='FULL_BALANCE'>Require full balance online</option><option value='OFFLINE_ONLY'>Cash, check, or staff-entered payment only</option></select></div>
         <div class='field full checks'><label><input type='checkbox' name='allow_customer_to_save_card' value='yes'> Let the customer choose to save the payment method for future separately authorized charges.</label></div>
-        <div class='field full'><label>Terms</label><textarea name='terms'>Payment is due upon receipt.</textarea></div></div><button style='margin-top:12px'>Create invoice</button></form></div>"""
+        <div class='field full'><label>Terms</label><textarea name='terms'>Payment is due upon receipt.</textarea></div></div><button style='margin-top:12px'>Create invoice</button></form></details>"""
     reconcile_button = ""
     if has_permission(_user(), "payments.manage"):
         reconcile_button = "<form method='post' action='/office/square/reconcile'><input type='hidden' name='next_path' value='/office/invoices'><button class='secondary'>Refresh payment status</button></form>"
-    body = f"{create}<div class='card'><div class='actions spread'><h2>Invoices</h2>{reconcile_button}</div>{table(('Invoice','Customer','Status','Total','Paid','Balance','Due','PDF'), rows)}</div><div class='callout'>Invoice headers and line items are preserved when an estimate is converted. Floodman-created invoices remain due upon receipt.</div>"
+    body = f"{create}<div class='card'><div class='actions spread'><h2>Invoices</h2>{reconcile_button}</div>{table(('Invoice','Customer','Status','Balance','Due'), rows)}</div>"
     return _page("Invoices", body, "invoices")
 
 
@@ -4695,7 +5407,7 @@ async def payments_page() -> HTMLResponse:
             esc(item.get("reference") or item.get("providerReference") or item.get("provider_reference") or item.get("legacyPaymentId") or item.get("legacy_payment_id") or identity),
             esc(item.get("note") or ""),
         ])
-    body = f"<div class='card'><h2>Payment ledger</h2>{table(('Date','Amount','Status','Method','Reference','Note'), rows)}</div><div class='callout'>Record manual cash, check, ACH, or card payments from an invoice. Floodman records cash, check, bank transfer, staff-entered card, and online card payments in one project ledger. Card data is tokenized by the connected payment processor and is never stored by Floodman.</div>"
+    body = f"<div class='card'><h2>Payment ledger</h2>{table(('Date','Amount','Status','Method','Reference','Note'), rows)}</div>"
     return _page("Payments", body, "payments")
 
 
@@ -4783,7 +5495,7 @@ def _roomflow_find_property(contact_id: str, property_data: dict[str, Any], work
 
 
 @app.get("/office/roomflow")
-def roomflow_workspace() -> HTMLResponse:
+def roomflow_workspace(job_id: str = "") -> HTMLResponse:
     user = _require("estimates.view")
     _, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     jobs = [
@@ -4791,6 +5503,11 @@ def roomflow_workspace() -> HTMLResponse:
         for item in store.records("roomflow_jobs")
         if str(item.get("workspace_id") or "") == selected_workspace_id
     ]
+    selected_job_id = str(job_id or "").strip()
+    if not any(str(item.get("id") or "") == selected_job_id for item in jobs):
+        selected_job_id = ""
+    roomflow_job_query = f"&amp;job_id={quote(selected_job_id, safe='')}" if selected_job_id else ""
+    roomflow_fullscreen_query = f"?job_id={quote(selected_job_id, safe='')}" if selected_job_id else ""
     cards = []
     for item in jobs[:12]:
         customer_id = str(item.get("contact_id") or "")
@@ -4810,7 +5527,7 @@ def roomflow_workspace() -> HTMLResponse:
             f"<b>{esc(item.get('job_name') or item.get('roomflow_job_id') or 'RoomFlow job')}</b>"
             f"<small>{esc(_contact_label(customer) if customer else 'Customer not linked')} · {esc(_roomflow_property_label(property_record) if property_record else 'Property not linked')}</small>"
             f"<small>{esc(item.get('estimate_number') or '')} · {badge(item.get('status') or 'SYNCED')}</small>"
-            f"<div class='actions' style='margin-top:9px'>{' · '.join(links)}</div>"
+            f"<div class='actions' style='margin-top:9px'><a href='/office/roomflow?job_id={quote(str(item.get('id') or ''), safe='')}'>Open in RoomFlow</a> · {' · '.join(links)}</div>"
             "</article>"
         )
     history = "".join(cards) or "<p class='muted'>No RoomFlow estimates have been saved into Floodman yet.</p>"
@@ -4821,8 +5538,8 @@ def roomflow_workspace() -> HTMLResponse:
 <div class='callout success'><b>No separate RoomFlow account is needed.</b> Your ERP sign-in already opens the <b>{esc(active_workspace.get('name') or 'Floodman')}</b> company workspace. RoomFlow saves to the same customer, property, and estimate files used by the office.</div>
 <div class='role-guide'><div><b>1. Choose customer</b><small>Open Customer &amp; job file, then search by name, phone, email, or address.</small></div><div><b>2. Choose property</b><small>Select that customer's service address so the job stays on the right file.</small></div><div><b>3. Sketch and price</b><small>Draw the layout, then add services from the shared Services &amp; Prices list.</small></div><div><b>4. Save to Floodman</b><small>Save the draft. Re-saving updates the same estimate instead of making a duplicate.</small></div></div>
 <div class='card roomflow-workspace-card'>
-  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'>{import_action}<a class='button secondary' href='/office/catalog'>Services &amp; prices</a><a class='button secondary' href='/roomflow/' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
-  <iframe class='roomflow-frame' src='/roomflow/?embedded=1' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
+  <div class='roomflow-toolbar'><div class='roomflow-toolbar-copy'><b>Floodman RoomFlow Estimator</b><small>Same customer files, properties, estimates, and staff permissions.</small></div><div class='actions'>{import_action}<a class='button secondary' href='/office/catalog'>Services &amp; prices</a><a class='button secondary' href='/roomflow/{roomflow_fullscreen_query}' target='_blank'>Open full screen</a><a class='button' href='/office/estimates'>View estimates</a></div></div>
+  <iframe class='roomflow-frame' src='/roomflow/?embedded=1{roomflow_job_query}' title='Floodman RoomFlow Estimator' allow='camera; fullscreen; clipboard-write'></iframe>
 </div>
 <div class='card'><h2>Recent RoomFlow saves</h2><div class='roomflow-history-grid'>{history}</div></div>
 """
@@ -4916,7 +5633,7 @@ def roomflow_context_api() -> dict[str, Any]:
     user = _require("estimates.view")
     workspaces, selected_workspace_id, active_workspace = _browser_roomflow_workspace_context(user)
     return {
-        "release": "4.7.0",
+        "release": "4.7.3",
         "timezone": store.profile().get("timezone") or "America/Detroit",
         "user": {"id": user.get("id"), "name": user.get("name"), "email": user.get("email")},
         "workspaces": [workspace_public(record) for record in workspaces],
@@ -4948,6 +5665,337 @@ def _browser_roomflow_workspace_context(
         workspaces[0],
     )
     return workspaces, selected_id, active
+
+
+def _call_intake_public(record: dict[str, Any]) -> dict[str, Any]:
+    """Return the authenticated staff card without provider payloads or secrets."""
+
+    intake_id = str(record.get("id") or record.get("intake_id") or "")
+    customer_id = str(record.get("customer_id") or "")
+    property_id = str(record.get("property_id") or "")
+    estimate_id = str(record.get("estimate_id") or "")
+    task = store.record("tasks", str(record.get("task_id") or "")) or {}
+    return {
+        "id": intake_id,
+        "workspace_id": record.get("workspace_id"),
+        "status": record.get("status") or "ACTIVE",
+        "review_status": record.get("review_status") or "PROJECTED",
+        "review_reasons": list(record.get("review_reasons") or []),
+        "event_type": record.get("event_type"),
+        "provider_call_id": record.get("provider_call_id"),
+        "event_sequence": int(record.get("event_sequence") or 0),
+        "occurred_at": record.get("occurred_at"),
+        "started_at": record.get("started_at"),
+        "ended_at": record.get("ended_at"),
+        "caller": dict(record.get("caller") or {}),
+        "property": dict(record.get("property") or {}),
+        "service_reason": record.get("service_reason") or "",
+        "summary": record.get("summary") or "",
+        "requested_services": list(record.get("requested_services") or []),
+        "urgency": record.get("urgency") or "NORMAL",
+        "appointment": dict(record.get("appointment") or {}),
+        "consent": dict(record.get("consent") or {}),
+        "transcript_available": bool(record.get("transcript_available")),
+        "failure_reason": record.get("failure_reason") or "",
+        "assigned_employee": {
+            "id": task.get("assigned_user_id") or task.get("assigned_to"),
+            "name": task.get("assigned_to_name") or "Unassigned",
+        },
+        "gauzy_contact_id": record.get("gauzy_contact_id"),
+        "gauzy_project_id": record.get("gauzy_project_id"),
+        "links": {
+            "customer": f"/office/contacts/{customer_id}" if customer_id else "",
+            "property": f"/office/properties/{property_id}" if property_id else "",
+            "roomflow": f"/office/roomflow?job_id={quote(str(record.get('roomflow_job_id') or ''), safe='')}" if record.get("roomflow_job_id") else "",
+            "job": f"/office/roomflow?job_id={quote(str(record.get('roomflow_job_id') or ''), safe='')}" if record.get("job_id") and record.get("roomflow_job_id") else "",
+            "estimate": f"/office/estimates/{estimate_id}" if estimate_id else "",
+            "task": "/office/tasks" if record.get("task_id") else "",
+            "appointment": f"/office/calls/{intake_id}#appointment" if record.get("appointment_id") else "",
+            "gauzy": settings.gauzy_hub_url if record.get("gauzy_contact_id") or record.get("gauzy_project_id") else "",
+        },
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _call_intakes_for_user(user: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
+    user_id = str(user.get("id") or "")
+    workspaces = ensure_roomflow_workspaces(store, actor_id=user_id)
+    valid_ids = {str(value.get("id") or "") for value in workspaces}
+    selection = next(
+        (value for value in store.records("roomflow_workspace_selections") if str(value.get("user_id") or "") == user_id),
+        None,
+    )
+    workspace_id = str((selection or {}).get("workspace_id") or "")
+    if workspace_id not in valid_ids:
+        workspace_id = str(workspaces[0]["id"])
+    values = [
+        record for record in store.records("call_intakes")
+        if str(record.get("workspace_id") or "") == workspace_id
+    ]
+    return values, workspace_id
+
+
+def _detroit_time(value: Any) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        local = parsed.astimezone(ZoneInfo("America/Detroit"))
+        return f"{local.strftime('%b')} {local.day}, {local.year} {local.strftime('%I:%M %p').lstrip('0')} ET"
+    except (ValueError, TypeError):
+        return ""
+
+
+@app.get("/office/photo-portal")
+async def photo_portal_page(job_id: int = 0, search: str = "", before: str = "", tab: str = "photos") -> HTMLResponse:
+    user = _require("properties.view")
+    _, workspace = _call_intakes_for_user(user)
+    body = await PhotoPortal(portal_connection).render(user, workspace, job_id=job_id, search=search, before=before, tab=tab)
+    return _page("Photo Portal", body, "photo-portal")
+
+
+@app.get('/office/photo-portal/tools.js')
+def photo_portal_script() -> Response:
+    _require('properties.view')
+    from .portal_tools_ui import PORTAL_TOOLS_JS
+    return Response(PORTAL_TOOLS_JS, media_type='text/javascript', headers={'Cache-Control':'no-store'})
+
+
+def _portal_tools_context(request: Request, *, write: bool = True):
+    from .portal_tools import PortalTools
+    from urllib.parse import urlsplit
+    user = _require('properties.view')
+    if write:
+        expected = urlsplit(settings.public_url)
+        if request.headers.get('origin', '').rstrip('/') != f'{expected.scheme}://{expected.netloc}':
+            raise HTTPException(403, 'Submit changes from Floodman Office')
+    if not portal_connection.enabled:
+        raise HTTPException(503, 'Photo portal is not connected')
+    _, workspace = _call_intakes_for_user(user)
+    return PortalTools(PhotoPortal(portal_connection)), user, workspace
+
+
+async def _portal_body(request: Request, limit: int) -> bytes:
+    body = bytearray()
+    async for part in request.stream():
+        if len(body) + len(part) > limit:
+            raise HTTPException(413, 'Upload is too large')
+        body.extend(part)
+    return bytes(body)
+
+
+def _portal_action_response(record: dict) -> JSONResponse:
+    return JSONResponse({'operation_id':record['id'], 'status':record['status'],
+                         'error':record.get('error',''), 'remote_chunk':record.get('remote_chunk',0)}, status_code=202 if record['status'] in ('STAGING','PENDING') else 200)
+
+
+@app.post('/office/photo-portal/{job_id}/actions')
+async def photo_portal_action(job_id: int, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request)
+    try:
+        payload = json.loads(await _portal_body(request, 64000))
+        if not isinstance(payload, dict):
+            raise ValueError('Invalid job change')
+        record = await tools.stage(user, workspace, job_id, payload)
+        return _portal_action_response(record)
+    except HTTPException:
+        raise
+    except PermissionError as error:
+        raise HTTPException(403, str(error))
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    except Exception:
+        raise HTTPException(503, 'Unable to verify this job. Try again to resume.')
+
+
+@app.post('/office/photo-portal/{job_id}/uploads/{operation_id}/{index}')
+async def photo_portal_chunk(job_id: int, operation_id: str, index: int, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request)
+    try:
+        tools.record(user, workspace, job_id, operation_id)
+        content = await _portal_body(request, 4 * 1024 * 1024)
+        record = tools.chunk(user, workspace, job_id, operation_id, index, content)
+        return _portal_action_response(record)
+    except PermissionError as error:
+        raise HTTPException(403, str(error))
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+
+
+@app.get('/office/photo-portal/{job_id}/actions/{operation_id}')
+def photo_portal_action_status(job_id: int, operation_id: str, request: Request) -> JSONResponse:
+    tools, user, workspace = _portal_tools_context(request, write=False)
+    try:
+        return _portal_action_response(tools.record(user, workspace, job_id, operation_id))
+    except (PermissionError, ValueError):
+        raise HTTPException(404, 'Upload unavailable')
+
+
+@app.post("/office/photo-portal/{job_id}/photos")
+async def photo_portal_upload(job_id: int, request: Request) -> RedirectResponse:
+    user = _require("properties.manage")
+    from urllib.parse import urlsplit
+    expected = urlsplit(settings.public_url)
+    if request.headers.get("origin", "").rstrip("/") != f"{expected.scheme}://{expected.netloc}":
+        raise HTTPException(403, "Upload must be submitted from Floodman Office")
+    if not portal_connection.enabled:
+        raise HTTPException(503, "Photo portal is not connected")
+    try:
+        length = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        raise HTTPException(400, "Invalid upload length")
+    if length > 13 * 1024 * 1024:
+        raise HTTPException(413, "Choose a photo smaller than 12 MB")
+    if length <= 0:
+        raise HTTPException(411, "Upload length is required")
+    _, workspace = _call_intakes_for_user(user)
+    async with request.form(max_files=1, max_fields=3) as form:
+        photo = form.get("photo")
+        if not hasattr(photo, "read"):
+            raise HTTPException(422, "Choose a photo")
+        content = await photo.read(12 * 1024 * 1024 + 1)
+        try:
+            await PhotoPortal(portal_connection).stage_upload(user, workspace, job_id,
+                str(form.get("operation_id") or ""), content, str(form.get("caption") or ""))
+        except ValueError:
+            raise HTTPException(422, "Choose a supported photo smaller than 12 MB, then refresh and try again")
+        except Exception:
+            raise HTTPException(503, "Unable to verify this job. Your hosted files are unchanged")
+    return RedirectResponse(f"/office/photo-portal?job_id={job_id}", status_code=303)
+
+
+@app.get("/office/calls")
+def call_intake_queue() -> HTMLResponse:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    rows = []
+    for record in values:
+        caller = dict(record.get("caller") or {})
+        name = str(caller.get("name") or "").strip() or "Incoming caller"
+        rows.append([
+            esc(_detroit_time(record.get("occurred_at") or record.get("updated_at"))),
+            f"<a href='/office/calls/{esc(record.get('id'))}'><b>{esc(name)}</b></a><br><span class='muted'>{esc(caller.get('phone_e164') or caller.get('phone') or '')}</span>",
+            badge(record.get("status") or "ACTIVE"),
+            badge(record.get("review_status") or "PROJECTED"),
+            esc(record.get("service_reason") or "Details still being collected"),
+            f"<a class='button small secondary' href='/office/calls/{esc(record.get('id'))}'>Open</a>",
+        ])
+    body = (
+        "<div class='callout success'><b>Live call intake is connected.</b> Signed provider events update this durable queue and the on-screen call card. Dismissing a card never removes the intake.</div>"
+        + "<div class='actions' style='margin-bottom:14px'><button type='button' class='secondary' data-enable-call-notifications>Enable browser notifications</button></div>"
+        + f"<div class='card'><h2>Incoming and recent calls</h2>{table(('Time','Caller','Call','Review','Reason','Action'), rows, 'No calls are in this workspace yet.')}</div>"
+    )
+    return _page("AI Call Intake", body, "calls")
+
+
+@app.get("/office/calls/{intake_id}")
+def call_intake_detail(intake_id: str, customer_id: str = "") -> HTMLResponse:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    record = next((value for value in values if str(value.get("id") or "") == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    item = _call_intake_public(record)
+    caller = item["caller"]
+    prop = item["property"]
+    link_buttons = "".join(
+        f"<a class='button secondary' href='{esc(url)}'>{esc(label)}</a>"
+        for label, url in (("Customer", item["links"]["customer"]), ("Property", item["links"]["property"]),
+                           ("RoomFlow job", item["links"]["roomflow"]), ("Estimate draft", item["links"]["estimate"]),
+                           ("Follow-up task", item["links"]["task"]), ("Appointment", item["links"]["appointment"]),
+                           ("Floodman ERP", item["links"]["gauzy"]))
+        if url
+    )
+    address = ", ".join(value for value in (
+        str(prop.get("street") or ""), str(prop.get("city") or ""),
+        str(prop.get("state") or ""), str(prop.get("postal_code") or ""),
+    ) if value)
+    reviews = "".join(f"<li>{esc(str(reason).replace('_', ' ').title())}</li>" for reason in item["review_reasons"])
+    approval = approval_form(store, record, customer_id) if has_permission(user, "call_intakes.manage") else ""
+    body = f"""
+<div class='actions'><a class='button secondary' href='/office/calls'>Back to call queue</a>{link_buttons}</div>
+{approval}
+<div class='grid two' style='margin-top:16px'>
+  <section class='card'><h2>Caller</h2><p><b>{esc(caller.get('name') or 'Incoming caller')}</b><br>{esc(caller.get('phone_e164') or caller.get('phone') or 'Phone unavailable')}<br>{esc(caller.get('email') or 'Email unavailable')}</p><p>{badge(item['status'])} {badge(item['review_status'])}</p><small>{esc(_detroit_time(item.get('occurred_at')))}</small></section>
+  <section class='card'><h2>Service property</h2><p>{esc(address or 'Address still being collected')}</p><p>{esc(prop.get('property_type') or 'Property type not confirmed')}</p></section>
+</div>
+<section class='card'><h2>Call summary</h2><p>{esc(item['summary'] or item['service_reason'] or 'The assistant is still collecting details.')}</p><div class='pill-list'>{''.join(badge(value) for value in item['requested_services'])}</div><p><b>Urgency:</b> {esc(item['urgency'])} · <b>Transcript:</b> {'Available from the approved provider reference' if item['transcript_available'] else 'Not available'}</p></section>
+<section id='appointment' class='card'><h2>Follow-up and appointment</h2><p><b>Assigned employee:</b> {esc(item['assigned_employee']['name'])}</p><p><b>Preferred time:</b> {esc(item['appointment'].get('requested_window') or 'Not provided')} · <b>Confirmed:</b> {'Yes' if item['appointment'].get('confirmed') else 'No — staff confirmation required'}</p><p><b>Provider call reference:</b> <span class='mono'>{esc(item.get('provider_call_id') or '')}</span></p><p><b>Consent:</b> SMS {esc(item['consent'].get('sms_status') or 'UNKNOWN')} · Email {esc(item['consent'].get('email_status') or 'UNKNOWN')}</p></section>
+{f"<section class='card warning'><h2>Human review needed</h2><ul>{reviews}</ul></section>" if reviews else ''}
+<section class='card'><h2>Financial safety</h2><p>This intake can prepare an unpublished estimate draft, but it cannot invent measurements or prices, send an estimate, accept it, or charge a customer.</p></section>
+"""
+    return _page("Call Intake", body, "calls")
+
+
+@app.post("/office/calls/{intake_id}/approve")
+async def approve_call_intake(intake_id: str, request: Request) -> RedirectResponse:
+    actor = _require("call_intakes.manage")
+    from urllib.parse import urlsplit
+    expected = urlsplit(settings.public_url)
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin != f"{expected.scheme}://{expected.netloc}":
+        raise HTTPException(403, "Approval must be submitted from Floodman Office")
+    records, _ = _call_intakes_for_user(actor)
+    record = next((row for row in records if str(row['id']) == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    form = await request.form()
+    fields = {key: str(form.get(key) or "") for key in ("name", "email", "phone", "street", "city", "state", "postal_code", "customer_id", "property_id")}
+    try:
+        approve_call(store, record, str(actor['id']), fields)
+        store.set_notice("Call approved. Customer, property, and RoomFlow files are ready; connected systems will synchronize automatically.")
+    except (ValueError, ValidationError) as error:
+        store.set_notice(str(error)[:300])
+    return RedirectResponse(f"/office/calls/{intake_id}", status_code=303)
+
+
+@app.get("/office/api/call-intakes/latest")
+def latest_call_intake() -> dict[str, Any]:
+    user = _require("call_intakes.view")
+    values, workspace_id = _call_intakes_for_user(user)
+    return {"item": _call_intake_public(values[0]) if values else None, "workspace_id": workspace_id}
+
+
+@app.get("/office/api/call-intakes/item/{intake_id}")
+def call_intake_api(intake_id: str) -> dict[str, Any]:
+    user = _require("call_intakes.view")
+    values, _ = _call_intakes_for_user(user)
+    record = next((value for value in values if str(value.get("id") or "") == intake_id), None)
+    if not record:
+        raise HTTPException(404, "Call intake not found")
+    return _call_intake_public(record)
+
+
+@app.get("/office/api/call-intakes/events")
+async def call_intake_events(request: Request) -> StreamingResponse:
+    user = _require("call_intakes.view")
+    user_id = str(user.get("id") or "")
+    last_event_id = str(request.headers.get("last-event-id") or "")
+
+    async def stream():
+        nonlocal last_event_id
+        while True:
+            if await request.is_disconnected():
+                return
+            current_user = store.get_user(user_id)
+            if not current_user or not has_permission(current_user, "call_intakes.view"):
+                return
+            values, _ = _call_intakes_for_user(current_user)
+            if values:
+                item = _call_intake_public(values[0])
+                event_id = f"{item['id']}:{item['event_sequence']}"
+                if event_id != last_event_id:
+                    last_event_id = event_id
+                    yield f"id: {event_id}\nevent: call-intake\ndata: {json.dumps(item, separators=(',', ':'), default=str)}\n\n"
+            else:
+                yield ": waiting for a call intake\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
 
 
 @app.get("/office/api/roomflow/workspaces")
@@ -5457,6 +6505,11 @@ async def roomflow_sync_api(request: Request) -> dict[str, Any]:
             "pricing_method": _roomflow_clean(raw.get("pricing_method") or "fixed", 50),
             "sort_order": _roomflow_int(raw.get("sort_order"), index - 1),
             "category": _roomflow_clean(raw.get("category") or section_name, 120),
+            "pricing_reference": _roomflow_clean(raw.get("pricing_reference"), 160),
+            "pricing_source": _roomflow_clean(raw.get("pricing_source"), 120),
+            "pricing_price_list": _roomflow_clean(raw.get("pricing_price_list"), 160),
+            "pricing_effective_date": _roomflow_clean(raw.get("pricing_effective_date"), 80),
+            "pricing_market": _roomflow_clean(raw.get("pricing_market"), 200),
             "custom": not bool(raw_catalog_id),
             "save_to_catalog": not bool(raw_catalog_id),
             "source": "ROOMFLOW",
@@ -5947,25 +7000,33 @@ def members_page() -> HTMLResponse:
     )
     user_rows = []
     for item in users:
-        controls = badge("Primary owner", "good") if item.get("role") == "OWNER" else f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><label class='muted'>Access level<select aria-label='Access level for {esc(item.get('name'))}' name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role_labels[role])}</option>" for role in assignable_roles)}</select></label><label class='muted'>Account status<select aria-label='Account status for {esc(item.get('name'))}' name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>Active</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>Disabled</option></select></label><details><summary>Set a local recovery password</summary><input name='password' type='password' minlength='10' autocomplete='new-password' placeholder='At least 10 characters'></details><button>Save access</button></form>"""
+        if item.get("role") == "OWNER":
+            controls = f"""{badge('Primary owner', 'good')}<form method='post' action='/office/members/{esc(item.get('id'))}/update'><input type='hidden' name='role' value='OWNER'><input type='hidden' name='status' value='ACTIVE'><label class='muted'>Call alert mobile<input name='phone' inputmode='tel' autocomplete='tel' value='{esc(item.get('phone') or '')}' placeholder='+12315550199'></label><button>Save alerts</button></form>"""
+        else:
+            controls = f"""<form method='post' action='/office/members/{esc(item.get('id'))}/update'><label class='muted'>Access level<select aria-label='Access level for {esc(item.get('name'))}' name='role'>{''.join(f"<option value='{esc(role)}' {'selected' if role==item.get('role') else ''}>{esc(role_labels[role])}</option>" for role in assignable_roles)}</select></label><label class='muted'>Account status<select aria-label='Account status for {esc(item.get('name'))}' name='status'><option value='ACTIVE' {'selected' if item.get('status')=='ACTIVE' else ''}>Active</option><option value='DISABLED' {'selected' if item.get('status')=='DISABLED' else ''}>Disabled</option></select></label><label class='muted'>Call alert mobile<input name='phone' inputmode='tel' autocomplete='tel' value='{esc(item.get('phone') or '')}' placeholder='+12315550199'></label><details><summary>Set a local recovery password</summary><input name='password' type='password' minlength='10' autocomplete='new-password' placeholder='At least 10 characters'></details><button>Save access</button></form>"""
         source = item.get("auth_source") or ("FLOODMAN" if item.get("gauzy_user_id") else "LOCAL")
-        user_rows.append([esc(item.get("name")), esc(item.get("email")), badge("Owner" if item.get("role") == "OWNER" else role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge("ERP sign-in" if source in {"GAUZY", "FLOODMAN"} else "ERP + local" if source == "LOCAL_AND_GAUZY" else "Local recovery"), badge("Active" if item.get("status") == "ACTIVE" else "Disabled", "good" if item.get("status") == "ACTIVE" else "neutral"), controls])
+        user_rows.append([esc(item.get("name")), esc(item.get("email")), esc(item.get("phone") or "Not set"), badge("Owner" if item.get("role") == "OWNER" else role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge("ERP sign-in" if source in {"GAUZY", "FLOODMAN"} else "ERP + local" if source == "LOCAL_AND_GAUZY" else "Local recovery"), badge("Active" if item.get("status") == "ACTIVE" else "Disabled", "good" if item.get("status") == "ACTIVE" else "neutral"), controls])
     invite_rows = [[esc(item.get("name")), esc(item.get("email")), badge(role_labels.get(str(item.get("role")), str(item.get("role")).replace("_", " ").title())), badge(str(item.get("status") or "Pending").title()), esc(str(item.get("expires_at") or "")[:10])] for item in invites]
     role_guide = "".join(f"<div><b>{esc(role_labels[role])}</b><small>{esc(role_help[role])}</small></div>" for role in assignable_roles)
     body = f"""
     <div class='callout success'><b>Use one Floodman ERP sign-in.</b> Add the employee in the main ERP first. The first time they choose <b>Continue with Floodman ERP</b>, Floodman creates their module access automatically—no second RoomFlow account is needed.</div>
     <div class='card'><div class='actions spread'><div><h2>Add or invite an employee</h2><p class='muted'>Create the person once in the main ERP, then return here only if their module access level needs adjustment.</p></div><div class='actions'><a class='button good' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees' target='_top'>Open ERP employees</a><a class='button secondary' href='{esc(settings.gauzy_web_url)}/index.html?desktop=1#/pages/employees/invites' target='_top'>Open ERP invitations</a></div></div><h3>Which access level should I choose?</h3><div class='role-guide'>{role_guide}</div><p class='muted'>Start with the narrowest role that fits the job. Only the primary owner can control ownership.</p></div>
-    <div class='card'><h2>Floodman and RoomFlow access</h2><p class='muted'>Changes apply to the integrated Floodman modules. ERP employment and organization permissions remain managed in the main ERP.</p>{table(('Team member','Email','Access level','Sign-in','Status','Change access'), user_rows)}</div>
-    <details class='card plain-details'><summary>Advanced: create a Floodman-only recovery account</summary><p class='muted'>Use this only when the person cannot use the main ERP identity. The invitation expires in seven days and creates a separate local password.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Full name</label><input name='name' minlength='2' maxlength='160' autocomplete='name' required></div><div class='field'><label>Email</label><input type='email' name='email' autocomplete='email' required></div><div class='field'><label>Access level</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create recovery invitation</button></form></details>
+    <div class='card'><h2>Floodman and RoomFlow access</h2><p class='muted'>Changes apply to the integrated Floodman modules. ERP employment and organization permissions remain managed in the main ERP.</p>{table(('Team member','Email','Call alert mobile','Access level','Sign-in','Status','Change access'), user_rows)}</div>
+    <details class='card plain-details'><summary>Advanced: create a Floodman-only recovery account</summary><p class='muted'>Use this only when the person cannot use the main ERP identity. The invitation expires in seven days and creates a separate local password.</p><form method='post' action='/office/members/invite'><div class='form-grid three'><div class='field'><label>Full name</label><input name='name' minlength='2' maxlength='160' autocomplete='name' required></div><div class='field'><label>Email / username</label><input type='email' name='email' autocomplete='email' required></div><div class='field'><label>Call alert mobile</label><input name='phone' inputmode='tel' autocomplete='tel' placeholder='+12315550199'></div><div class='field'><label>Access level</label><select name='role'>{role_options}</select></div></div><button style='margin-top:12px'>Create recovery invitation</button></form></details>
     <details class='card plain-details'><summary>Invitation history</summary>{table(('Name','Email','Access level','Status','Expires'), invite_rows)}</details>"""
     return _page("Team & Access", body, "members")
 
 
 @app.post("/office/members/invite")
-async def invite_member(name: str = Form(...), email: str = Form(...), role: str = Form(default="VIEWER")) -> HTMLResponse:
+async def invite_member(
+    name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(default=""),
+    role: str = Form(default="VIEWER"),
+) -> HTMLResponse:
     actor = _require("members.manage")
     try:
-        invite, token = store.create_invite(name, email, role, str(actor.get("id")))
+        invite, token = store.create_invite(name, email, role, str(actor.get("id")), phone)
     except ValueError as exc:
         store.set_notice(str(exc))
         return RedirectResponse("/office/members", status_code=303)
@@ -5990,10 +7051,16 @@ async def invite_member(name: str = Form(...), email: str = Form(...), role: str
 
 
 @app.post("/office/members/{user_id}/update")
-def update_member(user_id: str, role: str = Form(...), status: str = Form(...), password: str = Form(default="")) -> RedirectResponse:
+def update_member(
+    user_id: str,
+    role: str = Form(...),
+    status: str = Form(...),
+    phone: str = Form(default=""),
+    password: str = Form(default=""),
+) -> RedirectResponse:
     _require("members.manage")
     try:
-        store.update_user(user_id, role=role, status=status, password=password or None)
+        store.update_user(user_id, role=role, status=status, password=password or None, phone=phone)
         store.set_notice("Member access updated.")
     except (KeyError, ValueError) as exc:
         store.set_notice(str(exc))
@@ -6022,19 +7089,165 @@ def accept_invitation(token: str, password: str = Form(...), confirm_password: s
     return response
 
 
+def _portal_document_for_thread(thread: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    preferred_kind = str(thread.get("last_document_kind") or "")
+    preferred_id = str(thread.get("last_document_id") or "")
+    if preferred_kind in {"estimate", "invoice"} and preferred_id:
+        preferred = store.record(preferred_kind + "s", preferred_id)
+        if preferred and preferred.get("public_enabled") is not False and preferred.get("public_token"):
+            return preferred_kind, preferred
+    contact_id = str(thread.get("contact_id") or "")
+    property_id = str(thread.get("property_id") or "")
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for kind in ("invoice", "estimate"):
+        candidates.extend(
+            (kind, item)
+            for item in store.records(kind + "s")
+            if str(item.get("contact_id") or "") == contact_id
+            and (not property_id or str(item.get("property_id") or "") == property_id)
+            and item.get("public_enabled") is not False
+            and item.get("public_token")
+        )
+    return candidates[0] if candidates else None
+
+
+def _mark_thread_read_for_staff(thread_id: str, user_id: str) -> None:
+    now = datetime.now(UTC).isoformat()
+    for message in _customer_thread_messages(thread_id):
+        if str(message.get("sender_kind") or "").upper() == "CUSTOMER" and not message.get("staff_read_at"):
+            store.update_record("customer_messages", str(message["id"]), {"staff_read_at": now}, actor_id=user_id)
+    for notification in store.records("notifications"):
+        if (
+            str(notification.get("user_id") or "") == user_id
+            and str(notification.get("reference_id") or "") == thread_id
+            and str(notification.get("status") or "UNREAD").upper() == "UNREAD"
+        ):
+            store.update_record("notifications", str(notification["id"]), {"status": "READ", "read_at": now}, actor_id=user_id)
+
+
 @app.get("/office/messages")
-async def messages_page() -> HTMLResponse:
-    _require("messages.view")
+async def messages_page(thread: str = "") -> HTMLResponse:
+    user = _require("messages.view")
+    threads = store.records("customer_threads")
+    selected = store.record("customer_threads", thread) if thread else (threads[0] if threads else None)
+    if selected:
+        _mark_thread_read_for_staff(str(selected["id"]), str(user.get("id") or ""))
+        selected = store.record("customer_threads", str(selected["id"])) or selected
+
+    thread_links = []
+    for item in threads:
+        contact = store.record("contacts", str(item.get("contact_id") or "")) or {}
+        messages = _customer_thread_messages(str(item.get("id") or ""))
+        unread = sum(1 for message in messages if str(message.get("sender_kind") or "").upper() == "CUSTOMER" and not message.get("staff_read_at"))
+        latest = messages[-1] if messages else {}
+        unread_badge = f" {badge(f'{unread} new', 'warn')}" if unread else ""
+        active_class = " active" if selected and str(selected.get("id")) == str(item.get("id")) else ""
+        thread_links.append(
+            f"<a class='thread-link{active_class}' href='/office/messages?thread={quote(str(item.get('id') or ''))}'><b>{esc(_contact_display_name(contact))}{unread_badge}</b><small>{esc(str(latest.get('body') or 'No messages yet')[:90])}</small><small>{esc(str(latest.get('created_at') or '')[:16].replace('T', ' '))}</small></a>"
+        )
+
+    conversation = "<div class='card'><h2>Select a conversation</h2><p class='muted'>Customer replies will appear here as soon as they send a secure portal message.</p></div>"
+    if selected:
+        thread_id = str(selected["id"])
+        contact = store.record("contacts", str(selected.get("contact_id") or "")) or {}
+        messages = _customer_thread_messages(thread_id)
+        rendered = "".join(
+            f"<article class='staff-message {'staff' if str(item.get('sender_kind') or '').upper() == 'STAFF' else 'customer'}'><div class='staff-message-head'><b>{esc(item.get('sender_name') or ('Floodman team' if str(item.get('sender_kind') or '').upper() == 'STAFF' else _contact_display_name(contact)))}</b><span>{esc(str(item.get('created_at') or '')[:16].replace('T', ' '))} UTC</span></div><p>{esc(item.get('body') or '')}</p>{f"<small class='staff-message-delivery'>Customer email notification: {esc(str(item.get('customer_email_status') or 'not requested').replace('_', ' ').title())}</small>" if str(item.get('sender_kind') or '').upper() == 'STAFF' else ''}</article>"
+            for item in messages
+        ) or "<div class='callout'>No messages are in this conversation yet.</div>"
+        portal_document = _portal_document_for_thread(selected)
+        portal_link = f"<a class='button secondary' href='{esc(portal_document[1].get('public_url') or '')}' target='_blank'>Open customer portal</a>" if portal_document else ""
+        reply_form = ""
+        if has_permission(user, "messages.manage"):
+            reply_request_id = secrets.token_urlsafe(24)
+            reply_form = f"<form method='post' action='/office/messages/{esc(thread_id)}/reply'><input type='hidden' name='request_id' value='{esc(reply_request_id)}'><div class='field'><label for='staff-reply'>Reply to customer</label><textarea id='staff-reply' name='body' maxlength='3000' required placeholder='Write a clear reply for the customer...'></textarea><small class='field-help'>Floodman saves the reply in the portal and emails a secure notification when the customer has an email address.</small></div><button class='good' style='margin-top:12px'>Send reply</button></form>"
+        conversation = f"<div class='card'><div class='actions spread'><div><h2>{esc(_contact_display_name(contact))}</h2><p class='muted'>{esc(contact.get('email') or 'No customer email')} · Secure customer portal conversation</p></div><div class='actions'><a class='button secondary' href='/office/contacts/{esc(contact.get('id') or '')}'>Open customer</a>{portal_link}</div></div><div class='staff-message-list'>{rendered}</div>{reply_form}</div>"
+
     state = await _state_page_data()
     sms = _rows(state.get("sms_messages"))
     emails = _rows(state.get("emails"))
     sms_rows = [[esc(item.get("created_at")), esc(item.get("to")), badge(item.get("status")), esc(item.get("body"))] for item in sms]
+    consent_rows = [[esc(_contact_display_name(store.record("contacts", str(item["id"])) or {})),
+        esc(item.get("phone_e164")), badge(item.get("status")), esc(item.get("captured_at"))]
+        for item in store.records("customer_sms_preferences")]
     email_rows = [[esc(item.get("received_at")), esc(", ".join(item.get("to") or [])), esc(item.get("subject")), f"<details><summary>Open</summary><pre>{esc(item.get('text') or item.get('html') or '')}</pre></details>"] for item in emails]
-    send_form = ""
-    if has_permission(_user(), "messages.manage"):
-        send_form = """<div class='card'><h2>Send local test SMS</h2><form method='post' action='/office/messages/send'><div class='form-grid'><div class='field'><label>Phone</label><input name='phone' value='+13135550199' required></div><div class='field full'><label>Message</label><textarea name='body' required></textarea></div></div><button style='margin-top:12px'>Send message</button></form></div>"""
-    body = f"{send_form}<div class='card'><h2>Outbound and automated SMS</h2>{table(('Time','To','Status','Message'), sms_rows)}</div><div class='card'><h2>Captured email</h2>{table(('Time','To','Subject','Body'), email_rows)}</div><div class='card'><h2>Try the AI text assistant</h2><form method='post' action='{esc(settings.engineering_public_url)}/lab/sms/inbound'><div class='form-grid'><div class='field full'><label>Customer message</label><input name='body' value='What is my balance?' required></div></div><button>Send local inbound SMS</button></form></div>"
+    test_tools = ""
+    if has_permission(user, "messages.manage"):
+        test_tools = """<div class='card'><h2>Send local test SMS</h2><form method='post' action='/office/messages/send'><div class='form-grid'><div class='field'><label>Phone</label><input name='phone' value='+13135550199' required></div><div class='field full'><label>Message</label><textarea name='body' required></textarea></div></div><button style='margin-top:12px'>Send test message</button></form></div>"""
+    body = f"<div class='callout success'><b>Customer portal messaging is active.</b> Customers can write from a secure estimate or invoice link. Staff with message access receive an in-app/mobile alert and email notification; customer replies are never exposed on public administrative pages.</div><div class='conversation-shell'><aside class='card'><h2>Customer conversations</h2><div class='thread-list'>{''.join(thread_links) or '<div class=\'empty\'>No portal conversations yet.</div>'}</div></aside><section>{conversation}</section></div><details class='card plain-details'><summary>SMS, captured email, and testing tools</summary><div style='margin-top:14px'>{test_tools}<div class='card'><h2>Outbound and automated SMS</h2>{table(('Time','To','Status','Message'), sms_rows)}</div><div class='card'><h2>Captured email</h2>{table(('Time','To','Subject','Body'), email_rows)}</div><div class='card'><h2>Try the AI text assistant</h2><form method='post' action='{esc(settings.engineering_public_url)}/lab/sms/inbound'><div class='form-grid'><div class='field full'><label>Customer message</label><input name='body' value='What is my balance?' required></div></div><button>Send local inbound SMS</button></form></div></div></details>"
+    body += "<details class='card plain-details'><summary>Customer text permissions</summary><p>Customers manage these optional permissions in their secure estimate or invoice portal. Staff cannot enroll customers here. STOP also blocks delivery at the carrier.</p>" + table(("Customer", "Mobile", "Portal preference", "Recorded (UTC)"), consent_rows) + "</details>"
     return _page("Messages", body, "messages")
+
+
+@app.post("/office/messages/{thread_id}/reply")
+async def reply_to_customer(thread_id: str, body: str = Form(...), request_id: str = Form(...)) -> RedirectResponse:
+    user = _require("messages.manage")
+    thread = store.record("customer_threads", thread_id)
+    if not thread:
+        raise HTTPException(404, "Customer conversation not found")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", str(request_id or "")):
+        store.set_notice("Refresh the conversation and send your reply again.")
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    try:
+        message_body = _clean_portal_message(body)
+    except ValueError as exc:
+        store.set_notice(str(exc))
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    contact = store.record("contacts", str(thread.get("contact_id") or "")) or {}
+    now = datetime.now(UTC).isoformat()
+    message_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"floodman-staff-message:{thread_id}:{user.get('id')}:{request_id}"))
+    message, created = store.create_record_if_absent(
+        "customer_messages",
+        message_id,
+        {
+            "thread_id": thread_id,
+            "contact_id": thread.get("contact_id"),
+            "property_id": thread.get("property_id"),
+            "document_kind": thread.get("last_document_kind"),
+            "document_id": thread.get("last_document_id"),
+            "sender_kind": "STAFF",
+            "sender_id": user.get("id"),
+            "sender_name": user.get("name") or "Floodman team",
+            "body": message_body,
+            "staff_read_at": now,
+            "customer_read_at": None,
+            "customer_email_status": "PENDING",
+            "source": "FLOODMAN_CUSTOMER_PORTAL",
+        },
+        actor_id=str(user.get("id") or ""),
+    )
+    if not created:
+        store.set_notice("That reply was already sent; Floodman did not create a duplicate.")
+        return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
+    store.update_record(
+        "customer_threads",
+        thread_id,
+        {"status": "OPEN", "last_message_at": message.get("created_at"), "last_sender_kind": "STAFF"},
+        actor_id=str(user.get("id") or ""),
+    )
+    email = str(contact.get("email") or contact.get("primaryEmail") or "").strip()
+    portal_document = _portal_document_for_thread(thread)
+    if not email:
+        store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "NO_EMAIL"}, actor_id=str(user.get("id") or ""))
+        store.set_notice("Reply saved. Add a customer email address if they should receive email notifications.")
+    elif not portal_document:
+        store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "NO_PORTAL_LINK"}, actor_id=str(user.get("id") or ""))
+        store.set_notice("Reply saved, but a secure customer portal link is not available for email delivery.")
+    else:
+        portal_url = str(portal_document[1].get("public_url") or "") + "#messages"
+        try:
+            await providers.send_email(
+                to=email,
+                subject="Floodman replied to your secure message",
+                text=f"The Floodman team replied to your customer portal message.\n\nRead and reply securely: {portal_url}",
+                html=_payment_email_html("You have a new Floodman reply", "The Floodman team replied to your secure customer message.", portal_url, "Read secure reply"),
+            )
+            store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "SENT", "customer_email_sent_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+            store.set_notice("Reply sent. The customer portal was updated and an email notification was sent.")
+        except Exception:
+            store.update_record("customer_messages", str(message["id"]), {"customer_email_status": "FAILED"}, actor_id=str(user.get("id") or ""))
+            store.set_notice("Reply saved in the portal, but the customer email notification could not be delivered.")
+    return RedirectResponse(f"/office/messages?thread={quote(thread_id)}", status_code=303)
 
 
 @app.post("/office/messages/send")
@@ -6062,11 +7275,67 @@ async def receivables_page() -> HTMLResponse:
 
 @app.get("/office/alerts")
 async def alerts_page() -> HTMLResponse:
-    _require("alerts.view")
+    user = _require("alerts.view")
+    user_id = str(user.get("id") or "")
+    notifications = [item for item in store.records("notifications") if str(item.get("user_id") or "") == user_id]
+    local_rows = []
+    for item in notifications:
+        action_url = str(item.get("action_url") or "")
+        open_action = f"<a class='button small secondary' href='/office/alerts/{esc(item.get('id'))}/open'>Open</a>" if action_url.startswith("/office/") else ""
+        read_action = (
+            f"<form method='post' action='/office/alerts/{esc(item.get('id'))}/read'><button class='small'>Mark read</button></form>"
+            if str(item.get("status") or "UNREAD").upper() == "UNREAD"
+            else ""
+        )
+        local_rows.append([
+            esc(str(item.get("created_at") or "")[:16].replace("T", " ")),
+            badge(item.get("status") or "UNREAD", "warn" if str(item.get("status") or "UNREAD").upper() == "UNREAD" else "neutral"),
+            esc(str(item.get("kind") or "GENERAL").replace("_", " ").title()),
+            f"<b>{esc(item.get('title') or '')}</b><br><span class='muted'>{esc(item.get('body') or '')}</span>",
+            badge(str(item.get("email_status") or "IN APP").replace("_", " ").title()),
+            f"<div class='actions'>{open_action}{read_action}</div>",
+        ])
     state = await _state_page_data()
     alerts = _rows(state.get("staff_alerts"))
     rows = [[esc(item.get("created_at") or ""), badge(item.get("severity") or item.get("alert_status") or "OPEN"), esc(item.get("alert_type") or item.get("type") or ""), esc(item.get("message") or item.get("summary") or "")] for item in alerts]
-    return _page("Staff Alerts", f"<div class='card'><h2>Staff alerts</h2>{table(('Created','Severity','Type','Message'), rows)}</div>", "alerts")
+    unread = sum(1 for item in notifications if str(item.get("status") or "UNREAD").upper() == "UNREAD")
+    mark_all = "<form method='post' action='/office/alerts/read-all'><button class='secondary'>Mark all read</button></form>" if unread else ""
+    body = f"<div class='card'><div class='actions spread'><div><h2>Your Floodman notifications</h2><p class='muted'>Payment confirmations and customer messages appear here and in the mobile notifications list.</p></div>{mark_all}</div>{table(('Created','Status','Type','Notification','Email','Action'), local_rows)}</div><details class='card plain-details'><summary>Connected-service staff alerts</summary><div style='margin-top:12px'>{table(('Created','Severity','Type','Message'), rows)}</div></details>"
+    return _page("Staff Alerts", body, "alerts")
+
+
+@app.post("/office/alerts/{notification_id}/read")
+def read_staff_notification(notification_id: str) -> RedirectResponse:
+    user = _require("alerts.view")
+    notification = store.record("notifications", notification_id)
+    if not notification or str(notification.get("user_id") or "") != str(user.get("id") or ""):
+        raise HTTPException(404, "Notification not found")
+    store.update_record("notifications", notification_id, {"status": "READ", "read_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+    return RedirectResponse("/office/alerts", status_code=303)
+
+
+@app.get("/office/alerts/{notification_id}/open")
+def open_staff_notification(notification_id: str) -> RedirectResponse:
+    user = _require("alerts.view")
+    notification = store.record("notifications", notification_id)
+    if not notification or str(notification.get("user_id") or "") != str(user.get("id") or ""):
+        raise HTTPException(404, "Notification not found")
+    store.update_record("notifications", notification_id, {"status": "READ", "read_at": datetime.now(UTC).isoformat()}, actor_id=str(user.get("id") or ""))
+    action_url = str(notification.get("action_url") or "")
+    if not action_url.startswith("/office/"):
+        action_url = "/office/alerts"
+    return RedirectResponse(action_url, status_code=303)
+
+
+@app.post("/office/alerts/read-all")
+def read_all_staff_notifications() -> RedirectResponse:
+    user = _require("alerts.view")
+    user_id = str(user.get("id") or "")
+    now = datetime.now(UTC).isoformat()
+    for notification in store.records("notifications"):
+        if str(notification.get("user_id") or "") == user_id and str(notification.get("status") or "UNREAD").upper() == "UNREAD":
+            store.update_record("notifications", str(notification["id"]), {"status": "READ", "read_at": now}, actor_id=user_id)
+    return RedirectResponse("/office/alerts", status_code=303)
 
 
 def _list_items(value: Any) -> list[str]:
@@ -6592,14 +7861,16 @@ def delete_contact(contact_id: str) -> RedirectResponse:
 def edit_property_page(property_id: str) -> HTMLResponse:
     _require("properties.manage")
     item = _local_record_or_404("properties", property_id)
-    body = f"""<div class='card'><h2>Edit property</h2><form method='post' action='/office/properties/{esc(property_id)}/edit'><div class='form-grid three'><div class='field'><label>Property name</label><input name='name' value='{esc(item.get('name'))}' required></div><div class='field'><label>Property type</label><input name='property_type' value='{esc(item.get('property_type'))}'></div><div class='field'><label>Customer ID</label><input name='contact_id' value='{esc(item.get('contact_id'))}' required></div><div class='field full'><label>Service street</label><input name='service_street' value='{esc(item.get('service_street'))}' required></div><div class='field'><label>City</label><input name='service_city' value='{esc(item.get('service_city'))}' required></div><div class='field'><label>State</label><input name='service_state' value='{esc(item.get('service_state'))}' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' value='{esc(item.get('service_postal_code'))}' required></div><div class='field'><label>Insurance company</label><input name='insurance_company' value='{esc(item.get('insurance_company'))}'></div><div class='field'><label>Claim number</label><input name='claim_number' value='{esc(item.get('claim_number'))}'></div><div class='field full'><label>Notes</label><textarea name='notes'>{esc(item.get('notes'))}</textarea></div></div><div class='actions' style='margin-top:12px'><button>Save changes</button><a class='button secondary' href='/office/properties/{esc(property_id)}'>Cancel</a></div></form></div><div class='card danger'><form method='post' action='/office/properties/{esc(property_id)}/delete'><button class='danger'>Delete property</button></form></div>"""
+    contact_id = str(item.get("contact_id") or "")
+    body = f"""<div class='card'><h2>Edit property</h2><form method='post' action='/office/properties/{esc(property_id)}/edit'><div class='form-grid three'><div class='field'><label>Property name</label><input name='name' value='{esc(item.get('name'))}' required></div><div class='field'><label>Property type</label><input name='property_type' value='{esc(item.get('property_type'))}'></div>{_entity_picker(kind='contacts', name='contact_id', label='Customer', selected_id=contact_id, selected_label=_contact_name(contact_id), required=True)}<div class='field full'><label>Service street</label><input name='service_street' value='{esc(item.get('service_street'))}' required></div><div class='field'><label>City</label><input name='service_city' value='{esc(item.get('service_city'))}' required></div><div class='field'><label>State</label><input name='service_state' value='{esc(item.get('service_state'))}' required></div><div class='field'><label>Postal code</label><input name='service_postal_code' value='{esc(item.get('service_postal_code'))}' required></div><div class='field'><label>Insurance company</label><input name='insurance_company' value='{esc(item.get('insurance_company'))}'></div><div class='field'><label>Claim number</label><input name='claim_number' value='{esc(item.get('claim_number'))}'></div><div class='field full'><label>Notes</label><textarea name='notes'>{esc(item.get('notes'))}</textarea></div></div><div class='actions' style='margin-top:12px'><button>Save changes</button><a class='button secondary' href='/office/properties/{esc(property_id)}'>Cancel</a></div></form></div><div class='card danger'><form method='post' action='/office/properties/{esc(property_id)}/delete'><button class='danger'>Delete property</button></form></div>"""
     return _page("Edit Property", body, "properties")
 
 
 @app.post("/office/properties/{property_id}/edit")
-def update_property(property_id: str, contact_id: str = Form(...), name: str = Form(...), property_type: str = Form(default="Residential"), service_street: str = Form(...), service_city: str = Form(...), service_state: str = Form(default="MI"), service_postal_code: str = Form(...), insurance_company: str = Form(default=""), claim_number: str = Form(default=""), notes: str = Form(default="")) -> RedirectResponse:
+async def update_property(property_id: str, contact_id: str = Form(...), name: str = Form(...), property_type: str = Form(default="Residential"), service_street: str = Form(...), service_city: str = Form(...), service_state: str = Form(default="MI"), service_postal_code: str = Form(...), insurance_company: str = Form(default=""), claim_number: str = Form(default=""), notes: str = Form(default="")) -> RedirectResponse:
     actor = _require("properties.manage")
     _local_record_or_404("properties", property_id)
+    _ensure_local_contact(contact_id, await _state_page_data())
     store.update_record("properties", property_id, {"contact_id": contact_id, "name": name.strip(), "property_name": name.strip(), "property_type": property_type.strip(), "service_street": service_street.strip(), "service_city": service_city.strip(), "service_state": service_state.strip(), "service_postal_code": service_postal_code.strip(), "insurance_company": insurance_company.strip(), "claim_number": claim_number.strip(), "notes": notes.strip()}, actor_id=str(actor.get("id")))
     store.set_notice("Property updated.")
     return RedirectResponse(f"/office/properties/{property_id}", status_code=303)
@@ -6675,6 +7946,13 @@ def update_estimate(
 async def send_estimate(estimate_id: str) -> RedirectResponse:
     actor = _require("estimates.manage")
     document = _local_record_or_404("estimates", estimate_id)
+    if (
+        str(document.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(document.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(document.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft cannot be sent until staff add verified measurements, line items, and pricing.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     if str(document.get("deposit_due_stage") or "AFTER_AUTHORIZATION").upper() == "IMMEDIATELY":
         document = store.update_record("estimates", estimate_id, {"deposit_payable": True}, actor_id=str(actor.get("id")))
     try:
@@ -6690,7 +7968,14 @@ async def send_estimate(estimate_id: str) -> RedirectResponse:
 @app.post("/office/estimates/{estimate_id}/accept")
 def accept_estimate(estimate_id: str) -> RedirectResponse:
     actor = _require("estimates.manage")
-    _local_record_or_404("estimates", estimate_id)
+    estimate = _local_record_or_404("estimates", estimate_id)
+    if (
+        str(estimate.get("publication_status") or "").upper() == "UNPUBLISHED"
+        or str(estimate.get("pricing_status") or "PRICED").upper() != "PRICED"
+        or int(estimate.get("total_cents") or 0) <= 0
+    ):
+        store.set_notice("This call-intake draft cannot be accepted until staff verify and price the work.")
+        return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)
     store.update_record("estimates", estimate_id, {"status": "ACCEPTED", "accepted_at": datetime.now(UTC).isoformat(), "deposit_payable": True}, actor_id=str(actor.get("id")))
     store.set_notice("Estimate accepted. The requested deposit is now payable and the estimate can be converted into an invoice.")
     return RedirectResponse(f"/office/estimates/{estimate_id}", status_code=303)

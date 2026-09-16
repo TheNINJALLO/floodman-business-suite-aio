@@ -70,6 +70,17 @@ class Settings:
     auth_enabled: bool
     session_cookie_secure: bool
     max_upload_bytes: int
+    call_intake_approval_required: bool = True
+    external_portal_api_url: str = ""
+    external_portal_api_token: str = ""
+    external_portal_organization_id: str = "floodman"
+    smtp_security: str = "none"
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "Floodman"
+    smtp_delivery_enabled: bool = True
+    smtp_managed: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -134,4 +145,13 @@ class Settings:
             auth_enabled=_bool("OFFICE_AUTH_ENABLED", True),
             session_cookie_secure=_bool("OFFICE_SESSION_COOKIE_SECURE", False),
             max_upload_bytes=int(os.getenv("OFFICE_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024))),
+            call_intake_approval_required=_bool("CALL_INTAKE_APPROVAL_REQUIRED", True),
+            external_portal_api_url=os.getenv("FLOODMAN_PORTAL_API_URL", "").strip(),
+            external_portal_api_token=os.getenv("FLOODMAN_PORTAL_API_TOKEN", "").strip(),
+            external_portal_organization_id=os.getenv("BUSINESS_SUITE_ORGANIZATION_ID", "floodman").strip(),
+            smtp_security=os.getenv("SMTP_SECURITY", "tls" if _bool("SMTP_USE_SSL") else "starttls" if _bool("SMTP_STARTTLS") else "none"),
+            smtp_username=os.getenv("SMTP_USERNAME", ""),
+            smtp_password=os.getenv("SMTP_PASSWORD", ""),
+            smtp_from_email=os.getenv("SMTP_FROM_EMAIL", ""),
+            smtp_from_name=os.getenv("SMTP_FROM_NAME", "Floodman"),
         )

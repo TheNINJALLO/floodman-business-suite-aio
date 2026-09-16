@@ -35,11 +35,11 @@ def run() -> None:
     assert "return 302 /login?next=/office;" in nginx
     assert "error_page 401 =302 /login?next=/roomflow/;" in nginx
 
-    # Private Tailscale HTTPS ports must not be rewritten to HTTP merely because
-    # the final loopback hop into Nginx is plain HTTP.
-    assert "map $http_host $fm_tls_port" in nginx
-    assert "~*:844[3-7]$ 1;" in nginx
-    assert "~^1\\| https;" in nginx
+    # External HTTPS origins must not be rewritten to HTTP merely because the
+    # final proxy hop into Nginx is plain HTTP.
+    assert "map $http_x_forwarded_proto $fm_public_scheme" in nginx
+    assert "~*^https$ https;" in nginx
+    assert "listen 0.0.0.0:${SERVER_PORT} default_server;" in nginx
 
     print("Floodman full ERP authentication routing smoke test passed")
 

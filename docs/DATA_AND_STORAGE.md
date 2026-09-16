@@ -53,12 +53,15 @@ Payments and totals use integer cents where represented in custom application st
 contacts, properties, estimates, estimate revisions, invoices, invoice revisions,
 payments, payment attempts, documents, notes, time entries, tasks,
 appointments, announcements, notifications, push tokens, calendar subscriptions,
+customer threads and customer messages,
 RoomFlow jobs, imports, workspaces and workspace selections,
 mobile devices, refresh tokens and audit events,
 public links and catalog items.
 ```
 
 Writes use a temporary file followed by atomic replacement. This protects against many partial-write failures but does not provide relational constraints or robust multi-process concurrency. Moving Office state to PostgreSQL is a high-priority dedicated-server task.
+
+Customer conversations use stable contact-plus-property thread IDs; when a document has no property, the individual document is the fallback scope. Customer-message request IDs, processor-payment IDs, and per-user notification IDs are created through a locked create-if-absent operation so browser retries and processor callbacks do not duplicate records. Messages are plain text with a 3,000-character limit. Public capability tokens remain on the estimate/invoice records and are not copied into conversation records.
 
 ## External systems
 
@@ -88,4 +91,10 @@ Before the dedicated-server move:
 5. Verify record counts and random customer/job/payment/document samples.
 6. Verify signed-document hashes and external mappings.
 7. Run the complete lifecycle acceptance test.
-8. Only then cut over DNS/Tailscale clients.
+8. Only then cut over DNS and external HTTPS proxy clients.
+
+## AI call intake records
+
+Migration `005_ai_call_intakes.sql` adds PostgreSQL `call_intakes` and `call_intake_events`. The event table stores sequence, routing identifiers, UTC timestamps and a SHA-256 payload fingerprint; it does not store a raw provider body or transcript. The canonical row stores only the structured fields required to project the call and its linked IDs. Redacted audits contain event type, sequence, outcome and identifiers rather than caller content.
+
+Office keeps `call_intakes` and `call_intake_audit` under its existing `DATA_DIR` atomic state file alongside the linked operational records. Each call uses a stable note ID so a later summary updates the customer-file call note instead of duplicating it. Dismissing a browser call card changes only session UI state and never deletes the queue record. All stored timestamps are UTC; staff call pages render them in America/Detroit.

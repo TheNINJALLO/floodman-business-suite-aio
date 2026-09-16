@@ -22,7 +22,7 @@ SQUARE_APPLICATION_ID
 Recommended alpha API value:
 
 ```text
-https://floodman-operations.tail274417.ts.net/mobile-api/
+https://api.oninetwork.com/mobile-api/
 ```
 
 ## Optional release-signing secrets

@@ -33,7 +33,7 @@
 - Run PostgreSQL as a managed/independent service.
 - Add queues for outbox, imports, documents and background media uploads.
 - Add centralized logs, metrics, tracing and alerts.
-- Retain Tailscale for administrative/private access, not as the only production ingress.
+- Enforce staff/private access in the external HTTPS proxy and keep only customer-token, signing-recipient, webhook, and Mobile API routes public.
 
 ## Stage 4: native product completion
 

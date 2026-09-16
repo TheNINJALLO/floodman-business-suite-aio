@@ -2,8 +2,8 @@
   "id": "/floodman-operations",
   "name": "Floodman Operations",
   "short_name": "Floodman",
-  "description": "Floodman Operations with separate desktop and mobile shells. The private root selects the correct workspace without depending on the full ERP frontend.",
-  "start_url": "/workspace?source=pwa&release=4.7.0",
+  "description": "Floodman Operations automatically adapts to your computer, tablet, or phone.",
+  "start_url": "/workspace?source=pwa&release=4.7.3",
   "scope": "/",
   "display": "standalone",
   "display_override": [
@@ -43,16 +43,16 @@
   ],
   "shortcuts": [
     {
-      "name": "Desktop Operations",
-      "short_name": "Desktop",
-      "description": "Open the Floodman desktop command center.",
-      "url": "/office/desktop?desktop=1&source=pwa-shortcut"
+      "name": "Operations",
+      "short_name": "Operations",
+      "description": "Open Floodman with the right layout for your device.",
+      "url": "/workspace?source=pwa-shortcut"
     },
     {
-      "name": "Mobile Operations",
-      "short_name": "Mobile",
-      "description": "Open the Floodman phone and tablet workspace.",
-      "url": "/office/mobile?mobile=1&source=pwa-shortcut"
+      "name": "Photo Portal",
+      "short_name": "Photos",
+      "description": "Open job photos and floor plans.",
+      "url": "/office/photo-portal"
     },
     {
       "name": "Customers",

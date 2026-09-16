@@ -25,12 +25,11 @@ def run() -> None:
     assert "server down" not in erp_launcher.lower()
 
     workspace = (root / "pwa" / "workspace.html").read_text(encoding="utf-8")
-    assert "/office/desktop?desktop=1" in workspace
-    assert "/office/mobile?mobile=1" in workspace
-    assert "pointer: coarse" not in workspace
-    assert "true desktop workspace" in workspace.lower()
-    assert "serviceWorker.register" in workspace
-    assert "Refreshing Floodman" in workspace
+    assert "/office/mobile" in workspace and "'/office'" in workspace
+    assert "localStorage.removeItem('floodmanWorkspaceMode')" in workspace
+    assert "location.replace" in workspace and "maxTouchPoints" in workspace
+    assert "data-use-desktop" not in workspace and "<button" not in workspace
+    assert "serviceWorker.register" not in workspace  # No first-load wait.
 
     workspace_css = (root / "pwa" / "workspace-mode.css").read_text(encoding="utf-8")
     assert 'html[data-workspace="desktop"] .shell' in workspace_css
@@ -39,12 +38,10 @@ def run() -> None:
     assert 'html[data-workspace="mobile"] .office-sidebar' in workspace_css
 
     hub = (root / "hub" / "hub.js").read_text(encoding="utf-8")
-    assert "Desktop Operations" in hub
-    assert "Mobile Operations" in hub
-    assert "pointer: coarse" not in hub
-    assert "isPhoneOrTablet" in hub
+    assert "Photo Portal" in hub and "deviceMode" in hub
+    assert "Desktop Operations" not in hub and "Mobile Operations" not in hub
     assert "${hubOrigin}/#/pages/" not in hub
-    assert "${hubOrigin}/index.html?desktop=1#/pages/" in hub
+    assert "${hubOrigin}/index.html?erp=1#/pages/" in hub
 
     nginx = (root / "aio" / "nginx.conf.template").read_text(encoding="utf-8")
     assert "location = / {" in nginx
@@ -59,7 +56,7 @@ def run() -> None:
     assert "/floodman-boot-guard.js?release=${HUB_RELEASE}" in nginx
     assert "http://0.0.0.0:${SERVER_PORT}" in nginx
     assert "proxy_pass http://127.0.0.1:8700/health/live" in nginx
-    assert "/home/container/runtime/floodman-v4.7.0/app-overlay/floodman-operations-v4.7.0/" in nginx
+    assert "/home/container/runtime/floodman-v4.7.3/app-overlay/floodman-operations-v4.7.3/" in nginx
     assert "/home/container/runtime/floodman-v4.1.0/" not in nginx
 
     pwa_js = (root / "pwa" / "floodman-pwa.js").read_text(encoding="utf-8")
@@ -82,7 +79,7 @@ def run() -> None:
             "DOCUMENTS_PATH": temp + "/documents",
             "OFFICE_AUTH_ENABLED": "false",
             "FLOODMAN_MOBILE_TOKEN_SECRET": "x" * 64,
-            "FLOODMAN_RELEASE": "pterodactyl-mobile-v4.7.0",
+            "FLOODMAN_RELEASE": "pterodactyl-mobile-v4.7.3",
             "GAUZY_FULL_SYNC_ENABLED": "false",
             "FLOODMAN_PAYMENTS_ENABLED": "false",
             "INTERNAL_HMAC_KEYS": "v1:MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=",
@@ -104,15 +101,17 @@ def run() -> None:
     elapsed = time.monotonic() - started
     assert elapsed < 6.0, f"Desktop route blocked for {elapsed:.2f}s"
     assert desktop.status_code == 200, desktop.text
-    assert "DESKTOP OPERATIONS WORKSPACE" in desktop.text
-    assert "Open mobile workspace" in desktop.text
-    assert "floodman-workspace.css?release=4.7.0" in desktop.text
+    assert "Start work" in desktop.text
+    assert "Customers" in desktop.text
+    assert "Photo Portal" in desktop.text and "data-use-desktop" not in desktop.text
+    assert "More tools" in desktop.text
+    assert "floodman-workspace.css?release=4.7.3" in desktop.text
     assert "document.documentElement.dataset.workspace=mode" in desktop.text
 
     mobile = client.get("/office/mobile?mobile=1")
     assert mobile.status_code == 200, mobile.text
     assert "PHONE & TABLET WORKSPACE" in mobile.text
-    assert "Open desktop workspace" in mobile.text
+    assert "Open desktop workspace" not in mobile.text
 
     shortcut = client.get("/desktop", follow_redirects=False)
     assert shortcut.status_code == 307

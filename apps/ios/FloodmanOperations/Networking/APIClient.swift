@@ -4,7 +4,7 @@ import UIKit
 
 actor APIClient {
     private static let appVersion = "0.1.0-alpha03"
-    private static let fallbackBaseURL = URL(string: "https://floodman-operations.tail274417.ts.net/mobile-api/")!
+    private static let fallbackBaseURL = URL(string: "https://api.oninetwork.com/mobile-api/")!
     private static let requiredCapabilities: Set<String> = [
         "mobile.compatibility.v1",
         "estimate.pdf.v1",

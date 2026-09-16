@@ -27,6 +27,9 @@
 | 4.6.9 | ERP-session RoomFlow companies, native workspace isolation, Android alpha12, and iOS alpha03 |
 | 4.6.10 | Guided CRM/RoomFlow settings, safe validation/defaults, owner-only old-data import, and distinct web-update artifacts |
 | 4.7.0 | Integrated RoomFlow Capture, revisioned/offline synchronization, exact-pin offline assets, and distinct web/Pterodactyl test artifacts |
+| 4.7.1 | Licensed pricing preview/import, secure property-scoped customer conversations, payment/message administrator alerts, and distinct Pterodactyl artifacts |
+| 4.7.3 | Simplified daily Business Suite workspace and customer-scoped property management |
+| 4.7.2 | Signed AI call intake, canonical cross-system projections, staff screen-pop, team accounts, and multi-channel call notifications |
 
 ## Android milestones
 
@@ -57,4 +60,4 @@
 
 ## Status note
 
-Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.7.0; Android 0.4.0-alpha01/build 13 and iOS alpha03 are unsigned test candidates. Android local build evidence and the external iOS compiler status are recorded separately.
+Version existence does not guarantee deployment or a green platform build. Historical packages include experiments, diagnostics, and superseded hotfixes. The active server source is v4.7.3; Android 0.4.0-alpha01/build 13 and iOS alpha03 remain unchanged pre-signing candidates. Their compiler evidence is recorded separately and is not relabeled as a v4.7.3 native build.

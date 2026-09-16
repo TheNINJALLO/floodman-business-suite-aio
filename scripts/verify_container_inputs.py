@@ -53,7 +53,7 @@ for name, expected in EXPECTED_IMAGES.items():
 derivative = (ROOT / "containers" / "derivative" / "Dockerfile").read_text(encoding="utf-8")
 require('rm -rf "/opt/pydeps/${service}"' in derivative, "derivative build can retain stale Python target packages")
 require("COPY server/requirements/" in derivative and "COPY --chown=container:container server/" in derivative, "derivative build does not use the reviewed server source layout")
-for token in ('org.opencontainers.image.version="4.7.0"', 'org.opencontainers.image.authors="Josh Aldrich"', "EXPRESS_SESSION_SECRET=", "JWT_SECRET=", "JWT_REFRESH_TOKEN_SECRET="):
+for token in ('org.opencontainers.image.version="4.7.3"', 'org.opencontainers.image.authors="Josh Aldrich"', "EXPRESS_SESSION_SECRET=", "JWT_SECRET=", "JWT_REFRESH_TOKEN_SECRET="):
     require(token in derivative, f"derivative image metadata is missing {token}")
 
 for requirement in sorted((ROOT / "server" / "requirements").glob("*.txt")):

@@ -1,14 +1,12 @@
 /* Floodman Operations service worker */
 'use strict';
 
-const RELEASE = '4.7.0';
-const STATIC_CACHE = `floodman-static-${RELEASE}`;
-const OFFLINE_CACHE = `floodman-offline-${RELEASE}`;
+const RELEASE = '4.7.3';
+const STATIC_CACHE = `floodman-static-${RELEASE}-portal-job-tools-1`;
+const OFFLINE_CACHE = `floodman-offline-${RELEASE}-portal-job-tools-1`;
 const MANAGED_PREFIXES = ['floodman-static-', 'floodman-offline-'];
 const PRECACHE = [
   '/manifest.webmanifest',
-  '/workspace',
-  '/full-erp',
   '/floodman-offline.html',
   '/floodman-starting.html',
   '/install-app',
@@ -85,7 +83,7 @@ async function networkNavigation(request) {
   try {
     return await fetchWithDeadline(request, deadline);
   } catch (_) {
-    // A private Tailscale connection can be healthy even when the browser's
+    // A private proxied connection can be healthy even when the browser's
     // generic internet flag is false. Ask the actual Floodman services before
     // displaying an offline page.
     const hubOnline = await healthOk('/health/live');

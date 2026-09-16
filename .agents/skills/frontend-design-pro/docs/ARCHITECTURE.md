@@ -1,0 +1,195 @@
+# Architecture
+
+Every number on this page was read off a green `python scripts/build_release.py --dry-run`, not estimated.
+
+## The problem this solves
+
+A skill pack is competing with the user's own prompt for context. Load everything and you win the argument about comprehensiveness and lose the one that matters: a monolithic pack with 344k tokens of frontend knowledge cannot be loaded at all, and even a 50k-token subset leaves no room to work in a 32k window.
+
+So the pack is not a document. It is a **registry that routes**.
+
+## Registry + lazy loading
+
+| Layer | What it holds | Cost | When loaded |
+|---|---|---|---|
+| `SKILL.md` | Identity, behavioural preamble, anti-slop wall, 19-row routing table, loading protocol, failure table | **2,126 tokens** | always |
+| `core/*.md` | 8 shared primitives — tokens, a11y baseline, component API, agent behaviour, validation checklist, intake | **2,964, 3,095, 3,505 or 3,923 tokens** | the 3–4 a matched skill declares |
+| `skills/{id}/SKILL.md` | One skill router | **848–1,878 tokens** | exactly one per request |
+| `skills/{id}/references/*.md` | 116 deep references | **415,028 tokens** | only when a skill file points at one for the task at hand |
+
+Measured per-request totals, every skill, registry + skill + declared deps:
+
+```text
+landing-pages       6,014   ← lightest
+iconography         6,017
+testing             6,069
+data-tables         6,088
+ai-ui-generation    6,123
+web-interface       6,148
+forms               6,160
+react-performance   6,265
+threejs-3d          6,266
+color-themes        6,378
+react-components    6,400
+design-system       6,403
+animations          6,432
+component-patterns  6,450
+design-principles   6,812
+platform            6,863
+agent-ops           6,956
+canvas-typography   7,227
+design-research     7,927   ← heaviest
+```
+
+The top of that list is a dependency choice, not a size problem. `design-research` and `canvas-typography` are heaviest because they declare two core deps (`design-tokens` + `component-api`) where most skills declare one. Their own routers differ, though: `canvas-typography` is mid-pack at 1,178 tokens, while `design-research` has the largest router in the pack at 1,878 — so it pays on both counts. `color-themes` declares two as well (`design-tokens` + `accessibility-baseline`), but `accessibility-baseline` is already charged to every skill, so the second declaration costs it nothing.
+
+**Ceiling is 7,927 tokens against 415,028 available.** Gate 8a fails the build if any skill exceeds 3,000 tokens alone or 8,000 with dependencies, so this cannot silently regress.
+
+> **How these are measured.** Every token figure in this repo is `file size in bytes ÷ 4`, taken from the **LF/git-index** copy — which is what CI measures and what the `.skill` archive contains. `.gitattributes` is `eol=lf`, so the index is LF on every platform, and both `build_release.py:tokens()` and `check_figures.py:tokens()` normalise CRLF→LF before counting. Gate 8a and Gate 11 therefore report the same numbers on Windows and Linux, and stay stable even when an editor has left a file you touched with CRLF endings before it is committed. The LF figure is canonical because it is what a reader who downloads the archive can reproduce.
+
+The registry is the reason adding skills is cheap, and the generative-design pair gave the cleanest measurement of it so far: **two** skills grew `SKILL.md` from 1,895 to 1,998 tokens — 103 tokens for both, **~51 each**, which is what the earlier single-skill figure predicted. Marginal cost of a skill is about 51 tokens of always-loaded context, plus however much on-demand depth you give it. `canvas-typography` and `color-themes` added 8 references and 65,000 tokens of depth between them, and none of that is loaded unless a request routes to it.
+
+### Core file splitting
+
+Two core files were over budget and got split into a thin essential plus a deep reference:
+
+| Essential | Deep companion |
+|---|---|
+| `core/component-api.md` (904) | `core/component-api-deep.md` (1,527) |
+| `core/agent-behavior.md` (996) | `core/agent-behavior-patterns.md` (947) |
+
+That split cut the per-request dependency load from **4,143 → 2,843–3,747 tokens** without losing any content — the depth simply stopped being mandatory.
+
+## Repo layout
+
+<!-- figures:historical — the 61 counts the reference files inside the DELETED `src/` tree, not the live corpus. It was correct when written, describes something that no longer exists, and is not a figure anything can recompute. Marked when REFERENCES was widened to read `N reference files`, which correctly began matching this sentence. -->
+One layout. `src/` — the pre-registry v12 tree — has been removed; nothing reads from it and 55 of its 61 reference files were byte-identical duplicates of their `skills/` counterparts.
+<!-- /figures:historical -->
+
+```
+SKILL.md                 registry — copied to archive root
+AGENT_SYSTEM_PROMPT.md   optional drop-in system prompt (registry-native)
+core/                    8 shared primitives
+skills/{id}/
+  ├── SKILL.md           router: rules, patterns, reference index
+  ├── references/        deep docs, loaded on demand
+  └── examples/          good-*.tsx + good-*.test.tsx + bad-*.tsx + *.d.ts
+scripts/                 gate chain + scaffold
+evals/                   22 eval cases
+rules/                   v12 envelope JSON schema
+test/stubs/              runtime stubs for the examples' peer libs — test-only, never shipped
+docs/                    this directory
+dist/                    build output, gitignored
+```
+
+`build_release.py` copies `SKILL.md`, `AGENT_SYSTEM_PROMPT.md`, `README.md`, `LICENSE` to the archive root, `docs/CHANGELOG.md` to `_meta/CHANGELOG.md`, and `core/ skills/ scripts/ evals/ rules/ metadata.json` verbatim. The archive root folder is `frontend-design-pro/`, asserted before the zip is accepted.
+
+## The gate chain
+
+`scripts/build_release.py` is the only supported way to produce a `.skill`. Eleven named gates, all blocking, plus four stages around them. Runtime ~2min (the ninth gate installs and builds a real Next.js app).
+
+| # | Gate | Asserts | Current result |
+|---|---|---|---|
+| 1 | Pre-flight | `SKILL.md` ≤6,000 tokens · `metadata.json` version == top `docs/CHANGELOG.md` header · current version appears in no file outside the allowlist | 2,018 tokens; version consistent; no leaks |
+| 2 | Frontmatter | all 20 files pass Anthropic's `quick_validate.py` schema (no top-level key outside its six); every skill declares `metadata.version`/`metadata.core-deps`; version matches `metadata.json`; every declared dep exists on disk | 20/20 |
+| 3 | Compile | `tsc --noEmit` strict + `noImplicitAny` over every example, plus the three stub-typed demo projects | 55/55 examples · 17/17 demo files |
+| 4 | Semantic | 17 AST constraints via the TypeScript compiler API, on every gold and stub-typed demo file | 62/62 files × 17/17 |
+| 5 | Syntactic | 44 regex constraints; golds must be clean **and** anti-examples must fail; stub-typed demos judged per-project | 45/45 · 3/3 demo projects |
+| 6 | Pipeline | `AGENT_SYSTEM_PROMPT.md`: 6 stage markers · 5 architecture checks · every cited path resolves, no pre-registry prefixes, no bare reference filenames; the documented `[json]` envelope and the schema's own examples validate against `rules/v12-envelope.schema.json` | 16/16 |
+| 7 | Evals + coverage | 22 eval cases self-test; every gold has a 1:1 `.test.tsx`; every test file compiles strict; **the suite runs and passes** | 22/22 · 45/45 files · 232/232 tests |
+| 8 | Budget + registry | every skill ≤3,000 alone and ≤8,000 with deps; every registry row resolves and has examples | 19/19 |
+| 9 | Showcase build | `demo/showcase/` — a real, installed Next.js 15 app, deliberately outside the stub-typed convention above — builds clean under `next build` against its actual vendor typings | clean |
+| 10 | References | the 19 ban-shaped constraints, run over every fenced `tsx`/`jsx`/`ts`/`js`/`html` block in all 116 references, 19 skill routers and 8 core files | 122 files · 0 violations |
+| 11 | Figures | every documented count and token figure recomputed from the filesystem and compared against the prose: 9 anchored figures, stated deltas that must subtract correctly, `metadata.json` against the tree, and its changelog against `docs/CHANGELOG.md` | 74 claim surfaces · 0 drifts |
+
+Then, non-negotiable but not numbered: **path integrity** (95 skill-cited references resolve), **reference-depth audit**, a **release source guard**, **archive build reproducible per-platform** (CI produces a byte-identical archive for its own environment; a local build differs by ~400 bytes because `.gitattributes` normalises line endings to LF in the repo while Windows checkouts hold CRLF), and a **post-build smoke test** that unzips the archive and re-runs gates 3 and 4 against the extracted copy — deleting the archive if either fails.
+
+The source guard fetches `origin` and refuses to build an archive unless `HEAD` is exactly `origin/main` with a clean working tree. It exists because a green chain does not prove the *source* was current: v14.4.2 was tagged from a commit that was never main's head, so the archive was a faithful product of stale source and passed every gate including the smoke test. The smoke test cannot catch that by construction — it verifies the archive against itself, and the archive was not the thing that was wrong. Only a real release build runs the guard; `--dry-run` is the CI contract and runs on branches where being behind main is normal.
+
+The smoke test also reads the archive's prose: that the README's "What's new" heading names the version being shipped, that `_meta/CHANGELOG.md` tops out at it, and that every `demo/**/*.png` in the source reached the archive. The version-heading mismatch shipped twice before this check existed, and the screenshot expectation is derived from the source tree rather than hardcoded — a literal would be one more figure to go stale.
+
+A parser-regression proof runs alongside gate 4: 16 synthetic cases, each proving a semantic check catches something the regex it replaced could not.
+
+### Why gate 10 exists
+
+Gates 3–5 judge `skills/*/examples/*.tsx` and `demo/` — 55 files. The 116
+references are ~415k tokens and are the part an agent actually opens for depth,
+and no gate read them at all, because `test_constraints.py` globs code
+extensions and a reference is markdown. 98% of the corpus by volume sat outside
+the chain that the product's central claim rests on.
+
+The cost was not hypothetical. `glassmorphism.md` prescribed, under a heading
+reading *"Must have"*, a background of `min-h-screen` with a violet→purple→pink
+gradient — two things `SKILL.md`'s wall bans by name. An agent routed to that
+reference held both texts at once and had to choose which to obey.
+
+Gate 10 applies only the **ban-shaped** constraints. A rule like "declares a
+font" or "has a default export" is a property of a whole file, and a nine-line
+snippet that omits one is correct rather than defective; running presence checks
+against fragments would produce noise, and a noisy gate gets muted. Blocks
+marked as anti-examples are skipped, and the handful of genuine exceptions —
+React Native has no OKLCH, Outlook ignores `@font-face`, brand references quote
+published hex as documentation — are declared per file and per constraint in
+`scripts/check_references.py`, each with the reason it is not a defect.
+
+### Why parser checks
+
+Regex sees strings; the AST sees meaning. A comment reading `// aria-describedby` is not accessibility. `bg-white` on a `<button>` is not a design violation. A fake loading delay spelled `setPhase` instead of `setLoading` has no regex vocabulary at all.
+
+`scripts/parser_regression_test.js` holds **16 synthetic divergence cases**, each a file where the AST check and the regex it replaced disagree — and the suite asserts both verdicts, so the improvement is proven in both directions:
+
+| Case | Regex | Parser | Why the parser is right |
+|---|---|---|---|
+| `comment_aria.tsx` | pass | **fail** | `// aria-describedby` in a comment is not accessibility |
+| `barrel_import.tsx` | pass | **fail** | a regex for `import` cannot tell a barrel from a module |
+| `img_no_dims.tsx` | pass | **fail** | matching `<img` cannot check whether `width`/`height` are present |
+| `boolean_and_ok.tsx` | **fail** | pass | `isOpen && <Panel/>` is idiomatic; only a numeric left side renders a literal `0` |
+| `spread_not_copy.tsx` | **fail** | pass | `...props` is code, not UI copy — the AST scopes the rule to JSX text |
+| `scroll_throttled_ok.tsx` | **fail** | pass | a throttled scroll handler is correct code; only an un-batched `setState` inside one re-renders every frame |
+
+Note the bottom two: half the value is **removing false positives**. A blanket `...` ban flags every rest-spread in the pack; a blanket `&&` ban flags correct React. Constraints that cry wolf get switched off, so precision is a feature and not a nicety.
+
+The two suites are complementary, not redundant — 17 semantic + 44 syntactic = **61 checks across 61 distinct IDs**. Every ID belongs to exactly one suite, so a bare ID in a report is unambiguous about which layer flagged it. Regex still owns what regex is good at: `TYP-01` a font is actually declared, `TOK-01` no hex in token definitions, `QUA-03` no lorem ipsum, `SLOP-01`/`SLOP-02` no placeholder names or AI-slop copy.
+
+## Adding to the pack
+
+**A new skill:**
+
+1. `skills/new-skill/SKILL.md` with frontmatter (`name`, `description`, `version` matching `metadata.json`, `core-deps`)
+2. References in `skills/new-skill/references/`, each cited in the skill's Reference Index — an uncited reference is flagged by the path-integrity stage
+3. At least one example in `skills/new-skill/examples/` — Gate 8b fails a skill with none
+4. One row in the `SKILL.md` registry table: id, path, trigger keywords, core dep
+5. `npm run gates`
+
+**A new gold example:** `skills/{id}/examples/good-*.tsx` **plus** a matching `good-*.test.tsx`. Gate 7 fails on any gold without a 1:1 test, and now also on a test that does not pass. If the example imports a peer library nothing else uses, add a stub for it — `test/stubs/README.md` has the rules, and the first one is that every specifier gets its own file.
+
+**A new semantic rule:** a check in `scripts/parser_constraints.js` **and** a divergence case in `scripts/parser_regression_test.js` proving it beats regex. Gate labels read their counts from the suites themselves, so `51` updates on its own.
+
+**A version bump:** `metadata.json`, a new top section in `docs/CHANGELOG.md`, and the `version` field in all 17 skill files. Gates 1 and 2 fail on any of the three being out of step.
+
+## Known gaps
+
+Honest list, all verified against the current release.
+
+1. **What the suite runs against is stubs, not the real libraries.** The examples' ~25 peer dependencies are still not installed — `test/stubs/` supplies one hand-written module per specifier and `vitest.config.ts` aliases them. So the suite proves the components mount, expose the roles and labels they claim, respond to interaction, and survive axe. It does **not** prove they work against the real `three`, `motion/react` or `react-hook-form`, and it never will while those are absent. Two guards keep the stubs from flattering the golds: a stub renders the semantically correct element with props forwarded, so a missing `aria-label` still fails, and any ARIA relationship the real component wires (Radix labelling a dialog by its title) is modelled, so the stub cannot invent a violation either. Where jsdom simply has no answer — WebGL, layout, virtualisation — the stub renders nothing rather than something a user could not perceive.
+
+2. **Reference depth is unevenly distributed.** `component-patterns` has 2 references (2,338 tokens) and `ai-ui-generation` 2 (2,626); `design-system` has 16 (57,254) and `platform` 9 (62,505). The newest skills are routers with little behind them. Both thin skills are also where the repointed doctrine headers landed: eight references their examples cited were never written, and the two shallowest skills are exactly where the unwritten ones were planned.
+
+3. **`rules/v12-envelope.schema.json` and `scripts/test_v12_pipeline.py` are named for an architecture two majors old.** Renaming them would touch `ci.yml` and `build_release.py`; the names were left alone and the contents corrected instead. The schema *is* now referenced by a gate — Gate 6 validates the documented envelope and the schema's own examples against it.
+
+### Recently closed
+
+**The vitest suite did not execute end-to-end** — for four minor versions the first known gap on this page read "28 of 37 test files fail at import time", because the examples' peer libraries existed only as ambient declarations. `test/stubs/` now ships one runtime module per specifier, and Gate 7 runs the suite instead of disclaiming it: **45/45 files, 232/232 tests**.
+
+Running it found four things that compiling it could not, which is the argument for having done it:
+
+- `good-view-transitions.tsx` destructured `React.ViewTransition` and rendered it directly. On any stable React build that is `undefined`, so the component threw `Element type is invalid` for every consumer, not only in tests. The `as unknown as` shim that kept it type-clean is exactly what hid it from `tsc`. Its sibling `good-vt-shared-element.tsx` already had the `?? fallback` form; now both do.
+- Both copies of `good-shadcn.tsx` gave the action column `header: ''`, which renders `<th></th>` — an axe `empty-table-header` violation, and an unnamed column for a screen-reader user.
+- Three generated tests queried `getAllByRole('button')` on controls whose `role="tab"` replaces the implicit one, so they matched nothing. They now assert that activating a tab moves `aria-selected`, which is the behaviour worth checking.
+- Two more asserted that the clicked element was still in the document afterwards — on a gallery that swaps in a detail pane and a checkout that opens on a skeleton, so one was asserting the interaction had *not* worked and the other was reading the first frame.
+
+Per-file causes, what the suite does and does not prove, and the measurement pitfall that made a hanging import look like memory pressure: [TESTING.md](TESTING.md).
+
+**`design-system/references/brand-design-systems.md` was orphaned** — present on disk, absent from its skill's Reference Index, so nothing could route to it. A citation was added; every skill-cited reference now resolves with none orphaned.
+
+**`AGENT_SYSTEM_PROMPT.md` was pre-registry** — 28 of the 31 paths it cited did not exist, and it had no concept of the registry. Rewritten. The lesson is worth keeping: **Gate 6 had been guarding it the whole time by checking that its section headings were present**, which they were. Structural checks do not catch semantic rot. Gate 6 now resolves every path the prompt cites, rejects pre-registry `references/` and `_meta/` prefixes, and rejects bare reference filenames — and that check was verified to *fail* against the old file before it was trusted.

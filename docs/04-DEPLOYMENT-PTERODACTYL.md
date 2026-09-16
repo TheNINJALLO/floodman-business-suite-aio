@@ -4,28 +4,28 @@
 
 ```text
 Image: ghcr.io/theninjallo/floodman-business-suite-aio:3.2.2@sha256:3c2d611d64980589a0680bf6c467af73ea8a2a519a51252be577ea78150c37e5
-Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.0.json
-Launcher: deployment/releases/mobile-start-v4.7.0.sh
-Runtime: deployment/releases/floodman-operations-runtime-v4.7.0.zip
+Egg: deployment/pterodactyl/egg-floodman-operations-mobile-v4.7.3.json
+Launcher: deployment/releases/mobile-start-v4.7.3.sh
+Runtime: deployment/releases/floodman-operations-runtime-v4.7.3.zip
 Startup: bash ./mobile-start.sh
 Time zone: America/Detroit
 ```
 
-The 2026-08-18 deployment artifacts are regenerated from the verified current source. The egg installs the matched v4.7.0 launcher but does not embed the runtime ZIP: upload the ZIP to `/home/container` without extracting it before the first start. The package includes suite-owned RoomFlow Capture, unified authentication/workspaces, offline/revision APIs, the stable Supabase importer, and checksum-verified network-independent RoomFlow assets used by Android 0.4.0-alpha01 and future Apple builds. The `release-artifacts/` directory is historical rollback provenance and is not the current upload source.
+The v4.7.3 egg installs the matched launcher and downloads the missing runtime ZIP from immutable GitHub commit `0f9bc8553d776270267d7f2b7df6f857f6011bfe`, verifying SHA-256 before moving it into `/home/container`. An existing matching ZIP is retained; a mismatch stops installation without overwriting the file. The package simplifies the daily Business Suite, reduces page clutter, and makes Properties strictly customer-scoped while retaining the complete v4.7.2 call-intake, team, and notification feature set. All v4.7.2 artifacts remain frozen rollback evidence.
 
 Current deployable SHA-256 values:
 
 ```text
-733514138066eab31940c771918dddaf18204c4d26a071daf9a063965f7e967a  floodman-operations-runtime-v4.7.0.zip
-38687babc4bc418d99bddca7a72760e430d724d3fe1d1b382ed71229d3c0c6b4  mobile-start-v4.7.0.sh
-a001d11b4443c921b50a3b54671114ef9b94ba2119818d7b7dba8c67916ed76b  egg-floodman-operations-mobile-v4.7.0.json
+f72e0894ddeb90665d04de878a59502b2d4ab81863f00c0409bbe46acbdd0839  floodman-operations-runtime-v4.7.3.zip
+511a87e9b771ef733c6937000db577a18c5313438495533db5fcb6add2855124  mobile-start-v4.7.3.sh
+a836789d63fd7d0c1be742e4ae1a28c9d470f3e568a79e9b2d8b89aa1143923e  egg-floodman-operations-mobile-v4.7.3.json
 ```
 
-The launcher checksum above includes the 2026-08-18 startup repair. The first uploaded launcher aborted after RoomFlow preparation because it searched the current panel for the retired heading `Estimate headers & line items`. The runtime ZIP was already correct and its checksum is unchanged. If that exact error appears, leave the ZIP in place and replace only `mobile-start.sh` with the launcher above. The release verifier now checks every fixed `$overlay_root` launcher assertion against the exact source packaged in the ZIP.
+The current launcher retains the 2026-08-18 startup-preflight repair and verifies every fixed `$overlay_root` assertion against the exact source packaged in the ZIP. Do not combine a launcher, runtime, or egg from different version rows.
 
-Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and create `/home/container/config/tailscale-auth-key.txt` with a one-off non-ephemeral Tailscale auth key. The staff system remains private through Tailscale.
+Before a fresh start, set real company/Owner values, replace the Owner password placeholder, assign ports 9000 through 9004, and configure the six `https://` URL fields for `oninetwork.com`. The external proxy must protect staff, signing administration, API documentation, and Engineering routes. No overlay-network key is required.
 
-To reproduce these artifacts after an approved same-version source repair:
+To reproduce these artifacts from the approved v4.7.3 source:
 
 ```bash
 python scripts/package_pterodactyl_release.py
@@ -56,7 +56,7 @@ Keep these under persistent Pterodactyl storage:
 /home/container/backups
 ```
 
-Do not bake live customer data, PostgreSQL files, Tailscale state, payment credentials, or signing records into the image.
+Do not bake live customer data, PostgreSQL files, retired network-overlay state, payment credentials, or signing records into the image.
 
 ## Preferred migration to source-built image
 

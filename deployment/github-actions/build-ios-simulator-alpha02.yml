@@ -140,7 +140,7 @@ jobs:
           FLOODMAN_API_BASE_URL: ${{ vars.FLOODMAN_API_BASE_URL }}
         run: |
           set -o pipefail
-          api_url="${FLOODMAN_API_BASE_URL:-https://floodman-operations.tail274417.ts.net/mobile-api/}"
+          api_url="${FLOODMAN_API_BASE_URL:-https://api.oninetwork.com/mobile-api/}"
           xcodebuild \
             -project FloodmanOperations.xcodeproj \
             -scheme FloodmanOperations \

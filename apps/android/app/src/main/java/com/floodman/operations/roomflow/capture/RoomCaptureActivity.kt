@@ -22,6 +22,8 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.FragmentActivity
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
@@ -70,6 +72,14 @@ class RoomCaptureActivity : FragmentActivity() {
 
     private fun buildUi(): View {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, windowInsets ->
+            val safeInsets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom)
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(root)
         surfaceView = android.opengl.GLSurfaceView(this).apply {
             preserveEGLContextOnPause = true
             setEGLContextClientVersion(2)

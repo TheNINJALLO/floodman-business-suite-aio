@@ -42,7 +42,7 @@
 - [ ] Clean startup and second restart.
 - [ ] `/office-health/live` and `/mobile-api/v1/health` return expected versions.
 - [ ] Automatic, desktop and mobile workspaces render correctly.
-- [ ] Full ERP signed-out and signed-in routes work through Tailscale `:8443`.
+- [ ] Full ERP signed-out and signed-in routes work through `https://floodman.oninetwork.com`.
 - [ ] Customer search works with 1,000+ records.
 - [ ] CSV and ZIP import preview/commit works.
 - [ ] Estimate grouped headers are editable.
@@ -52,7 +52,7 @@
 - [ ] Square sandbox online/card-on-file/manual payment paths reconcile.
 - [ ] Invoice converts, sends, receives payment and becomes a receipt.
 - [ ] Calendar assignments/conflicts/tasks/time clock work.
-- [ ] Android repeats core lifecycle without Tailscale.
+- [ ] Android repeats the core lifecycle through `https://api.oninetwork.com/mobile-api/`.
 - [ ] Apple simulator opens and authenticates.
 
 ## Dedicated-server cutover

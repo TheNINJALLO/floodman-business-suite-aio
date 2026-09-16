@@ -20,7 +20,7 @@ fun propertyOrEnvironment(name: String, defaultValue: String = ""): String =
 
 val apiBaseUrl = propertyOrEnvironment(
     "FLOODMAN_API_BASE_URL",
-    "https://floodman-operations.tail274417.ts.net/mobile-api/"
+    "https://api.oninetwork.com/mobile-api/"
 ).let { if (it.endsWith('/')) it else "$it/" }
 val squareApplicationId = propertyOrEnvironment("SQUARE_APPLICATION_ID", "REPLACE_WITH_SQUARE_APPLICATION_ID")
 val keystorePath = propertyOrEnvironment("FLOODMAN_KEYSTORE_PATH")

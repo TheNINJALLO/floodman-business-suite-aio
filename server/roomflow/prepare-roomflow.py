@@ -13,7 +13,7 @@ from html.parser import HTMLParser
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
-RELEASE = "4.7.0"
+RELEASE = "4.7.3"
 ROOMFLOW_COMMIT = "1f97817a52b916875e50cc6380c0d284072b8ce8"
 ARCHIVE_URL = f"https://github.com/TheNINJALLO/roomflow/archive/{ROOMFLOW_COMMIT}.tar.gz"
 RELEASE_ASSETS = Path(__file__).resolve().with_name("release-assets")
@@ -257,7 +257,7 @@ def fallback(target: Path, error: Exception) -> None:
     target.mkdir(parents=True, exist_ok=True)
     message = str(error).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     (target / "index.html").write_text(
-        f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Floodman RoomFlow</title><style>body{{margin:0;background:#eef5fb;color:#102443;font-family:Inter,Segoe UI,Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}}main{{max-width:650px;background:#fff;border-radius:22px;padding:28px;box-shadow:0 22px 60px rgba(15,43,70,.17)}}a{{color:#146ca4}}</style></head><body><main><h1>Floodman RoomFlow package needs attention</h1><p>The Floodman suite is running, but its checksummed RoomFlow release assets could not be prepared.</p><pre>{message}</pre><p>Reinstall the matching Floodman runtime package. Do not substitute an unreviewed RoomFlow download.</p><p><a href='/office' target='_top'>Return to Floodman Operations</a></p></main></body></html>""",
+        f"""<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Floodman RoomFlow</title><style>body{{margin:0;background:#eef5fb;color:#102443;font-family:"Segoe UI",Arial,sans-serif;display:grid;place-items:center;min-height:100vh;padding:24px;box-sizing:border-box}}main{{max-width:650px;background:#fff;border-radius:22px;padding:28px;box-shadow:0 22px 60px rgba(15,43,70,.17)}}a{{color:#146ca4}}</style></head><body><main><h1>Floodman RoomFlow package needs attention</h1><p>The Floodman suite is running, but its checksummed RoomFlow release assets could not be prepared.</p><pre>{message}</pre><p>Reinstall the matching Floodman runtime package. Do not substitute an unreviewed RoomFlow download.</p><p><a href='/office' target='_top'>Return to Floodman Operations</a></p></main></body></html>""",
         encoding="utf-8",
     )
     (target / ".floodman-roomflow-error.txt").write_text(str(error), encoding="utf-8")
